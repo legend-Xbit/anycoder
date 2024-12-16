@@ -400,3 +400,8 @@ playai-gradio @ git+https://github.com/AK391/playai-gradio.git
 lumaai-gradio @ git+https://github.com/AK391/lumaai-gradio.git
 
 cohere-gradio @ git+https://github.com/AK391/cohere-gradio.git
+
+gradio_webrtc==0.0.23
+librosa
+python-dotenv
+twilio

@@ -26,9 +26,12 @@ from app_together import demo as demo_together
 from app_xai import demo as demo_grok
 from app_showui import demo as demo_showui
 from app_omini import demo as demo_omini
+from app_gemini_voice import demo as demo_gemini_voice
+
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Gemini Voice": demo_gemini_voice(),
     "Gemini": demo_gemini,
     "Grok": demo_grok,
     "Cohere": demo_cohere,
@@ -58,7 +61,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Gemini",
+    default_model="Gemini Voice",
     src=PROVIDERS,
     dropdown_label="Select Provider"
 )
