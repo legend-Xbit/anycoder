@@ -173,22 +173,11 @@ class GeminiVoiceChat:
                 </div>
             """)
             
-            rtc_config = {
-                "iceServers": [
-                    {"urls": ["stun:stun.l.google.com:19302"]}
-                ]
-            }
-            
-            try:
-                rtc_config = get_twilio_turn_credentials()
-            except Exception as e:
-                print(f"Using fallback STUN configuration: {e}")
-            
             webrtc = WebRTC(
                 label="Conversation",
                 modality="audio",
                 mode="send-receive",
-                rtc_configuration=rtc_config
+                rtc_configuration=get_twilio_turn_credentials()
             )
             
             webrtc.stream(
@@ -201,12 +190,7 @@ class GeminiVoiceChat:
         return demo
 
     def launch(self):
-        self.demo.launch(
-            server_name="0.0.0.0",
-            server_port=int(os.environ.get("PORT", 7860)),
-            share=False
-        )
-
+        self.demo.launch()
 # Create and expose the demo instance
 def demo():
     chat = GeminiVoiceChat()

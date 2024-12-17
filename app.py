@@ -1,5 +1,6 @@
 from utils import get_app
 
+
 # Import all demos
 from app_cohere import demo as demo_cohere
 from app_meta import demo as demo_meta
@@ -69,9 +70,6 @@ demo = get_app(
 if __name__ == "__main__":
     demo.queue(
         api_open=False,
-        max_size=20
     ).launch(
-        show_api=False,
-        share=True,
-        server_name="0.0.0.0"
+        show_api=False
     )
