@@ -1,7 +1,5 @@
 from app_allenai import demo as demo_allenai
 from app_claude import demo as demo_claude
-
-# Import all demos
 from app_cohere import demo as demo_cohere
 from app_experimental import demo as demo_experimental
 from app_fal import demo as demo_fal
@@ -61,6 +59,4 @@ PROVIDERS = {
 demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
-    demo.queue(
-        api_open=False,
-    ).launch(show_api=False)
+    demo.queue(api_open=False).launch(show_api=False)
