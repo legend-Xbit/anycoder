@@ -67,4 +67,11 @@ demo = get_app(
 )
 
 if __name__ == "__main__":
-    demo.queue(api_open=False).launch(show_api=False)
+    demo.queue(
+        api_open=False,
+        max_size=20
+    ).launch(
+        show_api=False,
+        share=True,
+        server_name="0.0.0.0"
+    )
