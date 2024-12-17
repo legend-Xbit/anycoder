@@ -14,7 +14,7 @@ def get_app(
     def update_model(new_model: str) -> list[gr.Column]:
         return [gr.Column(visible=model_name == new_model) for model_name in models]
 
-    with gr.Blocks() as demo:
+    with gr.Blocks(fill_height=True) as demo:
         model = gr.Dropdown(label=dropdown_label, choices=models, value=default_model)
 
         columns = []
