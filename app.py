@@ -31,7 +31,7 @@ from app_gemini_voice import demo as demo_gemini_voice
 
 # Create mapping of providers to their demos
 PROVIDERS = {
-    "Gemini Voice": demo_gemini_voice(),
+    "Gemini Voice": demo_gemini_voice,
     "Gemini": demo_gemini,
     "Grok": demo_grok,
     "Cohere": demo_cohere,

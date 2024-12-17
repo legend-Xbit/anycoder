@@ -199,11 +199,10 @@ class GeminiVoiceChat:
             ssl_certfile=None
         )
 
+# Create and expose the demo instance
 def demo():
-    voice_chat = GeminiVoiceChat()
-    return voice_chat.demo
+    chat = GeminiVoiceChat()
+    return chat.demo
 
-# This allows both direct running and importing
-if __name__ == "__main__":
-    app = GeminiVoiceChat()
-    app.launch()
+# This is what will be imported by app.py
+demo = demo()
