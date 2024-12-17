@@ -28,8 +28,8 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
-    "Gemini": demo_gemini,
     "Gemini Voice": demo_gemini_voice,
+    "Gemini": demo_gemini,
     "Grok": demo_grok,
     "Cohere": demo_cohere,
     "SambaNova": demo_sambanova,
@@ -56,7 +56,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini Voice", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
