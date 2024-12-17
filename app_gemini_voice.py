@@ -103,9 +103,9 @@ class GeminiHandler(StreamHandler):
                     self.all_output_data = audio_array
                 else:
                     self.all_output_data = np.concatenate((self.all_output_data, audio_array))
-                
+
                 while self.all_output_data.shape[-1] >= self.output_frame_size:
-                    yield (self.output_sample_rate, 
+                    yield (self.output_sample_rate,
                           self.all_output_data[:self.output_frame_size].reshape(1, -1))
                     self.all_output_data = self.all_output_data[self.output_frame_size:]
 
@@ -119,7 +119,7 @@ class GeminiHandler(StreamHandler):
             try:
                 message = self.ws.recv(timeout=5)
                 msg = json.loads(message)
-                
+
                 if 'serverContent' in msg:
                     content = msg['serverContent'].get('modelTurn', {})
                     yield from self._process_server_content(content)
@@ -172,14 +172,14 @@ class GeminiVoiceChat:
                     <p>Speak with Gemini using real-time audio streaming</p>
                 </div>
             """)
-            
+
             webrtc = WebRTC(
                 label="Conversation",
                 modality="audio",
                 mode="send-receive",
                 rtc_configuration=get_twilio_turn_credentials()
             )
-            
+
             webrtc.stream(
                 GeminiHandler(),
                 inputs=[webrtc],
@@ -198,3 +198,6 @@ def demo():
 
 # This is what will be imported by app.py
 demo = demo()
+
+if __name__ == "__main__":
+    demo.launch(server_name="0.0.0.0")
