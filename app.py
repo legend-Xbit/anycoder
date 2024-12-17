@@ -30,6 +30,7 @@ from utils import get_app
 PROVIDERS = {
     "Gemini Voice": demo_gemini_voice,
     "Gemini": demo_gemini,
+    "ChatGPT": demo_openai,
     "Grok": demo_grok,
     "Cohere": demo_cohere,
     "SambaNova": demo_sambanova,
@@ -47,7 +48,6 @@ PROVIDERS = {
     "Fal": demo_fal,
     "ShowUI": demo_showui,
     "PlayAI": demo_playai,
-    "ChatGPT": demo_openai,
     "Claude": demo_claude,
     "Allen AI": demo_allenai,
     "Perplexity": demo_perplexity,

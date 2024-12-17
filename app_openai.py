@@ -24,8 +24,9 @@ demo = get_app(
         "gpt-4-1106-preview",
         "gpt-4",
         "gpt-4-0613",
+        "o1-2024-12-17",
     ],
-    default_model="gpt-4o-2024-11-20",
+    default_model="o1-2024-12-17",
     src=openai_gradio.registry,
     accept_token=not os.getenv("OPENAI_API_KEY"),
 )
