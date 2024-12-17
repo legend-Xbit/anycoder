@@ -62,7 +62,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Gemini Voice",
+    default_model="Gemini",
     src=PROVIDERS,
     dropdown_label="Select Provider"
 )
