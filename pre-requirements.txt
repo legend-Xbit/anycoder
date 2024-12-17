@@ -2,4 +2,5 @@ gradio_webrtc==0.0.23
 librosa
 python-dotenv
 twilio
+websockets==14.1
 git+https://github.com/AK391/transformers-gradio.git
