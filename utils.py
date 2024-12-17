@@ -1,4 +1,4 @@
-from typing import Callable, Literal, Dict, Union
+from typing import Callable, Dict, Literal, Union
 
 import gradio as gr
 
