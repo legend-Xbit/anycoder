@@ -289,7 +289,7 @@ numpy==1.26.4
     #   soxr
 nvidia-gradio @ git+https://github.com/AK391/nvidia-gradio.git@735cc0ba06afb44eeef789d8c0c35b1fc61fee16
     # via anychat (pyproject.toml)
-openai==1.55.0
+openai==1.58.1
     # via
     #   dashscope-gradio
     #   fireworks-gradio
