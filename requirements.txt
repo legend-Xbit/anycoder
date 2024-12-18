@@ -300,7 +300,7 @@ openai==1.55.0
     #   sambanova-gradio
     #   together-gradio
     #   xai-gradio
-openai-gradio==0.0.4
+openai-gradio==0.0.5
     # via anychat (pyproject.toml)
 orjson==3.10.11
     # via gradio

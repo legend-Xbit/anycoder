@@ -24,10 +24,12 @@ from app_sambanova import demo as demo_sambanova
 from app_showui import demo as demo_showui
 from app_together import demo as demo_together
 from app_xai import demo as demo_grok
+from app_openai_voice import demo as demo_openai_voice
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "OpenAI Voice": demo_openai_voice,
     "Gemini Voice": demo_gemini_voice,
     "Gemini": demo_gemini,
     "LumaAI": demo_lumaai,
@@ -56,7 +58,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini Voice", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="OpenAI Voice", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
