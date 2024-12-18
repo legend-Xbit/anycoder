@@ -13,7 +13,7 @@ demo = get_app(
         "gpt-4o-mini-realtime-preview-2024-12-17",
     ],
     default_model="gpt-4o-mini-realtime-preview-2024-12-17",
-    src=openai_gradio,
+    src=openai_gradio.registry,
     accept_token=not os.getenv("OPENAI_API_KEY"),
 )
 
