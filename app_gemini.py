@@ -13,8 +13,9 @@ demo = get_app(
         "gemini-exp-1121",
         "gemini-exp-1206",
         "gemini-2.0-flash-exp",
+        "gemini-2.0-flash-thinking-exp-1219",
     ],
-    default_model="gemini-2.0-flash-exp",
+    default_model="gemini-2.0-flash-thinking-exp-1219",
     src=gemini_gradio.registry,
     accept_token=not os.getenv("GEMINI_API_KEY"),
 )
