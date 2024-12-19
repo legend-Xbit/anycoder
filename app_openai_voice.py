@@ -15,6 +15,8 @@ demo = get_app(
     default_model="gpt-4o-mini-realtime-preview-2024-12-17",
     src=openai_gradio.registry,
     accept_token=not os.getenv("OPENAI_API_KEY"),
+    twilio_sid=os.getenv("TWILIO_SID_OPENAI"),
+    twilio_token=os.getenv("TWILIO_AUTH_OPENAI"),
 )
 
 if __name__ == "__main__":

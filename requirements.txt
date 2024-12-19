@@ -300,7 +300,7 @@ openai==1.58.1
     #   sambanova-gradio
     #   together-gradio
     #   xai-gradio
-openai-gradio @ git+https://github.com/gradio-app/openai-gradio.git@98fdc6e65ca441baf7c2924bea35085ce81cf0f6
+openai-gradio @ git+https://github.com/gradio-app/openai-gradio.git@1fee0dc68b575037d648d26fe8e23f47b0506e8a
     # via anychat (pyproject.toml)
 orjson==3.10.11
     # via gradio
