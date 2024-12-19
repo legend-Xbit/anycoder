@@ -113,7 +113,7 @@ fsspec==2024.10.0
     # via
     #   gradio-client
     #   huggingface-hub
-gemini-gradio==0.0.2
+gemini-gradio==0.0.3
     # via anychat (pyproject.toml)
 google-ai-generativelanguage==0.6.10
     # via google-generativeai
