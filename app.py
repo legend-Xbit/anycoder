@@ -18,7 +18,6 @@ from app_openai import demo as demo_openai
 from app_paligemma import demo as demo_paligemma
 from app_perplexity import demo as demo_perplexity
 from app_playai import demo as demo_playai
-from app_qwen import demo as demo_qwen
 from app_replicate import demo as demo_replicate
 from app_sambanova import demo as demo_sambanova
 from app_showui import demo as demo_showui
@@ -29,7 +28,6 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
-    "Qwen": demo_qwen,
     "Gemini": demo_gemini,
     "OpenAI Voice": demo_openai_voice,
     "Gemini Voice": demo_gemini_voice,
@@ -58,7 +56,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Qwen", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
