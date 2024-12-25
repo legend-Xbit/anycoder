@@ -29,6 +29,7 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Qwen": demo_qwen,
     "Gemini": demo_gemini,
     "OpenAI Voice": demo_openai_voice,
     "Gemini Voice": demo_gemini_voice,
@@ -44,7 +45,6 @@ PROVIDERS = {
     "Groq": demo_groq,
     "Meta Llama": demo_meta,
     "Paligemma": demo_paligemma,
-    "Qwen": demo_qwen,
     "Replicate": demo_replicate,
     "Huggingface": demo_huggingface,
     "Fal": demo_fal,
@@ -58,7 +58,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="Qwen", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)

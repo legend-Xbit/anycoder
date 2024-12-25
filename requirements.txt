@@ -513,3 +513,4 @@ xai-gradio==0.0.2
     # via anychat (pyproject.toml)
 yarl==1.18.3
     # via aiohttp
+ai-gradio==0.1.5
