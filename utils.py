@@ -22,9 +22,13 @@ def get_app(
             with gr.Column(visible=model_name == default_model) as column:
                 if isinstance(src, dict):
                     if ':' in model_name:  # Handle provider:model format
-                        src[f"qwen:{model_name}"].render()
-
+                        provider, model = model_name.split(':')
+                        if f"{provider}:{model}" in src:
+                            src[f"{provider}:{model}"].render()
+                        else:
+                            raise ValueError(f"Model {model_name} not found in registry. Available models: {list(src.keys())}")
                     else:
+                        # Default provider handling if needed
                         src[model_name].render()
 
                 else:
