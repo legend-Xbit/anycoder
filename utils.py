@@ -24,7 +24,7 @@ def get_app(
                     if ':' in model_name:  # Handle provider:model format
                         provider, model = model_name.split(':')
                         if f"{provider}:{model}" in src:
-                            src[f"{provider}:{model}"].render()
+                            src[f"{provider}:{model}"](name=model_name, **kwargs)
                         else:
                             raise ValueError(f"Model {model_name} not found in registry. Available models: {list(src.keys())}")
                     else:
