@@ -72,7 +72,7 @@ cryptography==44.0.0
     # via
     #   aiortc
     #   pyopenssl
-dashscope-gradio @ git+https://github.com/AK391/dashscope-gradio.git@7b9d7fc8d726229f5e46fff239baff280f973c8c
+dashscope-gradio @ git+https://github.com/AK391/dashscope-gradio.git@afe2a389fd194e71ca4c12e6162f3f0fd3cf534a
     # via anychat (pyproject.toml)
 decorator==5.1.1
     # via librosa
@@ -513,4 +513,3 @@ xai-gradio==0.0.2
     # via anychat (pyproject.toml)
 yarl==1.18.3
     # via aiohttp
-ai-gradio==0.1.5
