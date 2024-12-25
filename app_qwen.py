@@ -19,7 +19,7 @@ demo = get_app(
         "qwen:qvq-72b-preview",
     ],
     default_model="qwen:qvq-72b-preview",
-    src=ai_gradio.registry.values(),
+    src=ai_gradio.registry,
     accept_token=not os.getenv("DASHSCOPE_API_KEY"),
 )
 
