@@ -21,7 +21,12 @@ def get_app(
         for model_name in models:
             with gr.Column(visible=model_name == default_model) as column:
                 if isinstance(src, dict):
-                    src[model_name].render()
+                    if ':' in model_name:  # Handle provider:model format
+                        src[f"qwen:{model_name}"].render()
+
+                    else:
+                        src[model_name].render()
+
                 else:
                     gr.load(name=model_name, src=src, accept_token=accept_token, **kwargs)
             columns.append(column)
