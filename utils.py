@@ -22,16 +22,19 @@ def get_app(
             with gr.Column(visible=model_name == default_model) as column:
                 if isinstance(src, dict):
                     if ':' in model_name:
-                        src[model_name].render()
+                        block = src[model_name]
                     else:
                         model_key = f"qwen:{model_name}"
-                        if model_key in src:
-                            src[model_key].render()
-                        else:
-                            src[model_name].render()
+                        block = src.get(model_key, src.get(model_name))
+                    
+                    if isinstance(block, gr.Blocks):
+                        block.render()
+                    else:
+                        # Handle the case where block is a function
+                        block().render()
                 else:
                     gr.load(name=model_name, src=src, accept_token=accept_token, **kwargs)
-            columns.append(column)
+                columns.append(column)
 
         model.change(
             fn=update_model,
