@@ -30,8 +30,8 @@ def get_app(
                     if isinstance(block, gr.Blocks):
                         block.render()
                     else:
-                        # Handle the case where block is a function
-                        block().render()
+                        # Handle the case where block is a function by passing the model name
+                        block(name=model_name).render()
                 else:
                     gr.load(name=model_name, src=src, accept_token=accept_token, **kwargs)
                 columns.append(column)
