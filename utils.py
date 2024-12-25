@@ -33,7 +33,11 @@ def get_app(
                         # Handle the case where block is a function by passing the model name
                         block(name=model_name).render()
                 else:
-                    gr.load(name=model_name, src=src, accept_token=accept_token, **kwargs)
+                    # If src is a function, call it directly with the model name
+                    if callable(src):
+                        src(model_name, accept_token).render()
+                    else:
+                        gr.load(name=model_name, src=src, accept_token=accept_token, **kwargs)
                 columns.append(column)
 
         model.change(
