@@ -21,16 +21,7 @@ def get_app(
         for model_name in models:
             with gr.Column(visible=model_name == default_model) as column:
                 if isinstance(src, dict):
-                    if ':' in model_name:  # Handle provider:model format
-                        provider, model = model_name.split(':')
-                        if f"{provider}:{model}" in src:
-                            src[f"{provider}:{model}"](name=model_name, **kwargs)
-                        else:
-                            raise ValueError(f"Model {model_name} not found in registry. Available models: {list(src.keys())}")
-                    else:
-                        # Default provider handling if needed
-                        src[model_name].render()
-
+                    src[model_name].render()
                 else:
                     gr.load(name=model_name, src=src, accept_token=accept_token, **kwargs)
             columns.append(column)
