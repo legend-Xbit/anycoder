@@ -19,7 +19,7 @@ demo = get_app(
         "qvq-72b-preview",
     ],
     default_model="qvq-72b-preview",
-    src=ai_gradio.registry,
+    src=dashscope_gradio.registry,
     accept_token=not os.getenv("DASHSCOPE_API_KEY"),
 )
 
