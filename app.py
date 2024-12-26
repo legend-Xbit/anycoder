@@ -25,10 +25,12 @@ from app_together import demo as demo_together
 from app_xai import demo as demo_grok
 from app_openai_voice import demo as demo_openai_voice
 from app_qwen import demo as demo_qwen
+from app_deepseek import demo as demo_deepseek
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "DeepSeek": demo_deepseek,
     "Qwen" : demo_qwen,
     "Gemini": demo_gemini,
     "OpenAI Voice": demo_openai_voice,
@@ -58,7 +60,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Qwen", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="DeepSeek", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
