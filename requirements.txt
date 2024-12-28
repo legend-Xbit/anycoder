@@ -514,3 +514,4 @@ xai-gradio==0.0.2
 yarl==1.18.3
     # via aiohttp
 ai-gradio[deepseek]==0.1.6
+ai-gradio[crewai]==0.1.6
