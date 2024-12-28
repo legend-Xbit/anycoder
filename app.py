@@ -26,7 +26,6 @@ from app_xai import demo as demo_grok
 from app_openai_voice import demo as demo_openai_voice
 from app_qwen import demo as demo_qwen
 from app_deepseek import demo as demo_deepseek
-from app_crew import demo as demo_crew
 from utils import get_app
 
 # Create mapping of providers to their demos
@@ -36,7 +35,6 @@ PROVIDERS = {
     "Gemini": demo_gemini,
     "OpenAI Voice": demo_openai_voice,
     "Gemini Voice": demo_gemini_voice,
-    "CrewAI": demo_crew,
     "LumaAI": demo_lumaai,
     "ChatGPT": demo_openai,
     "Grok": demo_grok,
