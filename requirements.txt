@@ -33,7 +33,7 @@ anyio==4.6.2.post1
     #   lumaai
     #   openai
     #   starlette
-async-timeout==5.0.1
+async-timeout>=4.0.0,<5.0.0
     # via aiohttp
 attrs==24.3.0
     # via aiohttp
@@ -68,7 +68,7 @@ cohere==5.13.3
     # via cohere-gradio
 cohere-gradio @ git+https://github.com/AK391/cohere-gradio.git@f514496532579574b9bdd55c07e2eb14f2ddf1b0
     # via anychat (pyproject.toml)
-cryptography==44.0.0
+cryptography>=43.0.1,<44.0
     # via
     #   aiortc
     #   pyopenssl
@@ -231,7 +231,7 @@ ifaddr==0.2.0
     # via aioice
 jinja2==3.1.4
     # via gradio
-jiter==0.7.1
+jiter>=0.4.1,<0.5.0
     # via
     #   anthropic
     #   openai
@@ -304,7 +304,7 @@ openai-gradio @ git+https://github.com/gradio-app/openai-gradio.git@895b5a225cf4
     # via anychat (pyproject.toml)
 orjson==3.10.11
     # via gradio
-packaging==24.2
+packaging>=23.2,<24.0
     # via
     #   gradio
     #   gradio-client
@@ -463,7 +463,7 @@ tqdm==4.67.0
     #   openai
 twilio==9.4.1
     # via anychat (pyproject.toml)
-typer==0.13.1
+typer>=0.12.0,<0.14.0
     # via gradio
 types-requests==2.32.0.20241016
     # via cohere
@@ -513,5 +513,9 @@ xai-gradio==0.0.2
     # via anychat (pyproject.toml)
 yarl==1.18.3
     # via aiohttp
-ai-gradio[deepseek]==0.1.6
-#ai-gradio[crewai]==0.1.6
+ai-gradio[deepseek,crewai]==0.1.6
+crewai==0.86.0
+instructor==1.3.3
+crewai-tools>=0.17.0
+langchain>=0.2.16
+openai>=1.58.1
