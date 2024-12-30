@@ -1,3 +1,4 @@
+from app_lumaai import demo as demo_lumaai
 from app_allenai import demo as demo_allenai
 from app_claude import demo as demo_claude
 from app_cohere import demo as demo_cohere
@@ -9,7 +10,6 @@ from app_gemini_voice import demo as demo_gemini_voice
 from app_groq import demo as demo_groq
 from app_huggingface import demo as demo_huggingface
 from app_hyperbolic import demo as demo_hyperbolic
-from app_lumaai import demo as demo_lumaai
 from app_meta import demo as demo_meta
 from app_mistral import demo as demo_mistral
 from app_nvidia import demo as demo_nvidia
