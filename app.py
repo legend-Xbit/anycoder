@@ -26,12 +26,14 @@ from app_openai_voice import demo as demo_openai_voice
 from app_qwen import demo as demo_qwen
 from app_deepseek import demo as demo_deepseek
 from app_crew import demo as demo_crew
+from app_compare import demo as demo_compare
 from app_hyperbolic import demo as demo_hyperbolic
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
     "DeepSeek": demo_deepseek,
+    "Compare": demo_compare,
     "Qwen" : demo_qwen,
     "Gemini": demo_gemini,
     "OpenAI Voice": demo_openai_voice,
