@@ -21,6 +21,7 @@ demo = get_app(
     choices=GEMINI_MODELS_DISPLAY,  # Display names without prefix
     src=ai_gradio.registry,
     fill_height=True,
+    coder=True,
 )
 
 if __name__ == "__main__":

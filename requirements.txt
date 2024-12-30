@@ -513,7 +513,7 @@ xai-gradio==0.0.2
     # via anychat (pyproject.toml)
 yarl==1.18.3
     # via aiohttp
-ai-gradio[deepseek,crewai,hyperbolic,openai]==0.1.8
+ai-gradio[deepseek,crewai,hyperbolic,openai,gemini]==0.1.9
 crewai==0.86.0
 instructor==1.3.3
 crewai-tools>=0.17.0

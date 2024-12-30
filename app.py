@@ -27,10 +27,12 @@ from app_crew import demo as demo_crew
 from app_compare import demo as demo_compare
 from app_hyperbolic import demo as demo_hyperbolic
 from app_openai import demo as demo_openai
+from app_gemini_coder import demo as demo_gemini_coder
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Gemini Coder": demo_gemini_coder,
     "DeepSeek": demo_deepseek,
     "OpenAI": demo_openai,
     "Compare": demo_compare,
@@ -62,7 +64,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="DeepSeek", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini Coder", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
