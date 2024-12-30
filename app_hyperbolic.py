@@ -1,27 +1,25 @@
-import os
+import ai_gradio
+from utils_hyperbolic import get_app
 
-import hyperbolic_gradio
+# Get the hyperbolic models but keep their full names for loading
+HYPERBOLIC_MODELS_FULL = [
+    k for k in ai_gradio.registry.keys() 
+    if k.startswith('hyperbolic:')
+]
 
-from utils import get_app
+# Create display names without the prefix
+HYPERBOLIC_MODELS_DISPLAY = [
+    k.replace('hyperbolic:', '') 
+    for k in HYPERBOLIC_MODELS_FULL
+]
 
+
+# Create and launch the interface using get_app utility
 demo = get_app(
-    models=[
-        "Qwen/Qwen2.5-Coder-32B-Instruct",
-        "meta-llama/Llama-3.2-3B-Instruct",
-        "meta-llama/Meta-Llama-3.1-8B-Instruct",
-        "meta-llama/Meta-Llama-3.1-70B-Instruct",
-        "meta-llama/Meta-Llama-3-70B-Instruct",
-        "NousResearch/Hermes-3-Llama-3.1-70B",
-        "Qwen/Qwen2.5-72B-Instruct",
-        "deepseek-ai/DeepSeek-V2.5",
-        "meta-llama/Meta-Llama-3.1-405B-Instruct",
-        "Qwen/QwQ-32B-Preview",
-        "meta-llama/Llama-3.3-70B-Instruct",
-    ],
-    default_model="meta-llama/Llama-3.3-70B-Instruct",
-    src=hyperbolic_gradio.registry,
-    accept_token=not os.getenv("HYPERBOLIC_API_KEY"),
+    models=HYPERBOLIC_MODELS_FULL,  # Use the full names with prefix
+    default_model=HYPERBOLIC_MODELS_FULL[-1],
+    dropdown_label="Select Hyperbolic Model",
+    choices=HYPERBOLIC_MODELS_DISPLAY,  # Display names without prefix
+    fill_height=True
 )
 
-if __name__ == "__main__":
-    demo.launch()
