@@ -5,8 +5,6 @@ from app_cohere import demo as demo_cohere
 from app_experimental import demo as demo_experimental
 from app_fal import demo as demo_fal
 from app_fireworks import demo as demo_fireworks
-from app_gemini import demo as demo_gemini
-from app_gemini_voice import demo as demo_gemini_voice
 from app_groq import demo as demo_groq
 from app_huggingface import demo as demo_huggingface
 from app_meta import demo as demo_meta
@@ -28,6 +26,8 @@ from app_compare import demo as demo_compare
 from app_hyperbolic import demo as demo_hyperbolic
 from app_openai import demo as demo_openai
 from app_gemini_coder import demo as demo_gemini_coder
+from app_gemini import demo as demo_gemini
+from app_gemini_voice import demo as demo_gemini_voice
 from utils import get_app
 
 # Create mapping of providers to their demos
