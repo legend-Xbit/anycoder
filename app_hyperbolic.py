@@ -1,5 +1,5 @@
 import ai_gradio
-from utils_hyperbolic import get_app
+from utils_ai_gradio import get_app
 
 # Get the hyperbolic models but keep their full names for loading
 HYPERBOLIC_MODELS_FULL = [

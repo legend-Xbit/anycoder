@@ -13,7 +13,6 @@ from app_meta import demo as demo_meta
 from app_mistral import demo as demo_mistral
 from app_nvidia import demo as demo_nvidia
 from app_omini import demo as demo_omini
-from app_openai import demo as demo_openai
 from app_paligemma import demo as demo_paligemma
 from app_perplexity import demo as demo_perplexity
 from app_playai import demo as demo_playai
@@ -22,26 +21,25 @@ from app_sambanova import demo as demo_sambanova
 from app_showui import demo as demo_showui
 from app_together import demo as demo_together
 from app_xai import demo as demo_grok
-from app_openai_voice import demo as demo_openai_voice
 from app_qwen import demo as demo_qwen
 from app_deepseek import demo as demo_deepseek
 from app_crew import demo as demo_crew
 from app_compare import demo as demo_compare
 from app_hyperbolic import demo as demo_hyperbolic
+from app_openai import demo as demo_openai
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
     "DeepSeek": demo_deepseek,
+    "OpenAI": demo_openai,
     "Compare": demo_compare,
     "Qwen" : demo_qwen,
     "Gemini": demo_gemini,
-    "OpenAI Voice": demo_openai_voice,
     "Gemini Voice": demo_gemini_voice,
     "Hyperbolic": demo_hyperbolic,
     "CrewAI": demo_crew,
     "LumaAI": demo_lumaai,
-    "ChatGPT": demo_openai,
     "Grok": demo_grok,
     "Cohere": demo_cohere,
     "SambaNova": demo_sambanova,
