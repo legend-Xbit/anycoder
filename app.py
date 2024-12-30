@@ -9,7 +9,6 @@ from app_gemini import demo as demo_gemini
 from app_gemini_voice import demo as demo_gemini_voice
 from app_groq import demo as demo_groq
 from app_huggingface import demo as demo_huggingface
-from app_hyperbolic import demo as demo_hyperbolic
 from app_meta import demo as demo_meta
 from app_mistral import demo as demo_mistral
 from app_nvidia import demo as demo_nvidia
@@ -27,6 +26,7 @@ from app_openai_voice import demo as demo_openai_voice
 from app_qwen import demo as demo_qwen
 from app_deepseek import demo as demo_deepseek
 from app_crew import demo as demo_crew
+from app_hyperbolic import demo as demo_hyperbolic
 from utils import get_app
 
 # Create mapping of providers to their demos
