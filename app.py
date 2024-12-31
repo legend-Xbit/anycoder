@@ -29,14 +29,12 @@ from app_gemini_coder import demo as demo_gemini_coder
 from app_gemini import demo as demo_gemini
 from app_gemini_voice import demo as demo_gemini_voice
 from app_hyperbolic_coder import demo as demo_hyperbolic_coder
-from app_smolagents import demo as demo_smolagents
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
     "Gemini Coder": demo_gemini_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
-    "SmolAgents": demo_smolagents,
     "DeepSeek": demo_deepseek,
     "OpenAI": demo_openai,
     "Compare": demo_compare,
