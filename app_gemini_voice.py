@@ -24,5 +24,3 @@ demo = get_app(
     fill_height=True,
 )
 
-if __name__ == "__main__":
-    demo.launch()

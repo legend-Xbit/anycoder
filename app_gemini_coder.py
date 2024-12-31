@@ -24,5 +24,3 @@ demo = get_app(
     coder=True,
 )
 
-if __name__ == "__main__":
-    demo.launch()
