@@ -502,3 +502,4 @@ crewai-tools>=0.17.0
 langchain>=0.2.16
 openai>=1.58.1
 litellm>=1.55.10
+chromadb>=0.4.24,<0.6.0
