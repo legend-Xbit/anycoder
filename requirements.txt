@@ -6,6 +6,7 @@ gradio==5.9.1
 # Keep all existing dependencies but adjust their versions to work with gradio 5.5.0
 ai-gradio[deepseek,crewai,hyperbolic,openai,gemini,smolagents]==0.2.1
 gradio-webrtc[vad]==0.0.27
+modelscope-studio==1.0.2
 aiofiles==23.2.1
     # via gradio
 aiohappyeyeballs==2.4.4
