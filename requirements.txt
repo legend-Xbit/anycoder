@@ -141,29 +141,6 @@ googleapis-common-protos==1.66.0
     # via
     #   google-api-core
     #   grpcio-status
-gradio==5.9.1
-    # via
-    #   anychat (pyproject.toml)
-    #   anthropic-gradio
-    #   cerebras-gradio
-    #   cohere-gradio
-    #   dashscope-gradio
-    #   fal-gradio
-    #   fireworks-gradio
-    #   gemini-gradio
-    #   gradio-webrtc
-    #   groq-gradio
-    #   hyperbolic-gradio
-    #   lumaai-gradio
-    #   mistral-gradio
-    #   nvidia-gradio
-    #   openai-gradio
-    #   perplexity-gradio
-    #   playai-gradio
-    #   replicate-gradio
-    #   sambanova-gradio
-    #   together-gradio
-    #   xai-gradio
 gradio-client==1.5.2
     # via gradio
 gradio-webrtc==0.0.23
