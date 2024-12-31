@@ -1,0 +1,1 @@
+ai-gradio[deepseek,crewai,hyperbolic,openai,gemini,smolagents]==0.2.1
