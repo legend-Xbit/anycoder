@@ -1,5 +1,3 @@
-import os
-os.system("pip install ai-gradio[deepseek,crewai,hyperbolic,openai,gemini,smolagents]==0.2.2")
 from app_lumaai import demo as demo_lumaai
 from app_allenai import demo as demo_allenai
 from app_claude import demo as demo_claude
