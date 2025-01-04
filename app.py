@@ -5,7 +5,6 @@ from app_cohere import demo as demo_cohere
 from app_experimental import demo as demo_experimental
 from app_fal import demo as demo_fal
 from app_fireworks import demo as demo_fireworks
-from app_groq import demo as demo_groq
 from app_huggingface import demo as demo_huggingface
 from app_meta import demo as demo_meta
 from app_mistral import demo as demo_mistral
@@ -30,12 +29,15 @@ from app_gemini import demo as demo_gemini
 from app_gemini_voice import demo as demo_gemini_voice
 from app_hyperbolic_coder import demo as demo_hyperbolic_coder
 from app_smolagents import demo as demo_smolagents
+from app_groq import demo as demo_groq
+from app_groq_coder import demo as demo_groq_coder
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
     "Gemini Coder": demo_gemini_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
+    "Groq Coder": demo_groq_coder,
     "SmolAgents": demo_smolagents,
     "DeepSeek": demo_deepseek,
     "OpenAI": demo_openai,
