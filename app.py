@@ -35,9 +35,9 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Groq Coder": demo_groq_coder,
     "Gemini Coder": demo_gemini_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
-    "Groq Coder": demo_groq_coder,
     "SmolAgents": demo_smolagents,
     "DeepSeek": demo_deepseek,
     "OpenAI": demo_openai,
@@ -70,7 +70,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini Coder", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="Groq Coder", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
