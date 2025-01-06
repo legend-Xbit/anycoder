@@ -70,7 +70,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Groq Coder", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini Coder", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
