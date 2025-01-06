@@ -496,4 +496,4 @@ crewai-tools==0.17.0
 langchain>=0.3.1,<0.4.0
 chromadb>=0.5.18
 openai==1.58.1
-ai-gradio[deepseek,crewai,hyperbolic,openai,gemini,smolagents,groq]==0.2.3
+ai-gradio[deepseek,crewai,hyperbolic,openai,gemini,smolagents,groq]==0.2.5
