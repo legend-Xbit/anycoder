@@ -31,10 +31,12 @@ from app_hyperbolic_coder import demo as demo_hyperbolic_coder
 from app_smolagents import demo as demo_smolagents
 from app_groq import demo as demo_groq
 from app_groq_coder import demo as demo_groq_coder
+from app_openai_coder import demo as demo_openai_coder
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "OpenAI Coder": demo_openai_coder,
     "Gemini Coder": demo_gemini_coder,
     "Groq Coder": demo_groq_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
@@ -70,7 +72,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini Coder", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="OpenAI Coder", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
