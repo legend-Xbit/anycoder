@@ -18,7 +18,6 @@ from app_sambanova import demo as demo_sambanova
 from app_showui import demo as demo_showui
 from app_together import demo as demo_together
 from app_xai import demo as demo_grok
-from app_moondream import demo as demo_moon
 from app_qwen import demo as demo_qwen
 from app_deepseek import demo as demo_deepseek
 from app_crew import demo as demo_crew
@@ -37,7 +36,6 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
-    "Moon": demo_moon,
     "OpenAI Coder": demo_openai_coder,
     "Gemini Coder": demo_gemini_coder,
     "OpenAI": demo_openai,
@@ -74,7 +72,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Moon", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="OpenAI Coder", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
