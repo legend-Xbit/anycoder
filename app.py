@@ -1,4 +1,3 @@
-from app_transformers import demo as demo_transformers
 from app_lumaai import demo as demo_lumaai
 from app_allenai import demo as demo_allenai
 from app_claude import demo as demo_claude
@@ -37,9 +36,8 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
-    "Phi-4": demo_transformers,
-    "OpenAI Coder": demo_openai_coder,
     "Gemini Coder": demo_gemini_coder,
+    "OpenAI Coder": demo_openai_coder,
     "OpenAI": demo_openai,
     "Gemini": demo_gemini,
     "Gemini Voice": demo_gemini_voice,
@@ -74,7 +72,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="Phi-4", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="Gemini Coder", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
