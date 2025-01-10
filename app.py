@@ -1,3 +1,4 @@
+from app_moondream import demo as demo_moondream
 from app_lumaai import demo as demo_lumaai
 from app_allenai import demo as demo_allenai
 from app_claude import demo as demo_claude
@@ -36,6 +37,7 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "MoonDream": demo_moondream,
     "OpenAI Coder": demo_openai_coder,
     "Gemini Coder": demo_gemini_coder,
     "OpenAI": demo_openai,
@@ -72,7 +74,7 @@ PROVIDERS = {
     "NVIDIA": demo_nvidia,
 }
 
-demo = get_app(models=list(PROVIDERS.keys()), default_model="OpenAI Coder", src=PROVIDERS, dropdown_label="Select Provider")
+demo = get_app(models=list(PROVIDERS.keys()), default_model="MoonDream 2.0", src=PROVIDERS, dropdown_label="Select Provider")
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
