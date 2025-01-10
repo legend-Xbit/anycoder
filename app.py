@@ -37,7 +37,7 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
-    "MoonDream": demo_moondream,
+    "MoonDream 2.0": demo_moondream,
     "OpenAI Coder": demo_openai_coder,
     "Gemini Coder": demo_gemini_coder,
     "OpenAI": demo_openai,
