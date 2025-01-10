@@ -1,10 +1,18 @@
 import gradio as gr
-import ai_gradio
 
 demo = gr.load(
-    name='transformers:phi-4',
-    src=ai_gradio.registry
+    name='akhaliq/phi-4',
+    src="spaces"
 )
+
+# Disable API access for all functions
+if hasattr(demo, "fns"):
+    for fn in demo.fns.values():
+        fn.api_name = False
 
 if __name__ == "__main__":
     demo.launch()
+
+
+
+
