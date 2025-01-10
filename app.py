@@ -1,3 +1,4 @@
+from app_moondream import demo as demo_moondream
 from app_lumaai import demo as demo_lumaai
 from app_allenai import demo as demo_allenai
 from app_claude import demo as demo_claude
@@ -33,7 +34,6 @@ from app_groq import demo as demo_groq
 from app_groq_coder import demo as demo_groq_coder
 from app_openai_coder import demo as demo_openai_coder
 from app_transformers import demo as demo_transformers
-from app_moondream import demo as demo_moondream
 from utils import get_app
 
 # Create mapping of providers to their demos
