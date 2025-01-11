@@ -53,7 +53,6 @@ mistral-gradio = { git = "https://github.com/AK391/mistral-gradio.git" }
 playai-gradio = { git = "https://github.com/AK391/playai-gradio.git" }
 lumaai-gradio = { git = "https://github.com/AK391/lumaai-gradio.git" }
 cohere-gradio = { git = "https://github.com/AK391/cohere-gradio.git" }
-ai-gradio = { git = "https://github.com/AK391/ai-gradio", rev = "57eb0a73e2542e58834d94259d1ced720c351b38" }
 
 [tool.ruff]
 line-length = 119
