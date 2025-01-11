@@ -1,17 +1,12 @@
 import ai_gradio
+
 from utils_ai_gradio import get_app
 
 # Get the Gemini models but keep their full names for loading
-GEMINI_MODELS_FULL = [
-    k for k in ai_gradio.registry.keys()
-    if k.startswith('gemini:')
-]
+GEMINI_MODELS_FULL = [k for k in ai_gradio.registry if k.startswith("gemini:")]
 
 # Create display names without the prefix
-GEMINI_MODELS_DISPLAY = [
-    k.replace('gemini:', '')
-    for k in GEMINI_MODELS_FULL
-]
+GEMINI_MODELS_DISPLAY = [k.replace("gemini:", "") for k in GEMINI_MODELS_FULL]
 
 # Create and launch the interface using get_app utility
 demo = get_app(
@@ -24,3 +19,5 @@ demo = get_app(
     coder=True,
 )
 
+if __name__ == "__main__":
+    demo.launch()
