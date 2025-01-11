@@ -58,7 +58,16 @@ cohere-gradio = { git = "https://github.com/AK391/cohere-gradio.git" }
 line-length = 119
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "S", "T", "UP", "W"]
+select = [
+    "E",
+    "F",
+    #"I",
+    "N",
+    "S",
+    "T",
+    "UP",
+    "W",
+]
 ignore = ["T201"]
 unfixable = [
     "F401", # unused-import

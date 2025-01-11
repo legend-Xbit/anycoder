@@ -5,8 +5,7 @@
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.formatOnType": true,
         "editor.codeActionsOnSave": {
-            "source.fixAll.ruff": "explicit",
-            "source.organizeImports": "explicit"
+            "source.fixAll.ruff": "explicit"
         }
     },
     "[jupyter]": {
