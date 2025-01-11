@@ -43,8 +43,8 @@ def safe_chat_fn(message, history, client, system_prompt, temperature, max_token
             message, history
         )
     except Exception as e:
-        print(f"Error during chat: {str(e)}")
-        return f"Error during chat: {str(e)}"
+        print(f"Error during chat: {e!s}")
+        return f"Error during chat: {e!s}"
 
 
 with gr.Blocks() as demo:

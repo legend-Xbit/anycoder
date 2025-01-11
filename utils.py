@@ -1,4 +1,5 @@
-from typing import Callable, Dict, Literal, Union
+from collections.abc import Callable
+from typing import Literal
 
 import gradio as gr
 
@@ -6,7 +7,7 @@ import gradio as gr
 def get_app(
     models: list[str],
     default_model: str,
-    src: Union[Callable[[str, str | None], gr.Blocks], Literal["models"], Dict[str, gr.Blocks]],
+    src: Callable[[str, str | None], gr.Blocks] | Literal["models"] | dict[str, gr.Blocks],
     accept_token: bool = False,
     dropdown_label: str = "Select Model",
     **kwargs,

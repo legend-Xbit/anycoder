@@ -44,12 +44,11 @@ def safe_chat_fn(message, history, client):
     try:
         return create_chat_fn(client)(message, history)
     except Exception as e:
-        print(f"Error during chat: {str(e)}")
-        return f"Error during chat: {str(e)}"
+        print(f"Error during chat: {e!s}")
+        return f"Error during chat: {e!s}"
 
 
 with gr.Blocks() as demo:
-
     client = gr.State()
 
     model_dropdown = gr.Dropdown(

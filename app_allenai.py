@@ -38,7 +38,6 @@ def safe_chat_fn(message, history, client):
 
 
 with gr.Blocks() as demo:
-
     client = gr.State()
 
     model_dropdown = gr.Dropdown(

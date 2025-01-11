@@ -1,6 +1,4 @@
 import os
-import random
-from typing import Dict, List
 
 import google.generativeai as genai
 import gradio as gr
@@ -31,9 +29,10 @@ def get_all_models():
     ]
 
 
-def generate_discussion_prompt(original_question: str, previous_responses: List[str]) -> str:
+def generate_discussion_prompt(original_question: str, previous_responses: list[str]) -> str:
     """Generate a prompt for models to discuss and build upon previous
-    responses."""
+    responses.
+    """
     prompt = f"""You are participating in a multi-AI discussion about this question: "{original_question}"
 
 Previous responses from other AI models:
@@ -49,7 +48,7 @@ Keep your response focused and concise (max 3-4 paragraphs)."""
     return prompt
 
 
-def generate_consensus_prompt(original_question: str, discussion_history: List[str]) -> str:
+def generate_consensus_prompt(original_question: str, discussion_history: list[str]) -> str:
     """Generate a prompt for final consensus building."""
     return f"""Review this multi-AI discussion about: "{original_question}"
 
@@ -65,7 +64,7 @@ As a final synthesizer, please:
 Keep the final consensus concise but complete."""
 
 
-def chat_with_openai(model: str, messages: List[Dict], api_key: str | None) -> str:
+def chat_with_openai(model: str, messages: list[dict], api_key: str | None) -> str:
     import openai
 
     client = openai.OpenAI(api_key=api_key)
@@ -73,14 +72,14 @@ def chat_with_openai(model: str, messages: List[Dict], api_key: str | None) -> s
     return response.choices[0].message.content
 
 
-def chat_with_anthropic(messages: List[Dict], api_key: str | None) -> str:
+def chat_with_anthropic(messages: list[dict], api_key: str | None) -> str:
     """Chat with Anthropic's Claude model."""
     client = Anthropic(api_key=api_key)
     response = client.messages.create(model="claude-3-sonnet-20240229", messages=messages, max_tokens=1024)
     return response.content[0].text
 
 
-def chat_with_gemini(messages: List[Dict], api_key: str | None) -> str:
+def chat_with_gemini(messages: list[dict], api_key: str | None) -> str:
     """Chat with Gemini Pro model."""
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-pro")
@@ -96,7 +95,7 @@ def chat_with_gemini(messages: List[Dict], api_key: str | None) -> str:
 
 
 def chat_with_sambanova(
-    messages: List[Dict], api_key: str | None, model_name: str = "Llama-3.2-90B-Vision-Instruct"
+    messages: list[dict], api_key: str | None, model_name: str = "Llama-3.2-90B-Vision-Instruct"
 ) -> str:
     """Chat with SambaNova's models using their OpenAI-compatible API."""
     client = openai.OpenAI(
@@ -105,13 +104,16 @@ def chat_with_sambanova(
     )
 
     response = client.chat.completions.create(
-        model=model_name, messages=messages, temperature=0.1, top_p=0.1  # Use the specific model name passed in
+        model=model_name,
+        messages=messages,
+        temperature=0.1,
+        top_p=0.1,  # Use the specific model name passed in
     )
     return response.choices[0].message.content
 
 
 def chat_with_hyperbolic(
-    messages: List[Dict], api_key: str | None, model_name: str = "Qwen/Qwen2.5-Coder-32B-Instruct"
+    messages: list[dict], api_key: str | None, model_name: str = "Qwen/Qwen2.5-Coder-32B-Instruct"
 ) -> str:
     """Chat with Hyperbolic's models using their OpenAI-compatible API."""
     client = OpenAI(api_key=api_key, base_url="https://api.hyperbolic.xyz/v1")
@@ -132,7 +134,7 @@ def chat_with_hyperbolic(
 
 
 def multi_model_consensus(
-    question: str, selected_models: List[str], rounds: int = 3, progress: gr.Progress = gr.Progress()
+    question: str, selected_models: list[str], rounds: int = 3, progress: gr.Progress = gr.Progress()
 ) -> list[tuple[str, str]]:
     if not selected_models:
         raise gr.Error("Please select at least one model to chat with.")
@@ -172,7 +174,7 @@ def multi_model_consensus(
 
             chat_history.append((model, response))
         except Exception as e:
-            chat_history.append((model, f"Error: {str(e)}"))
+            chat_history.append((model, f"Error: {e!s}"))
 
     progress(1.0, desc="Done!")
     return chat_history
@@ -180,9 +182,7 @@ def multi_model_consensus(
 
 with gr.Blocks() as demo:
     gr.Markdown("# Model Response Comparison")
-    gr.Markdown(
-        """Select multiple models to compare their responses"""
-    )
+    gr.Markdown("""Select multiple models to compare their responses""")
 
     with gr.Row():
         with gr.Column():
