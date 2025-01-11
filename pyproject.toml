@@ -60,6 +60,9 @@ line-length = 119
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "S", "T", "UP", "W"]
 ignore = ["T201"]
+unfixable = [
+    "F401", # unused-import
+]
 
 [tool.ruff.format]
 docstring-code-format = true
