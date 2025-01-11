@@ -13,18 +13,15 @@ repos:
         args: ["--fix=lf"]
       - id: requirements-txt-fixer
       - id: trailing-whitespace
-  - repo: https://github.com/myint/docformatter
-    rev: v1.7.5
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
     hooks:
-      - id: docformatter
-        args: ["--in-place"]
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        args: ["--profile", "black"]
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+        args: ["--line-length", "119"]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.14.1
     hooks:
       - id: mypy
         args: ["--ignore-missing-imports"]
@@ -35,30 +32,3 @@ repos:
             "types-PyYAML",
             "types-pytz",
           ]
-  - repo: https://github.com/psf/black
-    rev: 24.10.0
-    hooks:
-      - id: black
-        language_version: python3.10
-        args: ["--line-length", "119"]
-  - repo: https://github.com/charliermarsh/ruff-pre-commit
-    rev: v0.7.4
-    hooks:
-      - id: ruff
-  - repo: https://github.com/kynan/nbstripout
-    rev: 0.8.1
-    hooks:
-      - id: nbstripout
-        args:
-          [
-            "--extra-keys",
-            "metadata.interpreter metadata.kernelspec cell.metadata.pycharm",
-          ]
-  - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.9.1
-    hooks:
-      - id: nbqa-black
-      - id: nbqa-pyupgrade
-        args: ["--py37-plus"]
-      - id: nbqa-isort
-        args: ["--float-to-top"]
