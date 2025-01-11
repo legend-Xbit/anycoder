@@ -58,34 +58,7 @@ cohere-gradio = { git = "https://github.com/AK391/cohere-gradio.git" }
 line-length = 119
 
 [tool.ruff.lint]
-select = ["ALL"]
-ignore = [
-    "COM812", # missing-trailing-comma
-    "D203",   # one-blank-line-before-class
-    "D213",   # multi-line-summary-second-line
-    "E501",   # line-too-long
-    "SIM117", # multiple-with-statements
-]
-extend-ignore = [
-    "D100",    # undocumented-public-module
-    "D101",    # undocumented-public-class
-    "D102",    # undocumented-public-method
-    "D103",    # undocumented-public-function
-    "D104",    # undocumented-public-package
-    "D105",    # undocumented-magic-method
-    "D107",    # undocumented-public-init
-    "EM101",   # raw-string-in-exception
-    "FBT001",  # boolean-type-hint-positional-argument
-    "FBT002",  # boolean-default-value-positional-argument
-    "PD901",   # pandas-df-variable-name
-    "PGH003",  # blanket-type-ignore
-    "PLR0913", # too-many-arguments
-    "PLR0915", # too-many-statements
-    "TRY003",  # raise-vanilla-args
-]
-unfixable = [
-    "F401", # unused-import
-]
+select = ["E", "F", "I", "N", "S", "T", "UP", "W"]
 
 [tool.ruff.format]
 docstring-code-format = true
