@@ -8,6 +8,7 @@ from app_experimental import demo as demo_experimental
 from app_fal import demo as demo_fal
 from app_fireworks import demo as demo_fireworks
 from app_gemini import demo as demo_gemini
+from app_gemini_camera import demo as demo_gemini_camera
 from app_gemini_coder import demo as demo_gemini_coder
 from app_gemini_voice import demo as demo_gemini_voice
 from app_groq import demo as demo_groq
@@ -36,6 +37,7 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Gemini Camera": demo_gemini_camera,
     "Gemini Coder": demo_gemini_coder,
     "OpenAI Coder": demo_openai_coder,
     "OpenAI": demo_openai,
@@ -73,7 +75,10 @@ PROVIDERS = {
 }
 
 demo = get_app(
-    models=list(PROVIDERS.keys()), default_model="Gemini Coder", src=PROVIDERS, dropdown_label="Select Provider"
+    models=list(PROVIDERS.keys()),
+    default_model="Gemini Camera",
+    src=PROVIDERS,
+    dropdown_label="Select Provider",
 )
 
 if __name__ == "__main__":
