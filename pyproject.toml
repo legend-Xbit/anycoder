@@ -55,60 +55,37 @@ lumaai-gradio = { git = "https://github.com/AK391/lumaai-gradio.git" }
 cohere-gradio = { git = "https://github.com/AK391/cohere-gradio.git" }
 
 [tool.ruff]
-# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
-select = ["E", "F"]
-ignore = ["E501"] # line too long (black is taking care of this)
 line-length = 119
-fixable = [
-    "A",
-    "B",
-    "C",
-    "D",
-    "E",
-    "F",
-    "G",
-    "I",
-    "N",
-    "Q",
-    "S",
-    "T",
-    "W",
-    "ANN",
-    "ARG",
-    "BLE",
-    "COM",
-    "DJ",
-    "DTZ",
-    "EM",
-    "ERA",
-    "EXE",
-    "FBT",
-    "ICN",
-    "INP",
-    "ISC",
-    "NPY",
-    "PD",
-    "PGH",
-    "PIE",
-    "PL",
-    "PT",
-    "PTH",
-    "PYI",
-    "RET",
-    "RSE",
-    "RUF",
-    "SIM",
-    "SLF",
-    "TCH",
-    "TID",
-    "TRY",
-    "UP",
-    "YTT",
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # missing-trailing-comma
+    "D203",   # one-blank-line-before-class
+    "D213",   # multi-line-summary-second-line
+    "E501",   # line-too-long
+    "SIM117", # multiple-with-statements
+]
+extend-ignore = [
+    "D100",    # undocumented-public-module
+    "D101",    # undocumented-public-class
+    "D102",    # undocumented-public-method
+    "D103",    # undocumented-public-function
+    "D104",    # undocumented-public-package
+    "D105",    # undocumented-magic-method
+    "D107",    # undocumented-public-init
+    "EM101",   # raw-string-in-exception
+    "FBT001",  # boolean-type-hint-positional-argument
+    "FBT002",  # boolean-default-value-positional-argument
+    "PD901",   # pandas-df-variable-name
+    "PGH003",  # blanket-type-ignore
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "TRY003",  # raise-vanilla-args
+]
+unfixable = [
+    "F401", # unused-import
 ]
 
-[tool.isort]
-profile = "black"
-line_length = 119
-
-[tool.black]
-line-length = 119
+[tool.ruff.format]
+docstring-code-format = true
