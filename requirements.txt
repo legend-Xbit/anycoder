@@ -2,7 +2,7 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 accelerate==1.2.1
     # via ai-gradio
-ai-gradio==0.2.13
+ai-gradio==0.2.14
     # via anychat (pyproject.toml)
 aiofiles==23.2.1
     # via gradio
@@ -296,7 +296,7 @@ google-crc32c==1.6.0
     #   aiortc
     #   google-cloud-storage
     #   google-resumable-media
-google-genai==0.4.0
+google-genai==0.3.0
     # via ai-gradio
 google-generativeai==0.8.3
     # via
