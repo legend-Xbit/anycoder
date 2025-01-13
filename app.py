@@ -33,10 +33,12 @@ from app_smolagents import demo as demo_smolagents
 from app_groq import demo as demo_groq
 from app_groq_coder import demo as demo_groq_coder
 from app_openai_coder import demo as demo_openai_coder
+from app_langchain import demo as demo_langchain
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Langchain Agent": demo_langchain,
     "Gemini Camera": demo_gemini_camera,
     "Gemini Coder": demo_gemini_coder,
     "OpenAI Coder": demo_openai_coder,
@@ -76,7 +78,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Gemini Camera",
+    default_model="Langchain Agent",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
