@@ -10,7 +10,7 @@ MISTRAL_MODELS_DISPLAY = [k.replace("mistral:", "") for k in MISTRAL_MODELS_FULL
 
 
 # Create and launch the interface using get_app utility
-demo2 = get_app(
+demo = get_app(
     models=MISTRAL_MODELS_FULL,  # Use the full names with prefix
     default_model=MISTRAL_MODELS_FULL[5],
     dropdown_label="Select Mistral Model",
@@ -20,4 +20,4 @@ demo2 = get_app(
 )
 
 if __name__ == "__main__":
-    demo2.launch()
+    demo.launch()
