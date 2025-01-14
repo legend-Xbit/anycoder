@@ -38,9 +38,9 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Gemini Camera": demo_gemini_camera,
     "Mistral": demo_mistral,
     "Langchain Agent": demo_langchain,
-    "Gemini Camera": demo_gemini_camera,
     "Gemini Coder": demo_gemini_coder,
     "OpenAI Coder": demo_openai_coder,
     "OpenAI": demo_openai,
@@ -78,7 +78,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Mistral",
+    default_model="Gemini Camera",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
