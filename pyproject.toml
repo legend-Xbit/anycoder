@@ -38,7 +38,7 @@ dependencies = [
     "langchain>=0.3.14",
     "chromadb>=0.5.23",
     "openai>=1.55.0",
-    "ai-gradio[crewai,deepseek,gemini,groq,hyperbolic,openai,smolagents,transformers, langchain]>=0.2.14",
+    "ai-gradio[crewai,deepseek,gemini,groq,hyperbolic,openai,smolagents,transformers, langchain, mistral]>=0.2.15",
 ]
 
 [tool.uv.sources]

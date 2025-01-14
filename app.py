@@ -7,7 +7,6 @@ from app_fal import demo as demo_fal
 from app_fireworks import demo as demo_fireworks
 from app_huggingface import demo as demo_huggingface
 from app_meta import demo as demo_meta
-from app_mistral import demo as demo_mistral
 from app_nvidia import demo as demo_nvidia
 from app_omini import demo as demo_omini
 from app_paligemma import demo as demo_paligemma
@@ -34,10 +33,13 @@ from app_groq import demo as demo_groq
 from app_groq_coder import demo as demo_groq_coder
 from app_openai_coder import demo as demo_openai_coder
 from app_langchain import demo as demo_langchain
+from app_mistral_coder import demo as demo_mistral_coder
+from app_mistral import demo as demo_mistral
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Mistral Codestral": demo_mistral_coder,
     "Langchain Agent": demo_langchain,
     "Gemini Camera": demo_gemini_camera,
     "Gemini Coder": demo_gemini_coder,
@@ -45,6 +47,7 @@ PROVIDERS = {
     "OpenAI": demo_openai,
     "Gemini": demo_gemini,
     "Gemini Voice": demo_gemini_voice,
+    "Mistral": demo_mistral,
     "Groq Coder": demo_groq_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
     "SmolAgents": demo_smolagents,
@@ -72,13 +75,12 @@ PROVIDERS = {
     "Allen AI": demo_allenai,
     "Perplexity": demo_perplexity,
     "Experimental": demo_experimental,
-    "Mistral": demo_mistral,
     "NVIDIA": demo_nvidia,
 }
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Langchain Agent",
+    default_model="Mistral Codestral",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )

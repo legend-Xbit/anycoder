@@ -2,7 +2,7 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 accelerate==1.2.1
     # via ai-gradio
-ai-gradio==0.2.14
+ai-gradio==0.2.15
     # via anychat (pyproject.toml)
 aiofiles==23.2.1
     # via gradio
@@ -586,7 +586,9 @@ mem0ai==0.1.41
 mistral-gradio @ git+https://github.com/AK391/mistral-gradio.git@dfef7dc871ea35100743a415fde8a57a30c49fcb
     # via anychat (pyproject.toml)
 mistralai==1.2.6
-    # via mistral-gradio
+    # via
+    #   ai-gradio
+    #   mistral-gradio
 mmh3==5.0.1
     # via chromadb
 modelscope-studio==1.0.2
