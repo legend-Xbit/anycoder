@@ -16,6 +16,7 @@ demo = get_app(
     dropdown_label="Select Mistral Model",
     choices=MISTRAL_MODELS_DISPLAY,  # Display names without prefix
     fill_height=True,
+    coder=True
 )
 
 if __name__ == "__main__":
