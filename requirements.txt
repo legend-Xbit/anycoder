@@ -2,7 +2,7 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 accelerate==1.2.1
     # via ai-gradio
-ai-gradio==0.2.15
+ai-gradio==0.2.16
     # via anychat (pyproject.toml)
 aiofiles==23.2.1
     # via gradio
@@ -990,6 +990,7 @@ replicate-gradio @ git+https://github.com/AK391/replicate-gradio.git@691c397515f
     # via anychat (pyproject.toml)
 requests==2.32.3
     # via
+    #   ai-gradio
     #   auth0-python
     #   cohere
     #   crewai-tools

@@ -34,10 +34,12 @@ from app_groq_coder import demo as demo_groq_coder
 from app_openai_coder import demo as demo_openai_coder
 from app_langchain import demo as demo_langchain
 from app_mistral import demo as demo_mistral
+from app_minimax import demo as demo_minimax
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Minimax": demo_minimax,
     "Gemini Camera": demo_gemini_camera,
     "Mistral": demo_mistral,
     "Langchain Agent": demo_langchain,
@@ -78,7 +80,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Gemini Camera",
+    default_model="Minimax",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
