@@ -35,10 +35,12 @@ from app_openai_coder import demo as demo_openai_coder
 from app_langchain import demo as demo_langchain
 from app_mistral import demo as demo_mistral
 from app_minimax import demo as demo_minimax
+from app_minimax_coder import demo as demo_minimax_coder
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Minimax Coder": demo_minimax_coder,
     "Minimax": demo_minimax,
     "Gemini Camera": demo_gemini_camera,
     "Mistral": demo_mistral,
@@ -80,7 +82,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Minimax",
+    default_model="Minimax Coder",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
