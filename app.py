@@ -7,7 +7,6 @@ from app_fal import demo as demo_fal
 from app_fireworks import demo as demo_fireworks
 from app_huggingface import demo as demo_huggingface
 from app_meta import demo as demo_meta
-from app_nvidia import demo as demo_nvidia
 from app_omini import demo as demo_omini
 from app_paligemma import demo as demo_paligemma
 from app_perplexity import demo as demo_perplexity
@@ -36,11 +35,13 @@ from app_langchain import demo as demo_langchain
 from app_mistral import demo as demo_mistral
 from app_minimax import demo as demo_minimax
 from app_minimax_coder import demo as demo_minimax_coder
+from app_nvidia import demo as demo_nvidia
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
     "Minimax Coder": demo_minimax_coder,
+    "NVIDIA": demo_nvidia,
     "Minimax": demo_minimax,
     "Gemini Camera": demo_gemini_camera,
     "Mistral": demo_mistral,
@@ -77,7 +78,6 @@ PROVIDERS = {
     "Allen AI": demo_allenai,
     "Perplexity": demo_perplexity,
     "Experimental": demo_experimental,
-    "NVIDIA": demo_nvidia,
 }
 
 demo = get_app(
