@@ -17,7 +17,6 @@ from app_showui import demo as demo_showui
 from app_together import demo as demo_together
 from app_xai import demo as demo_grok
 from app_qwen import demo as demo_qwen
-from app_deepseek import demo as demo_deepseek
 from app_crew import demo as demo_crew
 from app_compare import demo as demo_compare
 from app_hyperbolic import demo as demo_hyperbolic
@@ -36,10 +35,12 @@ from app_mistral import demo as demo_mistral
 from app_minimax import demo as demo_minimax
 from app_minimax_coder import demo as demo_minimax_coder
 from app_nvidia import demo as demo_nvidia
+from app_deepseek import demo as demo_deepseek
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "DeepSeek Coder": demo_deepseek,
     "Minimax Coder": demo_minimax_coder,
     "NVIDIA": demo_nvidia,
     "Minimax": demo_minimax,
@@ -54,7 +55,6 @@ PROVIDERS = {
     "Groq Coder": demo_groq_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
     "SmolAgents": demo_smolagents,
-    "DeepSeek": demo_deepseek,
     "Compare": demo_compare,
     "Qwen": demo_qwen,
     "Hyperbolic": demo_hyperbolic,
@@ -82,7 +82,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Minimax Coder",
+    default_model="DeepSeek Coder",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
