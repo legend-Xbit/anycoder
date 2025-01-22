@@ -40,6 +40,7 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "Gemini Coder": demo_gemini_coder,
     "DeepSeek Coder": demo_deepseek,
     "Minimax Coder": demo_minimax_coder,
     "NVIDIA": demo_nvidia,
@@ -47,7 +48,6 @@ PROVIDERS = {
     "Gemini Camera": demo_gemini_camera,
     "Mistral": demo_mistral,
     "Langchain Agent": demo_langchain,
-    "Gemini Coder": demo_gemini_coder,
     "OpenAI Coder": demo_openai_coder,
     "OpenAI": demo_openai,
     "Gemini": demo_gemini,
@@ -82,7 +82,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="DeepSeek Coder",
+    default_model="Gemini Coder",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
