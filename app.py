@@ -14,7 +14,6 @@ from app_qwen import demo as demo_qwen
 from app_crew import demo as demo_crew
 from app_hyperbolic import demo as demo_hyperbolic
 from app_openai import demo as demo_openai
-from app_gemini_camera import demo as demo_gemini_camera
 from app_gemini_coder import demo as demo_gemini_coder
 from app_gemini import demo as demo_gemini
 from app_gemini_voice import demo as demo_gemini_voice
@@ -38,7 +37,6 @@ PROVIDERS = {
     "Minimax Coder": demo_minimax_coder,
     "NVIDIA": demo_nvidia,
     "Minimax": demo_minimax,
-    "Gemini Camera": demo_gemini_camera,
     "Mistral": demo_mistral,
     "Langchain Agent": demo_langchain,
     "OpenAI Coder": demo_openai_coder,
