@@ -13,7 +13,6 @@ from app_xai import demo as demo_grok
 from app_qwen import demo as demo_qwen
 from app_crew import demo as demo_crew
 from app_hyperbolic import demo as demo_hyperbolic
-from app_openai import demo as demo_openai
 from app_gemini_coder import demo as demo_gemini_coder
 from app_gemini import demo as demo_gemini
 from app_hyperbolic_coder import demo as demo_hyperbolic_coder
@@ -39,7 +38,6 @@ PROVIDERS = {
     "Mistral": demo_mistral,
     "Langchain Agent": demo_langchain,
     "OpenAI Coder": demo_openai_coder,
-    "OpenAI": demo_openai,
     "Gemini": demo_gemini,
     "Groq Coder": demo_groq_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
