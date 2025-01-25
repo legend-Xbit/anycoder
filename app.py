@@ -16,7 +16,6 @@ from app_hyperbolic import demo as demo_hyperbolic
 from app_openai import demo as demo_openai
 from app_gemini_coder import demo as demo_gemini_coder
 from app_gemini import demo as demo_gemini
-from app_gemini_voice import demo as demo_gemini_voice
 from app_hyperbolic_coder import demo as demo_hyperbolic_coder
 from app_smolagents import demo as demo_smolagents
 from app_groq import demo as demo_groq
@@ -42,7 +41,6 @@ PROVIDERS = {
     "OpenAI Coder": demo_openai_coder,
     "OpenAI": demo_openai,
     "Gemini": demo_gemini,
-    "Gemini Voice": demo_gemini_voice,
     "Groq Coder": demo_groq_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
     "SmolAgents": demo_smolagents,
