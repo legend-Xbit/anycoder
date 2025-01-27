@@ -31,6 +31,7 @@ from utils import get_app
 # Create mapping of providers to their demos
 PROVIDERS = {
     "Gemini Coder": demo_gemini_coder,
+    "Groq Coder": demo_groq_coder,
     "DeepSeek Coder": demo_deepseek,
     "Minimax Coder": demo_minimax_coder,
     "NVIDIA": demo_nvidia,
@@ -39,7 +40,6 @@ PROVIDERS = {
     "Langchain Agent": demo_langchain,
     "OpenAI Coder": demo_openai_coder,
     "Gemini": demo_gemini,
-    "Groq Coder": demo_groq_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
     "SmolAgents": demo_smolagents,
     "Qwen": demo_qwen,

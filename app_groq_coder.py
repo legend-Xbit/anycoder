@@ -11,7 +11,7 @@ GROQ_MODELS_DISPLAY = [k.replace("groq:", "") for k in GROQ_MODELS_FULL]
 # Create and launch the interface using get_app utility
 demo = get_app(
     models=GROQ_MODELS_FULL,  # Use the full names with prefix
-    default_model=GROQ_MODELS_FULL[-2],
+    default_model=GROQ_MODELS_FULL[-1],
     dropdown_label="Select Groq Model",
     choices=GROQ_MODELS_DISPLAY,  # Display names without prefix
     fill_height=True,
