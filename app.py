@@ -10,7 +10,6 @@ from app_replicate import demo as demo_replicate
 from app_sambanova import demo as demo_sambanova
 from app_together import demo as demo_together
 from app_xai import demo as demo_grok
-from app_qwen import demo as demo_qwen
 from app_crew import demo as demo_crew
 from app_hyperbolic import demo as demo_hyperbolic
 from app_gemini_coder import demo as demo_gemini_coder
@@ -26,11 +25,15 @@ from app_minimax import demo as demo_minimax
 from app_minimax_coder import demo as demo_minimax_coder
 from app_nvidia import demo as demo_nvidia
 from app_deepseek import demo as demo_deepseek
+from app_qwen import demo as demo_qwen
+from app_qwen_coder import demo as demo_qwen_coder
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
     "Hyperbolic Coder": demo_hyperbolic_coder,
+    "Qwen Coder": demo_qwen_coder,
+    "Qwen": demo_qwen,
     "Gemini Coder": demo_gemini_coder,
     "Groq Coder": demo_groq_coder,
     "DeepSeek Coder": demo_deepseek,
@@ -42,7 +45,6 @@ PROVIDERS = {
     "OpenAI Coder": demo_openai_coder,
     "Gemini": demo_gemini,
     "SmolAgents": demo_smolagents,
-    "Qwen": demo_qwen,
     "Hyperbolic": demo_hyperbolic,
     "CrewAI": demo_crew,
     "LumaAI": demo_lumaai,

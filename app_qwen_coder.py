@@ -16,4 +16,5 @@ demo = get_app(
     dropdown_label="Select Qwen Model",
     choices=QWEN_MODELS_DISPLAY,  # Display names without prefix
     fill_height=True,
+    coder=True,
 )
