@@ -62,7 +62,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Gemini Coder",
+    default_model="Hyperbolic Coder",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
