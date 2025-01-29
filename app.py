@@ -31,8 +31,8 @@ from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
-    "Groq Coder": demo_groq_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
+    "Groq Coder": demo_groq_coder,
     "Qwen Coder": demo_qwen_coder,
     "Qwen": demo_qwen,
     "Gemini Coder": demo_gemini_coder,
@@ -64,7 +64,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Groq Coder",
+    default_model="Hyperbolic Coder",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
