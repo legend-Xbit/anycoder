@@ -12,7 +12,7 @@ HYPERBOLIC_MODELS_DISPLAY = [k.replace("hyperbolic:", "") for k in HYPERBOLIC_MO
 # Create and launch the interface using get_app utility
 demo = get_app(
     models=HYPERBOLIC_MODELS_FULL,  # Use the full names with prefix
-    default_model=HYPERBOLIC_MODELS_FULL[-1],
+    default_model=HYPERBOLIC_MODELS_FULL[-2],
     dropdown_label="Select Hyperbolic Model",
     choices=HYPERBOLIC_MODELS_DISPLAY,  # Display names without prefix
     fill_height=True,
