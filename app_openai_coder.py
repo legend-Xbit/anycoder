@@ -11,7 +11,7 @@ OPENAI_MODELS_DISPLAY = [k.replace("openai:", "") for k in OPENAI_MODELS_FULL]
 # Create and launch the interface using get_app utility
 demo = get_app(
     models=OPENAI_MODELS_FULL,  # Use the full names with prefix
-    default_model=OPENAI_MODELS_FULL[5],
+    default_model=OPENAI_MODELS_FULL[-1],
     dropdown_label="Select OpenAI Model",
     choices=OPENAI_MODELS_DISPLAY,  # Display names without prefix
     fill_height=True,

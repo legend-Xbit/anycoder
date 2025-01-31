@@ -28,10 +28,13 @@ from app_deepseek import demo as demo_deepseek
 from app_qwen import demo as demo_qwen
 from app_qwen_coder import demo as demo_qwen_coder
 from app_nvidia_coder import demo as demo_nvidia_coder
+from app_openai import demo as demo_openai
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "OpenAI Coder": demo_openai_coder,
+    "OpenAI": demo_openai,
     "NVIDIA Coder": demo_nvidia_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
     "Hyperbolic": demo_hyperbolic,
@@ -45,7 +48,6 @@ PROVIDERS = {
     "Minimax": demo_minimax,
     "Mistral": demo_mistral,
     "Langchain Agent": demo_langchain,
-    "OpenAI Coder": demo_openai_coder,
     "Gemini": demo_gemini,
     "SmolAgents": demo_smolagents,
     "CrewAI": demo_crew,
@@ -66,7 +68,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="NVIDIA Coder",
+    default_model="OpenAI Coder",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
