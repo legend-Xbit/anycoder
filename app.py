@@ -27,10 +27,12 @@ from app_nvidia import demo as demo_nvidia
 from app_deepseek import demo as demo_deepseek
 from app_qwen import demo as demo_qwen
 from app_qwen_coder import demo as demo_qwen_coder
+from app_nvidia_coder import demo as demo_nvidia_coder
 from utils import get_app
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "NVIDIA Coder": demo_nvidia_coder,
     "Hyperbolic Coder": demo_hyperbolic_coder,
     "Hyperbolic": demo_hyperbolic,
     "Groq Coder": demo_groq_coder,
@@ -64,7 +66,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="Hyperbolic Coder",
+    default_model="NVIDIA Coder",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
