@@ -68,7 +68,7 @@ PROVIDERS = {
 
 demo = get_app(
     models=list(PROVIDERS.keys()),
-    default_model="OpenAI Coder",
+    default_model="Gemini Coder",
     src=PROVIDERS,
     dropdown_label="Select Provider",
 )
