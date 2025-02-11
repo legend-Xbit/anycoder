@@ -36,10 +36,10 @@ import gradio as gr
 PROVIDER_SNIPPETS = {
     "OpenAI Coder": """import gradio as gr
 gr.load(
-    name='openai:gpt-4-turbo',
+    name='openai:gpt-4o',
     src=ai_gradio.registry,
     title='AI Chat',
-    description='Chat with OpenAI GPT-4'
+    description='Chat with OpenAI GPT-4o'
 ).launch()""",
     "Gemini Coder": """import gradio as gr
 gr.load(
@@ -47,6 +47,13 @@ gr.load(
     src=ai_gradio.registry,
     title='AI Chat',
     description='Chat with Gemini 1.5'
+).launch()""",
+    "Hyperbolic": """import gradio as gr
+gr.load(
+    name='hyperbolic:deepseek-ai/DeepSeek-R1',
+    src=ai_gradio.registry,
+    title='DeepSeek-R1',
+    description='Chat with DeepSeek-R1'
 ).launch()""",
     # Add similar snippets for other providers
 }
@@ -102,7 +109,7 @@ with demo:
     provider_dropdown = gr.Dropdown(
         choices=list(PROVIDERS.keys()),
         value="OpenAI Coder",
-        label="Select Provider"
+        label="Select code snippet"
     )
     provider_dropdown.change(
         fn=update_code,
