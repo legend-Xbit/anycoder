@@ -35,24 +35,24 @@ import gradio as gr
 # Create mapping of providers to their code snippets
 PROVIDER_SNIPPETS = {
     "OpenAI Coder": """import gradio as gr
-gr.load(
+    import ai_gradio
+    gr.load(
     name='openai:o3-mini-2025-01-31',
     src=ai_gradio.registry,
     coder=True
 ).launch()""",
     "Gemini Coder": """import gradio as gr
+    import ai_gradio
 gr.load(
     name='gemini:gemini-1.5-flash',
     src=ai_gradio.registry,
-    title='AI Chat',
-    description='Chat with Gemini 1.5'
+    coder=True
 ).launch()""",
     "Hyperbolic": """import gradio as gr
+    import ai_gradio
 gr.load(
     name='hyperbolic:deepseek-ai/DeepSeek-R1',
     src=ai_gradio.registry,
-    title='DeepSeek-R1',
-    description='Chat with DeepSeek-R1'
 ).launch()""",
     # Add similar snippets for other providers
 }
