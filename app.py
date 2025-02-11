@@ -36,10 +36,9 @@ import gradio as gr
 PROVIDER_SNIPPETS = {
     "OpenAI Coder": """import gradio as gr
 gr.load(
-    name='openai:gpt-4o',
+    name='openai:o3-mini-2025-01-31',
     src=ai_gradio.registry,
-    title='AI Chat',
-    description='Chat with OpenAI GPT-4o'
+    coder=True
 ).launch()""",
     "Gemini Coder": """import gradio as gr
 gr.load(
@@ -96,7 +95,13 @@ PROVIDERS = {
 # Modified get_app implementation
 demo = gr.Blocks()
 with demo:
-    gr.Markdown("# AI Chat Providers")
+    gr.Markdown("# Anychat")
+
+    provider_dropdown = gr.Dropdown(
+        choices=list(PROVIDERS.keys()),
+        value="OpenAI Coder",
+        label="Select code snippet"
+    )
     code_display = gr.Code(
         label="Provider Code Snippet",
         language="python",
@@ -106,11 +111,7 @@ with demo:
     def update_code(provider):
         return PROVIDER_SNIPPETS.get(provider, "Code snippet not available")
     
-    provider_dropdown = gr.Dropdown(
-        choices=list(PROVIDERS.keys()),
-        value="OpenAI Coder",
-        label="Select code snippet"
-    )
+   
     provider_dropdown.change(
         fn=update_code,
         inputs=[provider_dropdown],
