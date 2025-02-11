@@ -30,6 +30,26 @@ from app_qwen_coder import demo as demo_qwen_coder
 from app_nvidia_coder import demo as demo_nvidia_coder
 from app_openai import demo as demo_openai
 from utils import get_app
+import gradio as gr
+
+# Create mapping of providers to their code snippets
+PROVIDER_SNIPPETS = {
+    "OpenAI Coder": """import gradio as gr
+gr.load(
+    name='openai:gpt-4-turbo',
+    src=ai_gradio.registry,
+    title='AI Chat',
+    description='Chat with OpenAI GPT-4'
+).launch()""",
+    "Gemini Coder": """import gradio as gr
+gr.load(
+    name='gemini:gemini-1.5-flash',
+    src=ai_gradio.registry,
+    title='AI Chat',
+    description='Chat with Gemini 1.5'
+).launch()""",
+    # Add similar snippets for other providers
+}
 
 # Create mapping of providers to their demos
 PROVIDERS = {
@@ -66,12 +86,36 @@ PROVIDERS = {
     "Perplexity": demo_perplexity,
 }
 
-demo = get_app(
-    models=list(PROVIDERS.keys()),
-    default_model="OpenAI Coder",
-    src=PROVIDERS,
-    dropdown_label="Select Provider",
-)
+# Modified get_app implementation
+demo = gr.Blocks()
+with demo:
+    gr.Markdown("# AI Chat Providers")
+    code_display = gr.Code(
+        label="Provider Code Snippet",
+        language="python",
+        value=PROVIDER_SNIPPETS["OpenAI Coder"]
+    )
+    
+    def update_code(provider):
+        return PROVIDER_SNIPPETS.get(provider, "Code snippet not available")
+    
+    provider_dropdown = gr.Dropdown(
+        choices=list(PROVIDERS.keys()),
+        value="OpenAI Coder",
+        label="Select Provider"
+    )
+    provider_dropdown.change(
+        fn=update_code,
+        inputs=[provider_dropdown],
+        outputs=[code_display]
+    )
+    
+    selected_demo = get_app(
+        models=list(PROVIDERS.keys()),
+        default_model="OpenAI Coder",
+        src=PROVIDERS,
+        dropdown_label="Select Provider",
+    )
 
 if __name__ == "__main__":
     demo.queue(api_open=False).launch(show_api=False)
