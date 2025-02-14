@@ -29,6 +29,7 @@ from app_qwen import demo as demo_qwen
 from app_qwen_coder import demo as demo_qwen_coder
 from app_nvidia_coder import demo as demo_nvidia_coder
 from app_openai import demo as demo_openai
+from app_sambanova_coder import demo as demo_sambanova_coder
 from utils import get_app
 import gradio as gr
 
@@ -60,6 +61,7 @@ gr.load(
 # Create mapping of providers to their demos
 PROVIDERS = {
     "OpenAI Coder": demo_openai_coder,
+    "Sambanova Coder": demo_sambanova_coder,
     "Gemini Coder": demo_gemini_coder,
     "OpenAI": demo_openai,
     "NVIDIA Coder": demo_nvidia_coder,

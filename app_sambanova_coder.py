@@ -16,4 +16,5 @@ demo = get_app(
     dropdown_label="Select Sambanova Model",
     choices=SAMBANOVA_MODELS_DISPLAY,  # Display names without prefix
     fill_height=True,
+    coder=True,
 )
