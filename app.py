@@ -30,6 +30,7 @@ from app_qwen_coder import demo as demo_qwen_coder
 from app_nvidia_coder import demo as demo_nvidia_coder
 from app_openai import demo as demo_openai
 from app_sambanova_coder import demo as demo_sambanova_coder
+from app_openrouter import demo as demo_openrouter
 from utils import get_app
 import gradio as gr
 
@@ -60,6 +61,7 @@ gr.load(
 
 # Create mapping of providers to their demos
 PROVIDERS = {
+    "OpenRouter Coder": demo_openrouter,
     "OpenAI Coder": demo_openai_coder,
     "Sambanova Coder": demo_sambanova_coder,
     "Gemini Coder": demo_gemini_coder,
@@ -101,13 +103,13 @@ with demo:
 
     provider_dropdown = gr.Dropdown(
         choices=list(PROVIDERS.keys()),
-        value="OpenAI Coder",
+        value="OpenRouter Coder",
         label="Select code snippet"
     )
     code_display = gr.Code(
         label="Provider Code Snippet",
         language="python",
-        value=PROVIDER_SNIPPETS["OpenAI Coder"]
+        value=PROVIDER_SNIPPETS["OpenRouter Coder"]
     )
     
     def update_code(provider):
@@ -122,7 +124,7 @@ with demo:
     
     selected_demo = get_app(
         models=list(PROVIDERS.keys()),
-        default_model="OpenAI Coder",
+        default_model="OpenRouter Coder",
         src=PROVIDERS,
         dropdown_label="Select Provider",
     )
