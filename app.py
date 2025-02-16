@@ -31,6 +31,7 @@ from app_nvidia_coder import demo as demo_nvidia_coder
 from app_openai import demo as demo_openai
 from app_sambanova_coder import demo as demo_sambanova_coder
 from app_openrouter import demo as demo_openrouter
+from app_huggingface import demo as demo_huggingface
 from utils import get_app
 import gradio as gr
 
@@ -69,6 +70,7 @@ gr.load(
 # Create mapping of providers to their demos
 PROVIDERS = {
     "OpenRouter Coder": demo_openrouter,
+    "Huggingface": demo_huggingface,
     "OpenAI Coder": demo_openai_coder,
     "Sambanova Coder": demo_sambanova_coder,
     "Gemini Coder": demo_gemini_coder,
