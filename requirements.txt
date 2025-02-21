@@ -2,7 +2,7 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 accelerate==1.2.1
     # via ai-gradio
-ai-gradio==0.2.47
+ai-gradio==0.2.49
     # via anychat (pyproject.toml)
 aiofiles==23.2.1
     # via gradio
@@ -428,7 +428,7 @@ httpx-sse==0.4.0
     #   langchain-community
 httpx-ws==0.7.1
     # via fireworks-ai
-huggingface-hub==0.28.1
+huggingface-hub==0.29.1
     # via
     #   accelerate
     #   ai-gradio
