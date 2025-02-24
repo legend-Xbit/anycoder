@@ -11,7 +11,7 @@ OPENROUTER_MODELS_DISPLAY = [k.replace("openrouter:", "") for k in OPENROUTER_MO
 # Create and launch the interface using get_app utility
 demo = get_app(
     models=OPENROUTER_MODELS_FULL,  # Use the full names with prefix
-    default_model=OPENROUTER_MODELS_FULL[5],
+    default_model=OPENROUTER_MODELS_FULL[-1],
     dropdown_label="Select OpenRouter Model",
     choices=OPENROUTER_MODELS_DISPLAY,  # Display names without prefix
     fill_height=True,
