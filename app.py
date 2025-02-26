@@ -9,8 +9,10 @@ PROVIDER_SNIPPETS = {
 import gradio as gr
 import ai_gradio
 gr.load(
-    name='huggingface:meta-llama/Meta-Llama-3-8B-Instruct',
+    name='huggingface:deepseek-ai/DeepSeek-R1',
     src=ai_gradio.registry,
+    coder=True,
+    provider="together"
 ).launch()""",
 "OpenRouter Coder": """
 import gradio as gr
