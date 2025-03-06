@@ -1,5 +1,4 @@
 from app_huggingface import demo as demo_huggingface
-from app_openrouter import demo as demo_openrouter
 from utils import get_app
 import gradio as gr
 
@@ -14,22 +13,12 @@ gr.load(
     coder=True,
     provider="together"
 ).launch()""",
-"OpenRouter Coder": """
-import gradio as gr
-import ai_gradio
-gr.load(
-    name='openrouter:anthropic/claude-3.7-sonnet',
-    src=ai_gradio.registry,
-    coder=True
-).launch()""",
-
     # Add similar snippets for other providers
 }
 
 # Create mapping of providers to their demos
 PROVIDERS = {
     "Hugging Face": demo_huggingface,
-    "OpenRouter Coder": demo_openrouter
 }
 
 # Modified get_app implementation

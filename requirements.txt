@@ -2,7 +2,7 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 accelerate==1.2.1
     # via ai-gradio
-ai-gradio==0.2.50
+ai-gradio==0.2.53
     # via anychat (pyproject.toml)
 aiofiles==23.2.1
     # via gradio
