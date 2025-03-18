@@ -1,4 +1,5 @@
 from app_huggingface import demo as demo_huggingface
+from app_gemini_coder import demo as demo_gemini_coder
 from utils import get_app
 import gradio as gr
 
@@ -13,12 +14,19 @@ gr.load(
     coder=True,
     provider="together"
 ).launch()""",
-    # Add similar snippets for other providers
+"Gemini Coder": """
+    import gradio as gr
+import ai_gradio
+gr.load(
+    name='gemini:gemini-1.5-pro',
+    src=ai_gradio.registry,
+    coder=True,
+).launch()""",
 }
-
 # Create mapping of providers to their demos
 PROVIDERS = {
     "Hugging Face": demo_huggingface,
+    "Gemini Coder": demo_gemini_coder,
 }
 
 # Modified get_app implementation
@@ -28,13 +36,13 @@ with demo:
 
     provider_dropdown = gr.Dropdown(
         choices=list(PROVIDERS.keys()),
-        value="Hugging Face",
+        value="Gemini Coder",
         label="Select code snippet"
     )
     code_display = gr.Code(
         label="Provider Code Snippet",
         language="python",
-        value=PROVIDER_SNIPPETS["Hugging Face"]
+        value=PROVIDER_SNIPPETS["Gemini Coder"]
     )
     
     def update_code(provider):
@@ -49,7 +57,7 @@ with demo:
     
     selected_demo = get_app(
         models=list(PROVIDERS.keys()),
-        default_model="Hugging Face",
+        default_model="Gemini Coder",
         src=PROVIDERS,
         dropdown_label="Select Provider",
     )
