@@ -11,7 +11,7 @@ GEMINI_MODELS_DISPLAY = [k.replace("gemini:", "") for k in GEMINI_MODELS_FULL]
 # Create and launch the interface using get_app utility
 demo = get_app(
     models=GEMINI_MODELS_FULL,  # Use the full names with prefix
-    default_model=GEMINI_MODELS_FULL[-2],
+    default_model=GEMINI_MODELS_FULL[0],
     dropdown_label="Select Gemini Model",
     choices=GEMINI_MODELS_DISPLAY,  # Display names without prefix
     src=ai_gradio.registry,

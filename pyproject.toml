@@ -5,7 +5,7 @@ description = ""
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "ai-gradio[huggingface]==0.2.54",
+    "ai-gradio[huggingface, gemini]==0.2.55",
 ]
 
 [tool.uv.sources]
