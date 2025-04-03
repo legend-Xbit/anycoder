@@ -34,7 +34,6 @@ PROVIDERS = {
 # Modified get_app implementation
 demo = gr.Blocks()
 with demo:
-    gr.Markdown("#Anycoder")
 
     provider_dropdown = gr.Dropdown(choices=list(PROVIDERS.keys()), value="Hugging Face", label="Select code snippet")
     code_display = gr.Code(label="Provider Code Snippet", language="python", value=PROVIDER_SNIPPETS["Hugging Face"])
