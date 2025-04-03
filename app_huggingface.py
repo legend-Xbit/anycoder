@@ -17,5 +17,6 @@ demo = get_app(
     choices=HUGGINGFACE_MODELS_DISPLAY,  # Display names without prefix
     fill_height=True,
     coder=True,
-    provider="fireworks-ai"
+    provider="fireworks-ai",
+    bill_to="huggingface"
 )
