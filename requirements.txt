@@ -148,7 +148,7 @@ httpx==0.28.1
     #   gradio
     #   gradio-client
     #   safehttpx
-huggingface-hub==0.29.3
+huggingface-hub==0.30.2
     # via
     #   accelerate
     #   ai-gradio
