@@ -6,6 +6,8 @@ def get_app(
     default_model: str,
     dropdown_label: str = "Select Hyperbolic Model",
     choices: list[str] | None = None,
+    provider: str | None = None,
+    bill_to: str | None = None,
     **kwargs,  # noqa: ANN003
 ) -> gr.Blocks:
     display_choices = choices if choices is not None else models
@@ -27,6 +29,10 @@ def get_app(
         for model_name in models:
             with gr.Column(visible=model_name == default_model) as column:
                 load_kwargs = {k: v for k, v in kwargs.items() if k not in ["src", "choices"]}
+                if provider is not None:
+                    load_kwargs["provider"] = provider
+                if bill_to is not None:
+                    load_kwargs["bill_to"] = bill_to
                 from ai_gradio.providers import registry
 
                 gr.load(name=model_name, src=registry, **load_kwargs)
