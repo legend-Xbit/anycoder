@@ -60,7 +60,7 @@ DEMO_LIST = [
 ]
 
 # HF Inference Client
-YOUR_API_TOKEN = os.getenv('HF_TOKEN')
+YOUR_API_TOKEN = os.getenv('HF_TOKEN3')
 client = InferenceClient(
     provider="novita",
     api_key=YOUR_API_TOKEN,
