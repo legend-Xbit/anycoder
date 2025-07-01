@@ -174,7 +174,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                     with antd.Flex(vertical=True, gap="middle", wrap=True):
                         header = gr.HTML("""
                                   <div class="left_header">
-                                   <img src="//img.alicdn.com/imgextra/i2/O1CN01KDhOma1DUo8oa7OIU_!!6000000000220-1-tps-240-240.gif" width="200px" />
+                                   <img src="https://huggingface.co/spaces/akhaliq/anycoder/resolve/main/Animated_Logo_Video_Ready.gif" width="200px" />
                                    <h1>Hugging Face Coder</h1>
                                   </div>
                                    """)
