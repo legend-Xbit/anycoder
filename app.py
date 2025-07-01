@@ -24,6 +24,19 @@ Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
 
+MODEL_LIST = [
+    {
+        "name": "DeepSeek V3",
+        "value": "deepseek-ai/DeepSeek-V3-0324",
+        "description": "Latest DeepSeek model for coding tasks"
+    },
+    {
+        "name": "DeepSeek R1", 
+        "value": "deepseek-ai/DeepSeek-R1-0528",
+        "description": "DeepSeek R1 model for coding tasks"
+    }
+]
+
 DEMO_LIST = [
     {
         "title": "Todo App",
@@ -62,7 +75,7 @@ DEMO_LIST = [
 # HF Inference Client
 YOUR_API_TOKEN = os.getenv('HF_TOKEN3')
 client = InferenceClient(
-    provider="novita",
+    provider="auto",
     api_key=YOUR_API_TOKEN,
     bill_to="huggingface"
 )
@@ -179,6 +192,7 @@ with gr.Blocks(css_paths="app.css") as demo:
     history = gr.State([])
     setting = gr.State({
         "system": SystemPrompt,
+        "model": "deepseek-ai/DeepSeek-V3-0324",
     })
 
     with ms.Application() as app:
@@ -211,10 +225,18 @@ with gr.Blocks(css_paths="app.css") as demo:
                                 "⚙️ set system Prompt", type="default")
                             codeBtn = antd.Button("🧑‍💻 view code", type="default")
                             historyBtn = antd.Button("📜 history", type="default")
+                            modelBtn = antd.Button("🤖 select model", type="default")
 
                     with antd.Modal(open=False, title="set system Prompt", width="800px") as system_prompt_modal:
                         systemPromptInput = antd.InputTextarea(
                             SystemPrompt, auto_size=True)
+
+                    with antd.Modal(open=False, title="select model", width="600px") as model_modal:
+                        modelSelect = antd.Select(
+                            options=[{"label": model["name"], "value": model["value"], "description": model["description"]} for model in MODEL_LIST],
+                            placeholder="Select a model",
+                            style={"width": "100%"}
+                        )
 
                     settingPromptBtn.click(lambda: gr.update(
                         open=True), inputs=[], outputs=[system_prompt_modal])
@@ -222,6 +244,13 @@ with gr.Blocks(css_paths="app.css") as demo:
                         open=False)), inputs=[systemPromptInput], outputs=[setting, system_prompt_modal])
                     system_prompt_modal.cancel(lambda: gr.update(
                         open=False), outputs=[system_prompt_modal])
+
+                    modelBtn.click(lambda: gr.update(
+                        open=True), inputs=[], outputs=[model_modal])
+                    model_modal.ok(lambda model_value: ({"model": model_value}, gr.update(
+                        open=False)), inputs=[modelSelect], outputs=[setting, model_modal])
+                    model_modal.cancel(lambda: gr.update(
+                        open=False), outputs=[model_modal])
 
                     with antd.Drawer(open=False, title="code", placement="left", width="750px") as code_drawer:
                         code_output = legacy.Markdown()
@@ -259,7 +288,7 @@ with gr.Blocks(css_paths="app.css") as demo:
 
               try:
                   completion = client.chat.completions.create(
-                      model="deepseek-ai/DeepSeek-V3-0324",
+                      model=_setting.get('model', 'deepseek-ai/DeepSeek-V3-0324'),
                       messages=messages,
                       stream=True
                   )
