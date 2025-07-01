@@ -306,7 +306,7 @@ with gr.Blocks(css_paths="app.css") as demo:
 
             btn.click(
                 generation_code,
-                inputs=[input, setting, history, gr.OAuthProfile()],
+                inputs=[input, setting, history],
                 outputs=[code_output, history, sandbox, state_tab, code_drawer]
             )
             
