@@ -186,6 +186,7 @@ with gr.Blocks(css_paths="app.css") as demo:
             with antd.Row(gutter=[32, 12]) as layout:
                 with antd.Col(span=24, md=8):
                     with antd.Flex(vertical=True, gap="middle", wrap=True):
+                        gr.LoginButton()
                         header = gr.HTML("""
                                   <div class="left_header">
                                    <img src="https://huggingface.co/spaces/akhaliq/anycoder/resolve/main/Animated_Logo_Video_Ready.gif" width="200px" />
@@ -205,7 +206,6 @@ with gr.Blocks(css_paths="app.css") as demo:
                                 demoCard.click(lambda e, idx=i: DEMO_LIST[idx]['description'], outputs=[input])
 
                         antd.Divider("setting")
-
                         with antd.Flex(gap="small", wrap=True):
                             settingPromptBtn = antd.Button(
                                 "⚙️ set system Prompt", type="default")
