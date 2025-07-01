@@ -175,7 +175,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                         header = gr.HTML("""
                                   <div class="left_header">
                                    <img src="//img.alicdn.com/imgextra/i2/O1CN01KDhOma1DUo8oa7OIU_!!6000000000220-1-tps-240-240.gif" width="200px" />
-                                   <h1>HF Coder</h1>
+                                   <h1>Hugging Face Coder</h1>
                                   </div>
                                    """)
                         input = antd.InputTextarea(
