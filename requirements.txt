@@ -1,4 +1,1 @@
 modelscope_studio
-base64
-requests
-python-dotenv 
