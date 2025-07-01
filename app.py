@@ -149,14 +149,28 @@ def send_to_sandbox(code):
 
 def demo_card_click(e: gr.EventData):
     try:
-        # Try to get the index from the event data
-        if hasattr(e, '_data') and e._data and 'component' in e._data:
-            index = e._data['component'].get('index', 0)
+        # Get the index from the event data
+        if hasattr(e, '_data') and e._data:
+            # Try different ways to get the index
+            if 'index' in e._data:
+                index = e._data['index']
+            elif 'component' in e._data and 'index' in e._data['component']:
+                index = e._data['component']['index']
+            elif 'target' in e._data and 'index' in e._data['target']:
+                index = e._data['target']['index']
+            else:
+                # If we can't get the index, try to extract it from the card data
+                index = 0
         else:
-            # Fallback to first item if we can't get the index
             index = 0
+        
+        # Ensure index is within bounds
+        if index >= len(DEMO_LIST):
+            index = 0
+            
         return DEMO_LIST[index]['description']
-    except (KeyError, IndexError, AttributeError):
+    except (KeyError, IndexError, AttributeError) as e:
+        print(f"Error in demo_card_click: {e}")
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
 
@@ -185,10 +199,10 @@ with gr.Blocks(css_paths="app.css") as demo:
 
                         antd.Divider("examples")
                         with antd.Flex(gap="small", wrap=True):
-                            with ms.Each(DEMO_LIST):
-                              with antd.Card(hoverable=True, as_item="card") as demoCard:
-                                antd.CardMeta()
-                              demoCard.click(demo_card_click, outputs=[input])
+                            for i, demo_item in enumerate(DEMO_LIST):
+                                with antd.Card(hoverable=True, title=demo_item["title"]) as demoCard:
+                                    antd.CardMeta(description=demo_item["description"])
+                                demoCard.click(lambda e, idx=i: DEMO_LIST[idx]['description'], outputs=[input])
 
                         antd.Divider("setting")
 
