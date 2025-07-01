@@ -8,6 +8,7 @@ sdk_version: 5.23.3
 app_file: app.py
 pinned: false
 disable_embedding: true
+hf_oauth: true
 ---
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
@@ -24,6 +25,7 @@ An ultra-clean AI-powered code generation application using Hugging Face inferen
 - **Live Preview**: Renders generated HTML code in real-time
 - **History Management**: Keeps track of conversation history
 - **Streaming**: Real-time code generation with streaming responses
+- **OAuth Login Required**: Users must sign in with their Hugging Face account to use code generation features
 
 ## Project Structure
 
@@ -54,11 +56,12 @@ anycoder/
 
 ## Usage
 
-1. Enter your application requirements in the text area
-2. Click "send" to generate code
-3. View the generated code in the code drawer
-4. See the live preview in the sandbox area
-5. Use example cards for quick prompts
+1. **Sign in with your Hugging Face account** using the login button at the top left.
+2. Enter your application requirements in the text area
+3. Click "send" to generate code
+4. View the generated code in the code drawer
+5. See the live preview in the sandbox area
+6. Use example cards for quick prompts
 
 ## Code Example
 
@@ -89,4 +92,5 @@ The application uses:
 - **Gradio**: For the web interface
 - **Hugging Face Hub**: For model inference
 - **ModelScope Studio**: For UI components
+- **OAuth Login**: Requires users to sign in with Hugging Face for code generation
 - **Streaming**: For real-time code generation

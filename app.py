@@ -249,56 +249,66 @@ with gr.Blocks(css_paths="app.css") as demo:
                             with antd.Tabs.Item(key="loading"):
                                 loading = antd.Spin(True, tip="coding...", size="large", elem_classes="right_content")
 
-            def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Optional[History]):
-              if query is None:
-                  query = ''
-              if _history is None:
-                  _history = []
-              messages = history_to_messages(_history, _setting['system'])
-              messages.append({'role': 'user', 'content': query})
+            def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Optional[History], profile: gr.OAuthProfile | None):
+                if profile is None:
+                    return (
+                        "Please sign in with Hugging Face to use this feature.",
+                        _history,
+                        None,
+                        gr.update(active_key="empty"),
+                        gr.update(open=True),
+                    )
+                if query is None:
+                    query = ''
+                if _history is None:
+                    _history = []
+                messages = history_to_messages(_history, _setting['system'])
+                messages.append({'role': 'user', 'content': query})
 
-              try:
-                  completion = client.chat.completions.create(
-                      model="deepseek-ai/DeepSeek-V3-0324",
-                      messages=messages,
-                      stream=True
-                  )
-                  
-                  content = ""
-                  for chunk in completion:
-                      if chunk.choices[0].delta.content:
-                          content += chunk.choices[0].delta.content
-                          yield {
-                              code_output: content,
-                              state_tab: gr.update(active_key="loading"),
-                              code_drawer: gr.update(open=True),
-                          }
-                  
-                  # Final response
-                  _history = messages_to_history(messages + [{
-                      'role': 'assistant',
-                      'content': content
-                  }])
-                  
-                  yield {
-                      code_output: content,
-                      history: _history,
-                      sandbox: send_to_sandbox(remove_code_block(content)),
-                      state_tab: gr.update(active_key="render"),
-                      code_drawer: gr.update(open=False),
-                  }
-                  
-              except Exception as e:
-                  error_message = f"Error: {str(e)}"
-                  yield {
-                      code_output: error_message,
-                      state_tab: gr.update(active_key="empty"),
-                      code_drawer: gr.update(open=True),
-                  }
+                try:
+                    completion = client.chat.completions.create(
+                        model="deepseek-ai/DeepSeek-V3-0324",
+                        messages=messages,
+                        stream=True
+                    )
+                    
+                    content = ""
+                    for chunk in completion:
+                        if chunk.choices[0].delta.content:
+                            content += chunk.choices[0].delta.content
+                            yield {
+                                code_output: content,
+                                state_tab: gr.update(active_key="loading"),
+                                code_drawer: gr.update(open=True),
+                            }
+                    
+                    # Final response
+                    _history = messages_to_history(messages + [{
+                        'role': 'assistant',
+                        'content': content
+                    }])
+                    
+                    yield {
+                        code_output: content,
+                        history: _history,
+                        sandbox: send_to_sandbox(remove_code_block(content)),
+                        state_tab: gr.update(active_key="render"),
+                        code_drawer: gr.update(open=False),
+                    }
+                    
+                except Exception as e:
+                    error_message = f"Error: {str(e)}"
+                    yield {
+                        code_output: error_message,
+                        state_tab: gr.update(active_key="empty"),
+                        code_drawer: gr.update(open=True),
+                    }
 
-            btn.click(generation_code,
-                      inputs=[input, setting, history],
-                      outputs=[code_output, history, sandbox, state_tab, code_drawer])
+            btn.click(
+                generation_code,
+                inputs=[input, setting, history, gr.OAuthProfile()],
+                outputs=[code_output, history, sandbox, state_tab, code_drawer]
+            )
             
             clear_btn.click(clear_history, inputs=[], outputs=[history])
 
