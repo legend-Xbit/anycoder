@@ -187,6 +187,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                 with antd.Col(span=24, md=8):
                     with antd.Flex(vertical=True, gap="middle", wrap=True):
                         gr.LoginButton()
+                        login_message = gr.Markdown("", visible=False)
                         header = gr.HTML("""
                                   <div class="left_header">
                                    <img src="https://huggingface.co/spaces/akhaliq/anycoder/resolve/main/Animated_Logo_Video_Ready.gif" width="200px" />
@@ -194,23 +195,23 @@ with gr.Blocks(css_paths="app.css") as demo:
                                   </div>
                                    """)
                         input = antd.InputTextarea(
-                            size="large", allow_clear=True, placeholder="Please enter what kind of application you want")
-                        btn = antd.Button("send", type="primary", size="large")
-                        clear_btn = antd.Button("clear history", type="default", size="large")
+                            size="large", allow_clear=True, placeholder="Please enter what kind of application you want", visible=False)
+                        btn = antd.Button("send", type="primary", size="large", visible=False)
+                        clear_btn = antd.Button("clear history", type="default", size="large", visible=False)
 
-                        antd.Divider("examples")
-                        with antd.Flex(gap="small", wrap=True):
+                        antd.Divider("examples", visible=False)
+                        with antd.Flex(gap="small", wrap=True, visible=False) as examples_flex:
                             for i, demo_item in enumerate(DEMO_LIST):
                                 with antd.Card(hoverable=True, title=demo_item["title"]) as demoCard:
                                     antd.CardMeta(description=demo_item["description"])
                                 demoCard.click(lambda e, idx=i: DEMO_LIST[idx]['description'], outputs=[input])
 
-                        antd.Divider("setting")
-                        with antd.Flex(gap="small", wrap=True):
+                        antd.Divider("setting", visible=False)
+                        with antd.Flex(gap="small", wrap=True, visible=False) as setting_flex:
                             settingPromptBtn = antd.Button(
-                                "⚙️ set system Prompt", type="default")
-                            codeBtn = antd.Button("🧑‍💻 view code", type="default")
-                            historyBtn = antd.Button("📜 history", type="default")
+                                "⚙️ set system Prompt", type="default", visible=False)
+                            codeBtn = antd.Button("🧑‍💻 view code", type="default", visible=False)
+                            historyBtn = antd.Button("📜 history", type="default", visible=False)
 
                     with antd.Modal(open=False, title="set system Prompt", width="800px") as system_prompt_modal:
                         systemPromptInput = antd.InputTextarea(
@@ -248,6 +249,32 @@ with gr.Blocks(css_paths="app.css") as demo:
                                 empty = antd.Empty(description="empty input", elem_classes="right_content")
                             with antd.Tabs.Item(key="loading"):
                                 loading = antd.Spin(True, tip="coding...", size="large", elem_classes="right_content")
+
+            def update_login_ui(profile: gr.OAuthProfile | None):
+                if profile is None:
+                    return (
+                        gr.update(value="**You must sign in with Hugging Face to use this app.**", visible=True),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
+                    )
+                else:
+                    return (
+                        gr.update(visible=False),
+                        gr.update(visible=True),
+                        gr.update(visible=True),
+                        gr.update(visible=True),
+                        gr.update(visible=True),
+                        gr.update(visible=True),
+                        gr.update(visible=True),
+                        gr.update(visible=True),
+                        gr.update(visible=True),
+                    )
 
             def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Optional[History], profile: gr.OAuthProfile | None):
                 if profile is None:
@@ -311,6 +338,22 @@ with gr.Blocks(css_paths="app.css") as demo:
             )
             
             clear_btn.click(clear_history, inputs=[], outputs=[history])
+
+            demo.load(
+                update_login_ui,
+                inputs=None,
+                outputs=[
+                    login_message,
+                    input,
+                    btn,
+                    clear_btn,
+                    examples_flex,
+                    setting_flex,
+                    settingPromptBtn,
+                    codeBtn,
+                    historyBtn,
+                ]
+            )
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=False)
