@@ -95,13 +95,10 @@ def remove_code_block(text):
         match = re.search(pattern, text, re.DOTALL)
         if match:
             extracted = match.group(1).strip()
-            print("Successfully extracted code block:", extracted)
             return extracted
     # If no code block is found, check if the entire text is HTML
     if text.strip().startswith('<!DOCTYPE html>') or text.strip().startswith('<html'):
-        print("Text appears to be raw HTML, using as is")
         return text.strip()
-    print("No code block found in text:", text)
     return text.strip()
 
 def history_render(history: History):
@@ -144,7 +141,6 @@ def send_to_sandbox(code):
     encoded_html = base64.b64encode(wrapped_code.encode('utf-8')).decode('utf-8')
     data_uri = f"data:text/html;charset=utf-8;base64,{encoded_html}"
     iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
-    print("Generated iframe:", iframe)
     return iframe
 
 def demo_card_click(e: gr.EventData):
@@ -170,7 +166,6 @@ def demo_card_click(e: gr.EventData):
             
         return DEMO_LIST[index]['description']
     except (KeyError, IndexError, AttributeError) as e:
-        print(f"Error in demo_card_click: {e}")
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
 
