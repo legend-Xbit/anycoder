@@ -21,7 +21,13 @@
 
 .left_header h1 {
     margin-top: 10px;
-    color: var(--text-color);
+    color: #333;
+}
+
+@media (prefers-color-scheme: dark) {
+    .left_header h1 {
+        color: white;
+    }
 }
 
 .right_panel {

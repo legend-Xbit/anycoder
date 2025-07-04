@@ -280,7 +280,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                         header = gr.HTML("""
                                   <div class="left_header">
                                    <img src="https://huggingface.co/spaces/akhaliq/anycoder/resolve/main/Animated_Logo_Video_Ready.gif" width="200px" />
-                                   <h1>Hugging Face Coder</h1>
+                                   <h1>AnyCoder</h1>
                                   </div>
                                    """)
                         current_model_display = gr.Markdown("**Current Model:** DeepSeek V3", visible=False)
