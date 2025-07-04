@@ -24,6 +24,20 @@ Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
 
+# Available models
+AVAILABLE_MODELS = [
+    {
+        "name": "DeepSeek V3",
+        "id": "deepseek-ai/DeepSeek-V3-0324",
+        "description": "DeepSeek V3 model for code generation"
+    },
+    {
+        "name": "DeepSeek R1", 
+        "id": "deepseek-ai/DeepSeek-R1-0528",
+        "description": "DeepSeek R1 model for code generation"
+    }
+]
+
 DEMO_LIST = [
     {
         "title": "Todo App",
@@ -60,7 +74,7 @@ DEMO_LIST = [
 ]
 
 # HF Inference Client
-YOUR_API_TOKEN = os.getenv('HF_TOKEN3')
+YOUR_API_TOKEN = os.getenv('HF_TOKEN')
 client = InferenceClient(
     provider="auto",
     api_key=YOUR_API_TOKEN,
@@ -175,6 +189,7 @@ with gr.Blocks(css_paths="app.css") as demo:
     setting = gr.State({
         "system": SystemPrompt,
     })
+    current_model = gr.State(AVAILABLE_MODELS[0])  # Default to first model
 
     with ms.Application() as app:
         with antd.ConfigProvider():
@@ -189,6 +204,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                                    <h1>Hugging Face Coder</h1>
                                   </div>
                                    """)
+                        current_model_display = gr.Markdown("**Current Model:** DeepSeek V3", visible=False)
                         input = antd.InputTextarea(
                             size="large", allow_clear=True, placeholder="Please enter what kind of application you want", visible=False)
                         btn = antd.Button("send", type="primary", size="large", visible=False)
@@ -205,6 +221,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                         with antd.Flex(gap="small", wrap=True, visible=False) as setting_flex:
                             settingPromptBtn = antd.Button(
                                 "⚙️ set system Prompt", type="default", visible=False)
+                            modelBtn = antd.Button("🤖 switch model", type="default", visible=False)
                             codeBtn = antd.Button("🧑‍💻 view code", type="default", visible=False)
                             historyBtn = antd.Button("📜 history", type="default", visible=False)
 
@@ -218,6 +235,15 @@ with gr.Blocks(css_paths="app.css") as demo:
                         open=False)), inputs=[systemPromptInput], outputs=[setting, system_prompt_modal])
                     system_prompt_modal.cancel(lambda: gr.update(
                         open=False), outputs=[system_prompt_modal])
+
+                    with antd.Modal(open=False, title="Select Model", width="600px") as model_modal:
+                        with antd.Flex(vertical=True, gap="middle"):
+                            for i, model in enumerate(AVAILABLE_MODELS):
+                                with antd.Card(hoverable=True, title=model["name"]) as modelCard:
+                                    antd.CardMeta(description=model["description"])
+                                modelCard.click(lambda m=model: (m, gr.update(open=False), f"**Current Model:** {m['name']}"), outputs=[current_model, model_modal, current_model_display])
+
+                    modelBtn.click(lambda: gr.update(open=True), inputs=[], outputs=[model_modal])
 
                     with antd.Drawer(open=False, title="code", placement="left", width="750px") as code_drawer:
                         code_output = legacy.Markdown()
@@ -257,6 +283,8 @@ with gr.Blocks(css_paths="app.css") as demo:
                         gr.update(visible=False),
                         gr.update(visible=False),
                         gr.update(visible=False),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
                     )
                 else:
                     return (
@@ -269,9 +297,11 @@ with gr.Blocks(css_paths="app.css") as demo:
                         gr.update(visible=True),
                         gr.update(visible=True),
                         gr.update(visible=True),
+                        gr.update(visible=True),
+                        gr.update(visible=True),
                     )
 
-            def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Optional[History], profile: gr.OAuthProfile | None):
+            def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Optional[History], profile: gr.OAuthProfile | None, _current_model: Dict):
                 if profile is None:
                     return (
                         "Please sign in with Hugging Face to use this feature.",
@@ -289,7 +319,7 @@ with gr.Blocks(css_paths="app.css") as demo:
 
                 try:
                     completion = client.chat.completions.create(
-                        model="deepseek-ai/DeepSeek-V3-0324",
+                        model=_current_model["id"],
                         messages=messages,
                         stream=True
                     )
@@ -328,7 +358,7 @@ with gr.Blocks(css_paths="app.css") as demo:
 
             btn.click(
                 generation_code,
-                inputs=[input, setting, history],
+                inputs=[input, setting, history, current_model],
                 outputs=[code_output, history, sandbox, state_tab, code_drawer]
             )
             
@@ -340,11 +370,13 @@ with gr.Blocks(css_paths="app.css") as demo:
                 outputs=[
                     login_message,
                     input,
+                    current_model_display,
                     btn,
                     clear_btn,
                     examples_flex,
                     setting_flex,
                     settingPromptBtn,
+                    modelBtn,
                     codeBtn,
                     historyBtn,
                 ]
