@@ -155,6 +155,11 @@ def history_render(history: History):
 def clear_history():
     return []
 
+def update_image_input_visibility(model):
+    """Update image input visibility based on selected model"""
+    is_ernie_vl = model.get("id") == "baidu/ERNIE-4.5-VL-424B-A47B-Base-PT"
+    return gr.update(visible=is_ernie_vl)
+
 def process_image_for_model(image):
     """Convert image to base64 for model input"""
     if image is None:
@@ -281,7 +286,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                         current_model_display = gr.Markdown("**Current Model:** DeepSeek V3", visible=False)
                         input = antd.InputTextarea(
                             size="large", allow_clear=True, placeholder="Please enter what kind of application you want", visible=False)
-                        image_input = gr.Image(label="Upload an image (optional)", visible=False)
+                        image_input = gr.Image(label="Upload an image (only for ERNIE-4.5-VL model)", visible=False)
                         btn = antd.Button("send", type="primary", size="large", visible=False)
                         clear_btn = antd.Button("clear history", type="default", size="large", visible=False)
 
@@ -316,7 +321,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                             for i, model in enumerate(AVAILABLE_MODELS):
                                 with antd.Card(hoverable=True, title=model["name"]) as modelCard:
                                     antd.CardMeta(description=model["description"])
-                                modelCard.click(lambda m=model: (m, gr.update(open=False), f"**Current Model:** {m['name']}"), outputs=[current_model, model_modal, current_model_display])
+                                modelCard.click(lambda m=model: (m, gr.update(open=False), f"**Current Model:** {m['name']}", update_image_input_visibility(m)), outputs=[current_model, model_modal, current_model_display, image_input])
 
                     modelBtn.click(lambda: gr.update(open=True), inputs=[], outputs=[model_modal])
 
@@ -366,7 +371,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                     return (
                         gr.update(visible=False),
                         gr.update(visible=True),
-                        gr.update(visible=True),
+                        gr.update(visible=False),  # Image input hidden by default (DeepSeek V3)
                         gr.update(visible=True),
                         gr.update(visible=True),
                         gr.update(visible=True),
