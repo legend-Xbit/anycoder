@@ -94,3 +94,63 @@ The application uses:
 - **ModelScope Studio**: For UI components
 - **OAuth Login**: Requires users to sign in with Hugging Face for code generation
 - **Streaming**: For real-time code generation
+
+# Hugging Face Coder
+
+A Gradio-based application that uses Hugging Face models to generate code based on user requirements. The app supports both text-only and multimodal (text + image) code generation.
+
+## Features
+
+- **Multiple Model Support**: DeepSeek V3, DeepSeek R1, and ERNIE-4.5-VL
+- **Multimodal Input**: Upload images to help describe your requirements
+- **Real-time Code Generation**: Stream responses from the models
+- **Live Preview**: See your generated code in action with the built-in sandbox
+- **History Management**: Keep track of your previous generations
+- **Example Templates**: Quick-start with predefined application templates
+
+## Setup
+
+1. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+2. Set your Hugging Face API token as an environment variable:
+```bash
+export HF_TOKEN="your_huggingface_token_here"
+```
+
+3. Run the application:
+```bash
+python app.py
+```
+
+## Usage
+
+1. **Text-only Generation**: Simply type your requirements in the text area
+2. **Multimodal Generation**: Upload an image and describe what you want to create
+3. **Model Selection**: Switch between different models using the model selector
+4. **Examples**: Use the provided example templates to get started quickly
+
+## Supported Models
+
+- **DeepSeek V3**: General code generation
+- **DeepSeek R1**: Advanced code generation
+- **ERNIE-4.5-VL**: Multimodal code generation with image understanding
+
+## Environment Variables
+
+- `HF_TOKEN`: Your Hugging Face API token (required)
+
+## Examples
+
+- Todo App
+- Calculator
+- Weather Dashboard
+- Chat Interface
+- E-commerce Product Card
+- Login Form
+- Dashboard Layout
+- Data Table
+- Image Gallery
+- UI from Image (multimodal)

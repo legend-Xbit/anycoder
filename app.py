@@ -20,6 +20,8 @@ When asked to create an application, you should:
 4. Include necessary comments and documentation
 5. Ensure the code is functional and follows best practices
 
+If an image is provided, analyze it and use the visual information to better understand the user's requirements.
+
 Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
@@ -35,6 +37,11 @@ AVAILABLE_MODELS = [
         "name": "DeepSeek R1", 
         "id": "deepseek-ai/DeepSeek-R1-0528",
         "description": "DeepSeek R1 model for code generation"
+    },
+    {
+        "name": "ERNIE-4.5-VL",
+        "id": "baidu/ERNIE-4.5-VL-424B-A47B-Base-PT",
+        "description": "ERNIE-4.5-VL model for multimodal code generation with image support"
     }
 ]
 
@@ -70,6 +77,14 @@ DEMO_LIST = [
     {
         "title": "Data Table",
         "description": "Build a data table with sorting and filtering capabilities"
+    },
+    {
+        "title": "Image Gallery",
+        "description": "Create an image gallery with lightbox functionality and responsive grid layout"
+    },
+    {
+        "title": "UI from Image",
+        "description": "Upload an image of a UI design and I'll generate the HTML/CSS code for it"
     }
 ]
 
@@ -87,7 +102,17 @@ Messages = List[Dict[str, str]]
 def history_to_messages(history: History, system: str) -> Messages:
     messages = [{'role': 'system', 'content': system}]
     for h in history:
-        messages.append({'role': 'user', 'content': h[0]})
+        # Handle multimodal content in history
+        user_content = h[0]
+        if isinstance(user_content, list):
+            # Extract text from multimodal content
+            text_content = ""
+            for item in user_content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_content += item.get("text", "")
+            user_content = text_content if text_content else str(user_content)
+        
+        messages.append({'role': 'user', 'content': user_content})
         messages.append({'role': 'assistant', 'content': h[1]})
     return messages
 
@@ -95,7 +120,16 @@ def messages_to_history(messages: Messages) -> Tuple[str, History]:
     assert messages[0]['role'] == 'system'
     history = []
     for q, r in zip(messages[1::2], messages[2::2]):
-        history.append([q['content'], r['content']])
+        # Extract text content from multimodal messages for history
+        user_content = q['content']
+        if isinstance(user_content, list):
+            text_content = ""
+            for item in user_content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_content += item.get("text", "")
+            user_content = text_content if text_content else str(user_content)
+        
+        history.append([user_content, r['content']])
     return history
 
 def remove_code_block(text):
@@ -120,6 +154,46 @@ def history_render(history: History):
 
 def clear_history():
     return []
+
+def process_image_for_model(image):
+    """Convert image to base64 for model input"""
+    if image is None:
+        return None
+    
+    # Convert numpy array to PIL Image if needed
+    import io
+    import base64
+    import numpy as np
+    from PIL import Image
+    
+    # Handle numpy array from Gradio
+    if isinstance(image, np.ndarray):
+        image = Image.fromarray(image)
+    
+    buffer = io.BytesIO()
+    image.save(buffer, format='PNG')
+    img_str = base64.b64encode(buffer.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
+
+def create_multimodal_message(text, image=None):
+    """Create a multimodal message with text and optional image"""
+    if image is None:
+        return {"role": "user", "content": text}
+    
+    content = [
+        {
+            "type": "text",
+            "text": text
+        },
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": process_image_for_model(image)
+            }
+        }
+    ]
+    
+    return {"role": "user", "content": content}
 
 def send_to_sandbox(code):
     # Add a wrapper to inject necessary permissions and ensure full HTML
@@ -207,6 +281,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                         current_model_display = gr.Markdown("**Current Model:** DeepSeek V3", visible=False)
                         input = antd.InputTextarea(
                             size="large", allow_clear=True, placeholder="Please enter what kind of application you want", visible=False)
+                        image_input = gr.Image(label="Upload an image (optional)", visible=False)
                         btn = antd.Button("send", type="primary", size="large", visible=False)
                         clear_btn = antd.Button("clear history", type="default", size="large", visible=False)
 
@@ -215,7 +290,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                             for i, demo_item in enumerate(DEMO_LIST):
                                 with antd.Card(hoverable=True, title=demo_item["title"]) as demoCard:
                                     antd.CardMeta(description=demo_item["description"])
-                                demoCard.click(lambda e, idx=i: DEMO_LIST[idx]['description'], outputs=[input])
+                                demoCard.click(lambda e, idx=i: (DEMO_LIST[idx]['description'], None), outputs=[input, image_input])
 
                         antd.Divider("setting", visible=False)
                         with antd.Flex(gap="small", wrap=True, visible=False) as setting_flex:
@@ -285,6 +360,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                         gr.update(visible=False),
                         gr.update(visible=False),
                         gr.update(visible=False),
+                        gr.update(visible=False),
                     )
                 else:
                     return (
@@ -299,9 +375,10 @@ with gr.Blocks(css_paths="app.css") as demo:
                         gr.update(visible=True),
                         gr.update(visible=True),
                         gr.update(visible=True),
+                        gr.update(visible=True),
                     )
 
-            def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Optional[History], profile: gr.OAuthProfile | None, _current_model: Dict):
+            def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: Dict[str, str], _history: Optional[History], profile: gr.OAuthProfile | None, _current_model: Dict):
                 if profile is None:
                     return (
                         "Please sign in with Hugging Face to use this feature.",
@@ -315,7 +392,12 @@ with gr.Blocks(css_paths="app.css") as demo:
                 if _history is None:
                     _history = []
                 messages = history_to_messages(_history, _setting['system'])
-                messages.append({'role': 'user', 'content': query})
+                
+                # Create multimodal message if image is provided
+                if image is not None:
+                    messages.append(create_multimodal_message(query, image))
+                else:
+                    messages.append({'role': 'user', 'content': query})
 
                 try:
                     completion = client.chat.completions.create(
@@ -358,7 +440,7 @@ with gr.Blocks(css_paths="app.css") as demo:
 
             btn.click(
                 generation_code,
-                inputs=[input, setting, history, current_model],
+                inputs=[input, image_input, setting, history, current_model],
                 outputs=[code_output, history, sandbox, state_tab, code_drawer]
             )
             
@@ -370,6 +452,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                 outputs=[
                     login_message,
                     input,
+                    image_input,
                     current_model_display,
                     btn,
                     clear_btn,
