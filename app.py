@@ -408,7 +408,8 @@ with gr.Blocks(css_paths="app.css") as demo:
                     completion = client.chat.completions.create(
                         model=_current_model["id"],
                         messages=messages,
-                        stream=True
+                        stream=True,
+                        max_tokens=5000  # Higher max_tokens for more complete applications while maintaining reasonable speed
                     )
                     
                     content = ""
