@@ -42,6 +42,11 @@ AVAILABLE_MODELS = [
         "name": "ERNIE-4.5-VL",
         "id": "baidu/ERNIE-4.5-VL-424B-A47B-Base-PT",
         "description": "ERNIE-4.5-VL model for multimodal code generation with image support"
+    },
+    {
+        "name": "MiniMax M1",
+        "id": "MiniMaxAI/MiniMax-M1-80k",
+        "description": "MiniMax M1 model for code generation and general tasks"
     }
 ]
 
@@ -268,7 +273,7 @@ with gr.Blocks(css_paths="app.css") as demo:
     setting = gr.State({
         "system": SystemPrompt,
     })
-    current_model = gr.State(AVAILABLE_MODELS[0])  # Default to first model
+    current_model = gr.State(AVAILABLE_MODELS[1])  # Default to DeepSeek R1 (second model)
 
     with ms.Application() as app:
         with antd.ConfigProvider():
@@ -281,7 +286,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                                    <h1>AnyCoder</h1>
                                   </div>
                                    """)
-                        current_model_display = gr.Markdown("**Current Model:** DeepSeek V3")
+                        current_model_display = gr.Markdown("**Current Model:** DeepSeek R1")
                         input = antd.InputTextarea(
                             size="large", allow_clear=True, placeholder="Please enter what kind of application you want")
                         image_input = gr.Image(label="Upload an image (only for ERNIE-4.5-VL model)", visible=False)
