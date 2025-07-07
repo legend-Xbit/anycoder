@@ -275,35 +275,33 @@ with gr.Blocks(css_paths="app.css") as demo:
             with antd.Row(gutter=[32, 12]) as layout:
                 with antd.Col(span=24, md=8):
                     with antd.Flex(vertical=True, gap="middle", wrap=True):
-                        gr.LoginButton()
-                        login_message = gr.Markdown("", visible=False)
                         header = gr.HTML("""
                                   <div class="left_header">
                                    <img src="https://huggingface.co/spaces/akhaliq/anycoder/resolve/main/Animated_Logo_Video_Ready.gif" width="200px" />
                                    <h1>AnyCoder</h1>
                                   </div>
                                    """)
-                        current_model_display = gr.Markdown("**Current Model:** DeepSeek V3", visible=False)
+                        current_model_display = gr.Markdown("**Current Model:** DeepSeek V3")
                         input = antd.InputTextarea(
-                            size="large", allow_clear=True, placeholder="Please enter what kind of application you want", visible=False)
+                            size="large", allow_clear=True, placeholder="Please enter what kind of application you want")
                         image_input = gr.Image(label="Upload an image (only for ERNIE-4.5-VL model)", visible=False)
-                        btn = antd.Button("send", type="primary", size="large", visible=False)
-                        clear_btn = antd.Button("clear history", type="default", size="large", visible=False)
+                        btn = antd.Button("send", type="primary", size="large")
+                        clear_btn = antd.Button("clear history", type="default", size="large")
 
-                        antd.Divider("examples", visible=False)
-                        with antd.Flex(gap="small", wrap=True, visible=False) as examples_flex:
+                        antd.Divider("examples")
+                        with antd.Flex(gap="small", wrap=True) as examples_flex:
                             for i, demo_item in enumerate(DEMO_LIST):
                                 with antd.Card(hoverable=True, title=demo_item["title"]) as demoCard:
                                     antd.CardMeta(description=demo_item["description"])
                                 demoCard.click(lambda e, idx=i: (DEMO_LIST[idx]['description'], None), outputs=[input, image_input])
 
-                        antd.Divider("setting", visible=False)
-                        with antd.Flex(gap="small", wrap=True, visible=False) as setting_flex:
+                        antd.Divider("setting")
+                        with antd.Flex(gap="small", wrap=True) as setting_flex:
                             settingPromptBtn = antd.Button(
-                                "⚙️ set system Prompt", type="default", visible=False)
-                            modelBtn = antd.Button("🤖 switch model", type="default", visible=False)
-                            codeBtn = antd.Button("🧑‍💻 view code", type="default", visible=False)
-                            historyBtn = antd.Button("📜 history", type="default", visible=False)
+                                "⚙️ set system Prompt", type="default")
+                            modelBtn = antd.Button("🤖 switch model", type="default")
+                            codeBtn = antd.Button("🧑‍💻 view code", type="default")
+                            historyBtn = antd.Button("📜 history", type="default")
 
                     with antd.Modal(open=False, title="set system Prompt", width="800px") as system_prompt_modal:
                         systemPromptInput = antd.InputTextarea(
@@ -351,47 +349,7 @@ with gr.Blocks(css_paths="app.css") as demo:
                             with antd.Tabs.Item(key="loading"):
                                 loading = antd.Spin(True, tip="coding...", size="large", elem_classes="right_content")
 
-            def update_login_ui(profile: gr.OAuthProfile | None):
-                if profile is None:
-                    return (
-                        gr.update(value="**You must sign in with Hugging Face to use this app.**", visible=True),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                        gr.update(visible=False),
-                    )
-                else:
-                    return (
-                        gr.update(visible=False),
-                        gr.update(visible=True),
-                        gr.update(visible=False),  # Image input hidden by default (DeepSeek V3)
-                        gr.update(visible=True),
-                        gr.update(visible=True),
-                        gr.update(visible=True),
-                        gr.update(visible=True),
-                        gr.update(visible=True),
-                        gr.update(visible=True),
-                        gr.update(visible=True),
-                        gr.update(visible=True),
-                        gr.update(visible=True),
-                    )
-
-            def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: Dict[str, str], _history: Optional[History], profile: gr.OAuthProfile | None, _current_model: Dict):
-                if profile is None:
-                    return (
-                        "Please sign in with Hugging Face to use this feature.",
-                        _history,
-                        None,
-                        gr.update(active_key="empty"),
-                        gr.update(open=True),
-                    )
+            def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict):
                 if query is None:
                     query = ''
                 if _history is None:
@@ -452,24 +410,7 @@ with gr.Blocks(css_paths="app.css") as demo:
             
             clear_btn.click(clear_history, inputs=[], outputs=[history])
 
-            demo.load(
-                update_login_ui,
-                inputs=None,
-                outputs=[
-                    login_message,
-                    input,
-                    image_input,
-                    current_model_display,
-                    btn,
-                    clear_btn,
-                    examples_flex,
-                    setting_flex,
-                    settingPromptBtn,
-                    modelBtn,
-                    codeBtn,
-                    historyBtn,
-                ]
-            )
+
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=False)
