@@ -288,6 +288,7 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: D
                 yield {
                     code_output: clean_code,
                     status_indicator: '<div class="status-indicator generating" id="status">Generating code...</div>',
+                    history_output: _history,
                 }
         _history = messages_to_history(messages + [{
             'role': 'assistant',
@@ -298,12 +299,14 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: D
             history: _history,
             sandbox: send_to_sandbox(remove_code_block(content)),
             status_indicator: '<div class="status-indicator success" id="status">Code generated successfully!</div>',
+            history_output: _history,
         }
     except Exception as e:
         error_message = f"Error: {str(e)}"
         yield {
             code_output: error_message,
             status_indicator: '<div class="status-indicator error" id="status">Error generating code</div>',
+            history_output: _history,
         }
 
 # Main application
@@ -391,13 +394,9 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
     btn.click(
         generation_code,
         inputs=[input, image_input, setting, history, current_model],
-        outputs=[code_output, history, sandbox, status_indicator]
+        outputs=[code_output, history, sandbox, status_indicator, history_output]
     )
     clear_btn.click(clear_history, outputs=[history])
-    # History tab update
-    def update_history(history):
-        return history
-    history_output.change(update_history, inputs=history, outputs=history_output)
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=False)
