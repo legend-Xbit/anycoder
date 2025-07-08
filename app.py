@@ -43,6 +43,11 @@ AVAILABLE_MODELS = [
         "name": "MiniMax M1",
         "id": "MiniMaxAI/MiniMax-M1-80k",
         "description": "MiniMax M1 model for code generation and general tasks"
+    },
+    {
+        "name": "Qwen3-235B-A22B",
+        "id": "Qwen/Qwen3-235B-A22B",
+        "description": "Qwen3-235B-A22B model for code generation and general tasks"
     }
 ]
 
