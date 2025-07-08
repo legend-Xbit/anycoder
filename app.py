@@ -307,159 +307,97 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: D
         }
 
 # Main application
-with gr.Blocks(css_paths="app.css", title="AnyCoder - AI Code Generator") as demo:
+with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as demo:
     history = gr.State([])
     setting = gr.State({
         "system": SystemPrompt,
     })
     current_model = gr.State(AVAILABLE_MODELS[0])
-    current_model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", elem_classes="model-display")
     open_panel = gr.State(None)
 
-    # Define shared components FIRST so they can be referenced everywhere
-    with gr.Row():
-        # Sidebar
-        with gr.Column(scale=0, min_width=340, elem_classes="sidebar"):
-            gr.HTML("""
-                <div class="sidebar-header">
-                    <img src="https://huggingface.co/spaces/akhaliq/anycoder/resolve/main/Animated_Logo_Video_Ready.gif" width="48px" />
-                    <h1>AnyCoder</h1>
-                    <div class="sidebar-desc">AI-Powered Code Generator</div>
-                </div>
-            """)
-            input = gr.Textbox(
-                label="Describe your application",
-                placeholder="e.g., Create a todo app with add, delete, and mark as complete functionality",
-                lines=2,
-                elem_classes="code-input"
+    with gr.Sidebar():
+        gr.Markdown("# AnyCoder\nAI-Powered Code Generator")
+        gr.Markdown("""Describe your app or UI in plain English. Optionally upload a UI image (for ERNIE model). Click Generate to get code and preview.""")
+        input = gr.Textbox(
+            label="Describe your application",
+            placeholder="e.g., Create a todo app with add, delete, and mark as complete functionality",
+            lines=2
+        )
+        image_input = gr.Image(
+            label="Upload UI design image (ERNIE-4.5-VL only)",
+            visible=False
+        )
+        with gr.Row():
+            btn = gr.Button("Generate", variant="primary", size="sm")
+            clear_btn = gr.Button("Clear", variant="secondary", size="sm")
+        gr.Markdown("### Quick Examples")
+        for i, demo_item in enumerate(DEMO_LIST[:5]):
+            demo_card = gr.Button(
+                value=demo_item['title'], 
+                variant="secondary",
+                size="sm"
             )
-            image_input = gr.Image(
-                label="Upload UI design image (ERNIE-4.5-VL only)",
-                visible=False,
-                elem_classes="image-input"
+            demo_card.click(
+                fn=lambda idx=i: gr.update(value=DEMO_LIST[idx]['description']),
+                outputs=input
             )
-            with gr.Row():
-                btn = gr.Button("Generate", variant="primary", size="sm", elem_classes="generate-btn")
-                clear_btn = gr.Button("Clear", variant="secondary", size="sm", elem_classes="clear-btn")
-            gr.HTML("""
-                <div class="sidebar-section">
-                    <h3>How it works</h3>
-                    <ul>
-                        <li>Describe your app or UI in plain English</li>
-                        <li>Optionally upload a UI image (for ERNIE model)</li>
-                        <li>Click Generate to get code and preview</li>
-                    </ul>
-                </div>
-            """)
-            gr.HTML("<div class='sidebar-section'><h3>Quick Examples</h3></div>")
-            for i, demo_item in enumerate(DEMO_LIST[:5]):
-                demo_card = gr.Button(
-                    value=demo_item['title'], 
-                    variant="secondary",
-                    size="sm",
-                    elem_classes="quick-example-btn sidebar-btn"
-                )
-                demo_card.click(
-                    fn=lambda idx=i: gr.update(value=DEMO_LIST[idx]['description']),
-                    outputs=input
-                )
-            gr.HTML("<hr style='margin: 16px 0;'>")
-            with gr.Row():
-                modelBtn = gr.Button("🤖 Model", variant="secondary", size="sm", elem_classes="sidebar-btn")
-                settingPromptBtn = gr.Button("⚙️ Prompt", variant="secondary", size="sm", elem_classes="sidebar-btn")
-                historyBtn = gr.Button("📜 History", variant="secondary", size="sm", elem_classes="sidebar-btn")
-            # Place modals/drawers at the end of the sidebar so they overlay the lower part
-            with gr.Group(visible=False, elem_classes="modal") as system_prompt_modal:
-                gr.HTML("<h3>System Prompt Configuration</h3>")
-                systemPromptInput = gr.Textbox(
-                    value=SystemPrompt,
-                    label="System Prompt",
-                    lines=10,
-                    elem_classes="modal-input"
-                )
-                with gr.Row():
-                    modal_ok_btn = gr.Button("Save", variant="primary")
-                    modal_cancel_btn = gr.Button("Cancel", variant="secondary")
+        gr.Markdown("---")
+        model_dropdown = gr.Dropdown(
+            choices=[model['name'] for model in AVAILABLE_MODELS],
+            value=AVAILABLE_MODELS[0]['name'],
+            label="Select Model"
+        )
+        def on_model_change(model_name):
+            for m in AVAILABLE_MODELS:
+                if m['name'] == model_name:
+                    return m, f"**Model:** {m['name']}", update_image_input_visibility(m)
+            return AVAILABLE_MODELS[0], f"**Model:** {AVAILABLE_MODELS[0]['name']}", update_image_input_visibility(AVAILABLE_MODELS[0])
+        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}")
+        model_dropdown.change(
+            on_model_change,
+            inputs=model_dropdown,
+            outputs=[current_model, model_display, image_input]
+        )
+        with gr.Accordion("System Prompt", open=False):
+            systemPromptInput = gr.Textbox(
+                value=SystemPrompt,
+                label="System Prompt",
+                lines=10
+            )
+            save_prompt_btn = gr.Button("Save", variant="primary")
+            def save_prompt(input):
+                return {setting: {"system": input}}
+            save_prompt_btn.click(save_prompt, inputs=systemPromptInput, outputs=setting)
 
-            with gr.Group(visible=False, elem_classes="modal") as model_modal:
-                gr.HTML("<h3>Select AI Model</h3>")
-                with gr.Row(elem_classes="model-select-row"):
-                    for i, model in enumerate(AVAILABLE_MODELS):
-                        model_select_btn = gr.Button(
-                            value=model['name'],
-                            variant="secondary",
-                            size="sm",
-                            elem_classes="model-card-btn"
-                        )
-                        model_select_btn.click(
-                            lambda m=model: (m, gr.update(visible=False), f"**Model:** {m['name']}", update_image_input_visibility(m)), 
-                            outputs=[current_model, model_modal, current_model_display, image_input]
-                        )
-
-            with gr.Group(visible=False, elem_classes="drawer") as history_drawer:
-                gr.HTML("<h3>Generation History</h3>")
-                history_output = gr.Chatbot(show_label=False, height=400, elem_classes="history_chatbot")
-        # Main area
-        with gr.Column(scale=1, min_width=700, elem_classes="main-area"):
-            with gr.Row():
-                current_model_display
-            with gr.Tabs(elem_classes="code-tabs") as tabs:
-                with gr.Tab("Code Editor", elem_classes="code-tab"):
-                    code_output = gr.Code(
-                        language="html", 
-                        lines=25, 
-                        interactive=False,
-                        elem_classes="code-editor"
-                    )
-                with gr.Tab("Live Preview", elem_classes="preview-tab"):
-                    sandbox = gr.HTML(elem_classes="html_content")
-            status_indicator = gr.HTML(
-                '<div class="status-indicator" id="status">Ready to generate code</div>',
-                elem_classes="status-bar"
-            )
+    with gr.Column():
+        model_display
+        with gr.Tabs():
+            with gr.Tab("Code Editor"):
+                code_output = gr.Code(
+                    language="html", 
+                    lines=25, 
+                    interactive=False,
+                    label="Generated Code"
+                )
+            with gr.Tab("Live Preview"):
+                sandbox = gr.HTML(label="Live Preview")
+            with gr.Tab("History"):
+                history_output = gr.Chatbot(show_label=False, height=400)
+        status_indicator = gr.Markdown(
+            'Ready to generate code',
+        )
 
     # Event handlers
-    settingPromptBtn.click(
-        fn=lambda current: toggle_panel(current, "prompt"),
-        inputs=[open_panel],
-        outputs=[system_prompt_modal, model_modal, history_drawer, open_panel]
-    )
-    modelBtn.click(
-        fn=lambda current: toggle_panel(current, "model"),
-        inputs=[open_panel],
-        outputs=[system_prompt_modal, model_modal, history_drawer, open_panel]
-    )
-    historyBtn.click(
-        fn=lambda current, history: (*toggle_panel(current, "history")[:3], history, toggle_panel(current, "history")[3]),
-        inputs=[open_panel, history],
-        outputs=[system_prompt_modal, model_modal, history_drawer, history_output, open_panel]
-    )
-    modal_ok_btn.click(
-        lambda input: ({"system": input}, gr.update(visible=False)), 
-        inputs=[systemPromptInput], 
-        outputs=[setting, system_prompt_modal]
-    )
-    modal_cancel_btn.click(lambda: gr.update(visible=False), outputs=[system_prompt_modal])
     btn.click(
         generation_code,
         inputs=[input, image_input, setting, history, current_model],
         outputs=[code_output, history, sandbox, status_indicator]
     )
     clear_btn.click(clear_history, outputs=[history])
-
-def toggle_panel(current, panel):
-    # If the requested panel is already open, close all
-    if current == panel:
-        return (gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), None)
-    # Otherwise, open the requested panel and close others
-    if panel == "prompt":
-        return (gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), "prompt")
-    elif panel == "model":
-        return (gr.update(visible=False), gr.update(visible=True), gr.update(visible=False), "model")
-    elif panel == "history":
-        return (gr.update(visible=False), gr.update(visible=False), gr.update(visible=True), "history")
-    else:
-        return (gr.update(visible=False), gr.update(visible=False), gr.update(visible=False), None)
+    # History tab update
+    def update_history(history):
+        return history
+    history_output.change(update_history, inputs=history, outputs=history_output)
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=False)
