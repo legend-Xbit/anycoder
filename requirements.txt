@@ -1,3 +1,2 @@
-modelscope_studio
 git+https://github.com/huggingface/huggingface_hub.git
 gradio[oauth]
