@@ -21,6 +21,7 @@ AnyCoder is an AI-powered code generator that helps you create applications by d
 
 - **Multi-Model Support**: Choose from various AI models including DeepSeek, ERNIE-4.5-VL, MiniMax, and Qwen
 - **Image-to-Code**: Upload UI design images and get corresponding HTML/CSS code (ERNIE-4.5-VL model)
+- **Image Text Extraction**: Upload images and extract text using OCR for processing
 - **Live Preview**: See your generated code in action with the built-in sandbox
 - **Web Search Integration**: Enable real-time web search to get the latest information and best practices
 - **Chat History**: Keep track of your conversations and generated code
@@ -74,6 +75,23 @@ The web search feature uses Tavily to provide real-time information when generat
 3. Toggle the "🔍 Enable Web Search" checkbox in the sidebar
 
 When enabled, the AI will search the web for the latest information, best practices, and technologies related to your request.
+
+## Image Text Extraction
+
+The application supports extracting text from images using OCR (Optical Character Recognition). This feature allows you to:
+
+1. Upload image files (JPG, PNG, BMP, TIFF, GIF, WebP) through the file input
+2. Automatically extract text from the images using Tesseract OCR
+3. Include the extracted text in your prompts for code generation
+
+### Setting up OCR
+
+To use the image text extraction feature, you need to install Tesseract OCR on your system. See `install_tesseract.md` for detailed installation instructions.
+
+**Example usage:**
+- Upload an image containing text (like a screenshot, document, or handwritten notes)
+- The application will extract the text and include it in your prompt
+- You can then ask the AI to process, summarize, or work with the extracted text
 
 ## Available Models
 

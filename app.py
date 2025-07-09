@@ -6,6 +6,10 @@ import base64
 import mimetypes
 import PyPDF2
 import docx
+import cv2
+import numpy as np
+from PIL import Image
+import pytesseract
 
 import gradio as gr
 from huggingface_hub import InferenceClient
@@ -116,6 +120,10 @@ DEMO_LIST = [
     {
         "title": "UI from Image",
         "description": "Upload an image of a UI design and I'll generate the HTML/CSS code for it"
+    },
+    {
+        "title": "Extract Text from Image",
+        "description": "Upload an image containing text and I'll extract and process the text content"
     }
 ]
 
@@ -372,6 +380,38 @@ def demo_card_click(e: gr.EventData):
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
 
+def extract_text_from_image(image_path):
+    """Extract text from image using OCR"""
+    try:
+        # Check if tesseract is available
+        try:
+            pytesseract.get_tesseract_version()
+        except Exception:
+            return "Error: Tesseract OCR is not installed. Please install Tesseract to extract text from images. See install_tesseract.md for instructions."
+        
+        # Read image using OpenCV
+        image = cv2.imread(image_path)
+        if image is None:
+            return "Error: Could not read image file"
+        
+        # Convert to RGB (OpenCV uses BGR)
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # Preprocess image for better OCR results
+        # Convert to grayscale
+        gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
+        
+        # Apply thresholding to get binary image
+        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        
+        # Extract text using pytesseract
+        text = pytesseract.image_to_string(binary, config='--psm 6')
+        
+        return text.strip() if text.strip() else "No text found in image"
+        
+    except Exception as e:
+        return f"Error extracting text from image: {e}"
+
 def extract_text_from_file(file_path):
     if not file_path:
         return ""
@@ -391,6 +431,8 @@ def extract_text_from_file(file_path):
         elif ext == ".docx":
             doc = docx.Document(file_path)
             return "\n".join([para.text for para in doc.paragraphs])
+        elif ext.lower() in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"]:
+            return extract_text_from_image(file_path)
         else:
             return ""
     except Exception as e:
@@ -471,7 +513,7 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
         gr.Markdown("# AnyCoder\nAI-Powered Code Generator")
         gr.Markdown("""Describe your app or UI in plain English. Optionally upload a UI image (for ERNIE model). Click Generate to get code and preview.""")
         gr.Markdown("**Tip:** For best search results about people or entities, include details like profession, company, or location. Example: 'John Smith software engineer at Google.'")
-        gr.Markdown("**Tip:** You can attach a file (PDF, TXT, DOCX, CSV, MD) to use as reference for your prompt, e.g. 'Summarize this PDF.'")
+        gr.Markdown("**Tip:** You can attach a file (PDF, TXT, DOCX, CSV, MD, Images) to use as reference for your prompt, e.g. 'Summarize this PDF' or 'Extract text from this image'.")
         input = gr.Textbox(
             label="Describe your application",
             placeholder="e.g., Create a todo app with add, delete, and mark as complete functionality",
@@ -482,8 +524,8 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
             visible=False
         )
         file_input = gr.File(
-            label="Attach a file (PDF, TXT, DOCX, CSV, MD)",
-            file_types=[".pdf", ".txt", ".md", ".csv", ".docx"],
+            label="Attach a file (PDF, TXT, DOCX, CSV, MD, Images)",
+            file_types=[".pdf", ".txt", ".md", ".csv", ".docx", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"],
             visible=True
         )
         with gr.Row():
@@ -502,6 +544,8 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
             gr.Markdown("⚠️ **Web Search Unavailable**: Set `TAVILY_API_KEY` environment variable to enable search")
         else:
             gr.Markdown("✅ **Web Search Available**: Toggle above to enable real-time search")
+        
+        gr.Markdown("📷 **Image Text Extraction**: Upload images to extract text using OCR (requires Tesseract installation)")
         
         gr.Markdown("### Quick Examples")
         for i, demo_item in enumerate(DEMO_LIST[:5]):
