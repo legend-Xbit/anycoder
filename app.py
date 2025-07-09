@@ -68,6 +68,11 @@ AVAILABLE_MODELS = [
         "name": "Qwen3-235B-A22B",
         "id": "Qwen/Qwen3-235B-A22B",
         "description": "Qwen3-235B-A22B model for code generation and general tasks"
+    },
+    {
+        "name": "SmolLM3-3B",
+        "id": "HuggingFaceTB/SmolLM3-3B",
+        "description": "SmolLM3-3B model for code generation and general tasks"
     }
 ]
 
