@@ -253,17 +253,15 @@ def create_multimodal_message(text, image=None):
 # Uses 'advanced' search_depth and auto_parameters=True for speed and relevance
 
 def perform_web_search(query: str, max_results: int = 5, include_domains=None, exclude_domains=None) -> str:
-    """Perform web search using Tavily and return formatted results (fast, prompt-focused)"""
+    """Perform web search using Tavily with default parameters"""
     if not tavily_client:
         return "Web search is not available. Please set the TAVILY_API_KEY environment variable."
     
     try:
-        # Use advanced search for better results, auto_parameters for prompt intent
+        # Use Tavily defaults with advanced search depth for better results
         search_params = {
-            "auto_parameters": True,
             "search_depth": "advanced",
-            "max_results": min(max(1, max_results), 20),
-            "include_answer": True
+            "max_results": min(max(1, max_results), 20)
         }
         if include_domains is not None:
             search_params["include_domains"] = include_domains
@@ -271,9 +269,6 @@ def perform_web_search(query: str, max_results: int = 5, include_domains=None, e
             search_params["exclude_domains"] = exclude_domains
 
         response = tavily_client.search(query, **search_params)
-        
-        answer = response.get('answer')
-        formatted_answer = f"**AI Answer:**\n{answer}\n\n" if answer else ""
         
         search_results = []
         for result in response.get('results', []):
@@ -283,9 +278,9 @@ def perform_web_search(query: str, max_results: int = 5, include_domains=None, e
             search_results.append(f"Title: {title}\nURL: {url}\nContent: {content}\n")
         
         if search_results:
-            return formatted_answer + "Web Search Results:\n\n" + "\n---\n".join(search_results)
+            return "Web Search Results:\n\n" + "\n---\n".join(search_results)
         else:
-            return formatted_answer + "No search results found."
+            return "No search results found."
             
     except Exception as e:
         return f"Search error: {str(e)}"
