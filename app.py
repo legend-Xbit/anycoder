@@ -6,6 +6,7 @@ import base64
 
 import gradio as gr
 from huggingface_hub import InferenceClient
+from tavily import TavilyClient
 
 # Configuration
 SystemPrompt = """You are a helpful coding assistant. You help users create applications by generating code based on their requirements. 
@@ -15,6 +16,22 @@ When asked to create an application, you should:
 3. Provide HTML output when appropriate for web applications
 4. Include necessary comments and documentation
 5. Ensure the code is functional and follows best practices
+
+If an image is provided, analyze it and use the visual information to better understand the user's requirements.
+
+Always respond with code that can be executed or rendered directly.
+
+Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
+
+# System prompt with search capability
+SystemPromptWithSearch = """You are a helpful coding assistant with access to real-time web search. You help users create applications by generating code based on their requirements. 
+When asked to create an application, you should:
+1. Understand the user's requirements
+2. Use web search when needed to find the latest information, best practices, or specific technologies
+3. Generate clean, working code
+4. Provide HTML output when appropriate for web applications
+5. Include necessary comments and documentation
+6. Ensure the code is functional and follows best practices
 
 If an image is provided, analyze it and use the visual information to better understand the user's requirements.
 
@@ -102,6 +119,16 @@ client = InferenceClient(
     bill_to="huggingface"
 )
 
+# Tavily Search Client
+TAVILY_API_KEY = os.getenv('TAVILY_API_KEY')
+tavily_client = None
+if TAVILY_API_KEY:
+    try:
+        tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+    except Exception as e:
+        print(f"Failed to initialize Tavily client: {e}")
+        tavily_client = None
+
 History = List[Tuple[str, str]]
 Messages = List[Dict[str, str]]
 
@@ -138,6 +165,22 @@ def messages_to_history(messages: Messages) -> Tuple[str, History]:
         history.append([user_content, r['content']])
     return history
 
+def history_to_chatbot_messages(history: History) -> List[Dict[str, str]]:
+    """Convert history tuples to chatbot message format"""
+    messages = []
+    for user_msg, assistant_msg in history:
+        # Handle multimodal content
+        if isinstance(user_msg, list):
+            text_content = ""
+            for item in user_msg:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    text_content += item.get("text", "")
+            user_msg = text_content if text_content else str(user_msg)
+        
+        messages.append({"role": "user", "content": user_msg})
+        messages.append({"role": "assistant", "content": assistant_msg})
+    return messages
+
 def remove_code_block(text):
     # Try to match code blocks with language markers
     patterns = [
@@ -159,7 +202,7 @@ def history_render(history: History):
     return gr.update(visible=True), history
 
 def clear_history():
-    return []
+    return [], []  # Empty lists for both tuple format and chatbot messages
 
 def update_image_input_visibility(model):
     """Update image input visibility based on selected model"""
@@ -205,6 +248,64 @@ def create_multimodal_message(text, image=None):
     ]
     
     return {"role": "user", "content": content}
+
+# Updated for faster Tavily search and closer prompt usage
+# Uses 'basic' search_depth and auto_parameters=True for speed and relevance
+
+def perform_web_search(query: str, max_results: int = 5, include_domains=None, exclude_domains=None) -> str:
+    """Perform web search using Tavily and return formatted results (fast, prompt-focused)"""
+    if not tavily_client:
+        return "Web search is not available. Please set the TAVILY_API_KEY environment variable."
+    
+    try:
+        # Use basic search for speed, auto_parameters for prompt intent
+        search_params = {
+            "auto_parameters": True,
+            "search_depth": "basic",
+            "max_results": min(max(1, max_results), 20),
+            "include_answer": True
+        }
+        if include_domains is not None:
+            search_params["include_domains"] = include_domains
+        if exclude_domains is not None:
+            search_params["exclude_domains"] = exclude_domains
+
+        response = tavily_client.search(query, **search_params)
+        
+        answer = response.get('answer')
+        formatted_answer = f"**AI Answer:**\n{answer}\n\n" if answer else ""
+        
+        search_results = []
+        for result in response.get('results', []):
+            title = result.get('title', 'No title')
+            url = result.get('url', 'No URL')
+            content = result.get('content', 'No content')
+            search_results.append(f"Title: {title}\nURL: {url}\nContent: {content}\n")
+        
+        if search_results:
+            return formatted_answer + "Web Search Results:\n\n" + "\n---\n".join(search_results)
+        else:
+            return formatted_answer + "No search results found."
+            
+    except Exception as e:
+        return f"Search error: {str(e)}"
+
+def enhance_query_with_search(query: str, enable_search: bool) -> str:
+    """Enhance the query with web search results if search is enabled"""
+    if not enable_search or not tavily_client:
+        return query
+    
+    # Perform search to get relevant information
+    search_results = perform_web_search(query)
+    
+    # Combine original query with search results
+    enhanced_query = f"""Original Query: {query}
+
+{search_results}
+
+Please use the search results above to help create the requested application with the most up-to-date information and best practices."""
+    
+    return enhanced_query
 
 def send_to_sandbox(code):
     # Add a wrapper to inject necessary permissions and ensure full HTML
@@ -268,16 +369,23 @@ def demo_card_click(e: gr.EventData):
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
 
-def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict):
+def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False):
     if query is None:
         query = ''
     if _history is None:
         _history = []
-    messages = history_to_messages(_history, _setting['system'])
+    
+    # Choose system prompt based on search setting
+    system_prompt = SystemPromptWithSearch if enable_search else _setting['system']
+    messages = history_to_messages(_history, system_prompt)
+    
+    # Enhance query with search if enabled
+    enhanced_query = enhance_query_with_search(query, enable_search)
+    
     if image is not None:
-        messages.append(create_multimodal_message(query, image))
+        messages.append(create_multimodal_message(enhanced_query, image))
     else:
-        messages.append({'role': 'user', 'content': query})
+        messages.append({'role': 'user', 'content': enhanced_query})
     try:
         completion = client.chat.completions.create(
             model=_current_model["id"],
@@ -290,10 +398,11 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: D
             if chunk.choices[0].delta.content:
                 content += chunk.choices[0].delta.content
                 clean_code = remove_code_block(content)
+                search_status = " (with web search)" if enable_search and tavily_client else ""
                 yield {
                     code_output: clean_code,
-                    status_indicator: '<div class="status-indicator generating" id="status">Generating code...</div>',
-                    history_output: _history,
+                    status_indicator: f'<div class="status-indicator generating" id="status">Generating code{search_status}...</div>',
+                    history_output: history_to_chatbot_messages(_history),
                 }
         _history = messages_to_history(messages + [{
             'role': 'assistant',
@@ -304,14 +413,14 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: D
             history: _history,
             sandbox: send_to_sandbox(remove_code_block(content)),
             status_indicator: '<div class="status-indicator success" id="status">Code generated successfully!</div>',
-            history_output: _history,
+            history_output: history_to_chatbot_messages(_history),
         }
     except Exception as e:
         error_message = f"Error: {str(e)}"
         yield {
             code_output: error_message,
             status_indicator: '<div class="status-indicator error" id="status">Error generating code</div>',
-            history_output: _history,
+            history_output: history_to_chatbot_messages(_history),
         }
 
 # Main application
@@ -326,6 +435,7 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
     with gr.Sidebar():
         gr.Markdown("# AnyCoder\nAI-Powered Code Generator")
         gr.Markdown("""Describe your app or UI in plain English. Optionally upload a UI image (for ERNIE model). Click Generate to get code and preview.""")
+        gr.Markdown("**Tip:** For best search results about people or entities, include details like profession, company, or location. Example: 'John Smith software engineer at Google.'")
         input = gr.Textbox(
             label="Describe your application",
             placeholder="e.g., Create a todo app with add, delete, and mark as complete functionality",
@@ -338,6 +448,20 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
         with gr.Row():
             btn = gr.Button("Generate", variant="primary", size="sm")
             clear_btn = gr.Button("Clear", variant="secondary", size="sm")
+        
+        # Search toggle
+        search_toggle = gr.Checkbox(
+            label="🔍 Enable Web Search",
+            value=False,
+            info="Enable real-time web search to get the latest information and best practices"
+        )
+        
+        # Search status indicator
+        if not tavily_client:
+            gr.Markdown("⚠️ **Web Search Unavailable**: Set `TAVILY_API_KEY` environment variable to enable search")
+        else:
+            gr.Markdown("✅ **Web Search Available**: Toggle above to enable real-time search")
+        
         gr.Markdown("### Quick Examples")
         for i, demo_item in enumerate(DEMO_LIST[:5]):
             demo_card = gr.Button(
@@ -390,7 +514,7 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
             with gr.Tab("Live Preview"):
                 sandbox = gr.HTML(label="Live Preview")
             with gr.Tab("History"):
-                history_output = gr.Chatbot(show_label=False, height=400)
+                history_output = gr.Chatbot(show_label=False, height=400, type="messages")
         status_indicator = gr.Markdown(
             'Ready to generate code',
         )
@@ -398,10 +522,10 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
     # Event handlers
     btn.click(
         generation_code,
-        inputs=[input, image_input, setting, history, current_model],
+        inputs=[input, image_input, setting, history, current_model, search_toggle],
         outputs=[code_output, history, sandbox, status_indicator, history_output]
     )
-    clear_btn.click(clear_history, outputs=[history])
+    clear_btn.click(clear_history, outputs=[history, history_output])
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=False)

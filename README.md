@@ -13,19 +13,84 @@ hf_oauth: true
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
 
-# Anycoder - AI Code Generation with Hugging Face Inference
+# AnyCoder - AI Code Generator
 
-An ultra-clean AI-powered code generation application using Hugging Face inference providers. Minimal files for maximum simplicity.
+AnyCoder is an AI-powered code generator that helps you create applications by describing them in plain English. It supports multiple AI models and can generate HTML/CSS/JavaScript code for web applications.
 
 ## Features
 
-- **Hugging Face Models**: Uses DeepSeek-V3-0324 via Novita provider
-- **Modern UI**: Built with Gradio and ModelScope Studio components
-- **Code Generation**: Generates working code based on user requirements
-- **Live Preview**: Renders generated HTML code in real-time
-- **History Management**: Keeps track of conversation history
-- **Streaming**: Real-time code generation with streaming responses
-- **OAuth Login Required**: Users must sign in with their Hugging Face account to use code generation features
+- **Multi-Model Support**: Choose from various AI models including DeepSeek, ERNIE-4.5-VL, MiniMax, and Qwen
+- **Image-to-Code**: Upload UI design images and get corresponding HTML/CSS code (ERNIE-4.5-VL model)
+- **Live Preview**: See your generated code in action with the built-in sandbox
+- **Web Search Integration**: Enable real-time web search to get the latest information and best practices
+- **Chat History**: Keep track of your conversations and generated code
+- **Quick Examples**: Pre-built examples to get you started quickly
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd anycoder
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Set up environment variables:
+```bash
+export HF_TOKEN="your_huggingface_token"
+export TAVILY_API_KEY="your_tavily_api_key"  # Optional, for web search feature
+```
+
+## Usage
+
+1. Run the application:
+```bash
+python app.py
+```
+
+2. Open your browser and navigate to the provided URL
+
+3. Describe your application in the text input field
+
+4. Optionally:
+   - Upload a UI design image (for ERNIE-4.5-VL model)
+   - Enable web search to get the latest information
+   - Choose a different AI model
+
+5. Click "Generate" to create your code
+
+6. View the generated code in the Code Editor tab or see it in action in the Live Preview tab
+
+## Web Search Feature
+
+The web search feature uses Tavily to provide real-time information when generating code. To enable this feature:
+
+1. Get a free Tavily API key from [Tavily Platform](https://tavily.com/)
+2. Set the `TAVILY_API_KEY` environment variable
+3. Toggle the "🔍 Enable Web Search" checkbox in the sidebar
+
+When enabled, the AI will search the web for the latest information, best practices, and technologies related to your request.
+
+## Available Models
+
+- **DeepSeek V3**: Advanced code generation model
+- **DeepSeek R1**: Specialized for code generation tasks
+- **ERNIE-4.5-VL**: Multimodal model with image support
+- **MiniMax M1**: General-purpose AI model
+- **Qwen3-235B-A22B**: Large language model for code generation
+
+## Environment Variables
+
+- `HF_TOKEN`: Your Hugging Face API token (required)
+- `TAVILY_API_KEY`: Your Tavily API key (optional, for web search)
+
+## License
+
+[Add your license information here]
 
 ## Project Structure
 
@@ -41,7 +106,7 @@ anycoder/
 
 1. Set your Hugging Face API token:
    ```bash
-   export HF_TOKEN="your_huggingface_token_here"
+   export HF_TOKEN="your_huggingface_token"
    ```
 
 2. Install dependencies:
@@ -117,7 +182,7 @@ pip install -r requirements.txt
 
 2. Set your Hugging Face API token as an environment variable:
 ```bash
-export HF_TOKEN="your_huggingface_token_here"
+export HF_TOKEN="your_huggingface_token"
 ```
 
 3. Run the application:
