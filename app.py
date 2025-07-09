@@ -3,6 +3,9 @@ import re
 from http import HTTPStatus
 from typing import Dict, List, Optional, Tuple
 import base64
+import mimetypes
+import PyPDF2
+import docx
 
 import gradio as gr
 from huggingface_hub import InferenceClient
@@ -364,7 +367,31 @@ def demo_card_click(e: gr.EventData):
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
 
-def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False):
+def extract_text_from_file(file_path):
+    if not file_path:
+        return ""
+    mime, _ = mimetypes.guess_type(file_path)
+    ext = os.path.splitext(file_path)[1].lower()
+    try:
+        if ext == ".pdf":
+            with open(file_path, "rb") as f:
+                reader = PyPDF2.PdfReader(f)
+                return "\n".join(page.extract_text() or "" for page in reader.pages)
+        elif ext in [".txt", ".md"]:
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
+        elif ext == ".csv":
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
+        elif ext == ".docx":
+            doc = docx.Document(file_path)
+            return "\n".join([para.text for para in doc.paragraphs])
+        else:
+            return ""
+    except Exception as e:
+        return f"Error extracting text: {e}"
+
+def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False):
     if query is None:
         query = ''
     if _history is None:
@@ -373,6 +400,14 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], _setting: D
     # Choose system prompt based on search setting
     system_prompt = SystemPromptWithSearch if enable_search else _setting['system']
     messages = history_to_messages(_history, system_prompt)
+    
+    # Extract file text and append to query if file is present
+    file_text = ""
+    if file:
+        file_text = extract_text_from_file(file)
+        if file_text:
+            file_text = file_text[:5000]  # Limit to 5000 chars for prompt size
+            query = f"{query}\n\n[Reference file content below]\n{file_text}"
     
     # Enhance query with search if enabled
     enhanced_query = enhance_query_with_search(query, enable_search)
@@ -431,6 +466,7 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
         gr.Markdown("# AnyCoder\nAI-Powered Code Generator")
         gr.Markdown("""Describe your app or UI in plain English. Optionally upload a UI image (for ERNIE model). Click Generate to get code and preview.""")
         gr.Markdown("**Tip:** For best search results about people or entities, include details like profession, company, or location. Example: 'John Smith software engineer at Google.'")
+        gr.Markdown("**Tip:** You can attach a file (PDF, TXT, DOCX, CSV, MD) to use as reference for your prompt, e.g. 'Summarize this PDF.'")
         input = gr.Textbox(
             label="Describe your application",
             placeholder="e.g., Create a todo app with add, delete, and mark as complete functionality",
@@ -439,6 +475,11 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
         image_input = gr.Image(
             label="Upload UI design image (ERNIE-4.5-VL only)",
             visible=False
+        )
+        file_input = gr.File(
+            label="Attach a file (PDF, TXT, DOCX, CSV, MD)",
+            file_types=[".pdf", ".txt", ".md", ".csv", ".docx"],
+            visible=True
         )
         with gr.Row():
             btn = gr.Button("Generate", variant="primary", size="sm")
@@ -517,10 +558,10 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
     # Event handlers
     btn.click(
         generation_code,
-        inputs=[input, image_input, setting, history, current_model, search_toggle],
+        inputs=[input, image_input, file_input, setting, history, current_model, search_toggle],
         outputs=[code_output, history, sandbox, status_indicator, history_output]
     )
-    clear_btn.click(clear_history, outputs=[history, history_output])
+    clear_btn.click(clear_history, outputs=[history, history_output, file_input])
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=True)
