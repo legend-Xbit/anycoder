@@ -10,6 +10,10 @@ import cv2
 import numpy as np
 from PIL import Image
 import pytesseract
+import requests
+from urllib.parse import urlparse, urljoin
+from bs4 import BeautifulSoup
+import html2text
 
 import gradio as gr
 from huggingface_hub import InferenceClient
@@ -23,6 +27,13 @@ When asked to create an application, you should:
 3. Provide HTML output when appropriate for web applications
 4. Include necessary comments and documentation
 5. Ensure the code is functional and follows best practices
+
+For website redesign tasks:
+- Analyze the extracted website content to understand the structure and purpose
+- Create a modern, responsive design that improves upon the original
+- Maintain the core functionality and content while enhancing the user experience
+- Use modern CSS frameworks and design patterns
+- Ensure accessibility and mobile responsiveness
 
 If an image is provided, analyze it and use the visual information to better understand the user's requirements.
 
@@ -39,6 +50,14 @@ When asked to create an application, you should:
 4. Provide HTML output when appropriate for web applications
 5. Include necessary comments and documentation
 6. Ensure the code is functional and follows best practices
+
+For website redesign tasks:
+- Analyze the extracted website content to understand the structure and purpose
+- Use web search to find current design trends and best practices for the specific type of website
+- Create a modern, responsive design that improves upon the original
+- Maintain the core functionality and content while enhancing the user experience
+- Use modern CSS frameworks and design patterns
+- Ensure accessibility and mobile responsiveness
 
 If an image is provided, analyze it and use the visual information to better understand the user's requirements.
 
@@ -124,6 +143,10 @@ DEMO_LIST = [
     {
         "title": "Extract Text from Image",
         "description": "Upload an image containing text and I'll extract and process the text content"
+    },
+    {
+        "title": "Website Redesign",
+        "description": "Enter a website URL to extract its content and redesign it with a modern, responsive layout"
     }
 ]
 
@@ -218,7 +241,7 @@ def history_render(history: History):
     return gr.update(visible=True), history
 
 def clear_history():
-    return [], []  # Empty lists for both tuple format and chatbot messages
+    return [], [], None, ""  # Empty lists for both tuple format and chatbot messages, None for file, empty string for website URL
 
 def update_image_input_visibility(model):
     """Update image input visibility based on selected model"""
@@ -438,7 +461,123 @@ def extract_text_from_file(file_path):
     except Exception as e:
         return f"Error extracting text: {e}"
 
-def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False):
+def extract_website_content(url: str) -> str:
+    """Extract content from a website URL"""
+    try:
+        # Validate URL
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme:
+            url = "https://" + url
+            parsed_url = urlparse(url)
+        
+        if not parsed_url.netloc:
+            return "Error: Invalid URL provided"
+        
+        # Set headers to mimic a browser request
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # Make the request
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        # Parse HTML content
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Remove script and style elements
+        for script in soup(["script", "style"]):
+            script.decompose()
+        
+        # Extract title
+        title = soup.find('title')
+        title_text = title.get_text().strip() if title else "No title found"
+        
+        # Extract meta description
+        meta_desc = soup.find('meta', attrs={'name': 'description'})
+        description = meta_desc.get('content', '') if meta_desc else ""
+        
+        # Extract main content areas
+        content_sections = []
+        
+        # Look for common content containers
+        main_selectors = [
+            'main', 'article', '.content', '.main-content', '.post-content',
+            '#content', '#main', '.entry-content', '.post-body'
+        ]
+        
+        for selector in main_selectors:
+            elements = soup.select(selector)
+            for element in elements:
+                text = element.get_text().strip()
+                if len(text) > 100:  # Only include substantial content
+                    content_sections.append(text)
+        
+        # If no main content found, extract from body
+        if not content_sections:
+            body = soup.find('body')
+            if body:
+                # Remove navigation, footer, and other non-content elements
+                for element in body.find_all(['nav', 'footer', 'header', 'aside']):
+                    element.decompose()
+                content_sections.append(body.get_text().strip())
+        
+        # Extract navigation links
+        nav_links = []
+        nav_elements = soup.find_all(['nav', 'header'])
+        for nav in nav_elements:
+            links = nav.find_all('a')
+            for link in links:
+                link_text = link.get_text().strip()
+                link_href = link.get('href', '')
+                if link_text and link_href:
+                    nav_links.append(f"{link_text}: {link_href}")
+        
+        # Extract images
+        images = []
+        img_elements = soup.find_all('img')
+        for img in img_elements:
+            src = img.get('src', '')
+            alt = img.get('alt', '')
+            if src:
+                # Convert relative URLs to absolute
+                if not src.startswith(('http://', 'https://')):
+                    src = urljoin(url, src)
+                images.append(f"Image: {alt} ({src})")
+        
+        # Compile the extracted content
+        website_content = f"""
+WEBSITE CONTENT EXTRACTION
+==========================
+
+URL: {url}
+Title: {title_text}
+Description: {description}
+
+NAVIGATION MENU:
+{chr(10).join(nav_links[:10]) if nav_links else "No navigation found"}
+
+MAIN CONTENT:
+{chr(10).join(content_sections[:3]) if content_sections else "No main content found"}
+
+IMAGES:
+{chr(10).join(images[:10]) if images else "No images found"}
+
+PAGE STRUCTURE:
+- This appears to be a {title_text.lower()} website
+- Contains {len(content_sections)} main content sections
+- Has {len(nav_links)} navigation links
+- Includes {len(images)} images
+"""
+        
+        return website_content.strip()
+        
+    except requests.exceptions.RequestException as e:
+        return f"Error accessing website: {str(e)}"
+    except Exception as e:
+        return f"Error extracting website content: {str(e)}"
+
+def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False):
     if query is None:
         query = ''
     if _history is None:
@@ -455,6 +594,16 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
         if file_text:
             file_text = file_text[:5000]  # Limit to 5000 chars for prompt size
             query = f"{query}\n\n[Reference file content below]\n{file_text}"
+    
+    # Extract website content and append to query if website URL is present
+    website_text = ""
+    if website_url and website_url.strip():
+        website_text = extract_website_content(website_url.strip())
+        if website_text and not website_text.startswith("Error"):
+            website_text = website_text[:8000]  # Limit to 8000 chars for prompt size
+            query = f"{query}\n\n[Website content to redesign below]\n{website_text}"
+        elif website_text.startswith("Error"):
+            query = f"{query}\n\n[Error extracting website: {website_text}]"
     
     # Enhance query with search if enabled
     enhanced_query = enhance_query_with_search(query, enable_search)
@@ -478,7 +627,6 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
                 search_status = " (with web search)" if enable_search and tavily_client else ""
                 yield {
                     code_output: clean_code,
-                    status_indicator: f'<div class="status-indicator generating" id="status">Generating code{search_status}...</div>',
                     history_output: history_to_chatbot_messages(_history),
                 }
         _history = messages_to_history(messages + [{
@@ -489,19 +637,29 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
             code_output: remove_code_block(content),
             history: _history,
             sandbox: send_to_sandbox(remove_code_block(content)),
-            status_indicator: '<div class="status-indicator success" id="status">Code generated successfully!</div>',
             history_output: history_to_chatbot_messages(_history),
         }
     except Exception as e:
         error_message = f"Error: {str(e)}"
         yield {
             code_output: error_message,
-            status_indicator: '<div class="status-indicator error" id="status">Error generating code</div>',
             history_output: history_to_chatbot_messages(_history),
         }
 
 # Main application
-with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as demo:
+with gr.Blocks(
+    theme=gr.themes.Base(
+        primary_hue="blue",
+        secondary_hue="gray",
+        neutral_hue="gray",
+        font=gr.themes.GoogleFont("Inter"),
+        font_mono=gr.themes.GoogleFont("JetBrains Mono"),
+        text_size=gr.themes.sizes.text_md,
+        spacing_size=gr.themes.sizes.spacing_md,
+        radius_size=gr.themes.sizes.radius_md
+    ),
+    title="AnyCoder - AI Code Generator"
+) as demo:
     history = gr.State([])
     setting = gr.State({
         "system": SystemPrompt,
@@ -510,107 +668,125 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
     open_panel = gr.State(None)
 
     with gr.Sidebar():
-        gr.Markdown("# AnyCoder\nAI-Powered Code Generator")
-        gr.Markdown("""Describe your app or UI in plain English. Optionally upload a UI image (for ERNIE model). Click Generate to get code and preview.""")
-        gr.Markdown("**Tip:** For best search results about people or entities, include details like profession, company, or location. Example: 'John Smith software engineer at Google.'")
-        gr.Markdown("**Tip:** You can attach a file (PDF, TXT, DOCX, CSV, MD, Images) to use as reference for your prompt, e.g. 'Summarize this PDF' or 'Extract text from this image'.")
+        gr.Markdown("# AnyCoder")
+        gr.Markdown("*AI-Powered Code Generator*")
+        
+        # Main input section
         input = gr.Textbox(
-            label="Describe your application",
-            placeholder="e.g., Create a todo app with add, delete, and mark as complete functionality",
-            lines=2
+            label="What would you like to build?",
+            placeholder="Describe your application...",
+            lines=3
         )
-        image_input = gr.Image(
-            label="Upload UI design image (ERNIE-4.5-VL only)",
-            visible=False
+        
+        # URL input for website redesign
+        website_url_input = gr.Textbox(
+            label="Website URL (for redesign)",
+            placeholder="https://example.com",
+            lines=1,
+            visible=True
         )
+        
+        # File upload (minimal)
         file_input = gr.File(
-            label="Attach a file (PDF, TXT, DOCX, CSV, MD, Images)",
+            label="Reference file",
             file_types=[".pdf", ".txt", ".md", ".csv", ".docx", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"],
             visible=True
         )
-        with gr.Row():
-            btn = gr.Button("Generate", variant="primary", size="sm")
-            clear_btn = gr.Button("Clear", variant="secondary", size="sm")
         
-        # Search toggle
-        search_toggle = gr.Checkbox(
-            label="🔍 Enable Web Search",
-            value=False,
-            info="Enable real-time web search to get the latest information and best practices"
+        # Image input (only for ERNIE model)
+        image_input = gr.Image(
+            label="UI design image",
+            visible=False
         )
         
-        # Search status indicator
-        if not tavily_client:
-            gr.Markdown("⚠️ **Web Search Unavailable**: Set `TAVILY_API_KEY` environment variable to enable search")
-        else:
-            gr.Markdown("✅ **Web Search Available**: Toggle above to enable real-time search")
+        # Action buttons
+        with gr.Row():
+            btn = gr.Button("Generate", variant="primary", size="lg", scale=2)
+            clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1)
         
-        gr.Markdown("📷 **Image Text Extraction**: Upload images to extract text using OCR (requires Tesseract installation)")
+        # Search toggle (minimal)
+        search_toggle = gr.Checkbox(
+            label="🔍 Web search",
+            value=False
+        )
         
-        gr.Markdown("### Quick Examples")
-        for i, demo_item in enumerate(DEMO_LIST[:5]):
-            demo_card = gr.Button(
-                value=demo_item['title'], 
-                variant="secondary",
-                size="sm"
-            )
-            demo_card.click(
-                fn=lambda idx=i: gr.update(value=DEMO_LIST[idx]['description']),
-                outputs=input
-            )
-        gr.Markdown("---")
+        # Model selection (minimal)
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
             value=AVAILABLE_MODELS[0]['name'],
-            label="Select Model"
+            label="Model"
         )
+        
+        # Quick examples (minimal)
+        gr.Markdown("**Quick start**")
+        with gr.Column():
+            for i, demo_item in enumerate(DEMO_LIST[:3]):
+                demo_card = gr.Button(
+                    value=demo_item['title'], 
+                    variant="secondary",
+                    size="sm"
+                )
+                demo_card.click(
+                    fn=lambda idx=i: gr.update(value=DEMO_LIST[idx]['description']),
+                    outputs=input
+                )
+        
+        # Status indicators (minimal)
+        if not tavily_client:
+            gr.Markdown("⚠️ Web search unavailable")
+        else:
+            gr.Markdown("✅ Web search available")
+        
+        # Hidden elements for functionality
+        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=False)
+        
         def on_model_change(model_name):
             for m in AVAILABLE_MODELS:
                 if m['name'] == model_name:
                     return m, f"**Model:** {m['name']}", update_image_input_visibility(m)
             return AVAILABLE_MODELS[0], f"**Model:** {AVAILABLE_MODELS[0]['name']}", update_image_input_visibility(AVAILABLE_MODELS[0])
-        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}")
+        
+        def save_prompt(input):
+            return {setting: {"system": input}}
+        
         model_dropdown.change(
             on_model_change,
             inputs=model_dropdown,
             outputs=[current_model, model_display, image_input]
         )
-        with gr.Accordion("System Prompt", open=False):
+        
+        # System prompt (collapsed by default)
+        with gr.Accordion("Advanced", open=False):
             systemPromptInput = gr.Textbox(
                 value=SystemPrompt,
-                label="System Prompt",
-                lines=10
+                label="System prompt",
+                lines=5
             )
-            save_prompt_btn = gr.Button("Save", variant="primary")
-            def save_prompt(input):
-                return {setting: {"system": input}}
+            save_prompt_btn = gr.Button("Save", variant="primary", size="sm")
             save_prompt_btn.click(save_prompt, inputs=systemPromptInput, outputs=setting)
 
     with gr.Column():
-        model_display
         with gr.Tabs():
-            with gr.Tab("Code Editor"):
+            with gr.Tab("Code"):
                 code_output = gr.Code(
                     language="html", 
                     lines=25, 
                     interactive=False,
-                    label="Generated Code"
+                    label="Generated code"
                 )
-            with gr.Tab("Live Preview"):
-                sandbox = gr.HTML(label="Live Preview")
+            with gr.Tab("Preview"):
+                sandbox = gr.HTML(label="Live preview")
             with gr.Tab("History"):
                 history_output = gr.Chatbot(show_label=False, height=400, type="messages")
-        status_indicator = gr.Markdown(
-            'Ready to generate code',
-        )
+
 
     # Event handlers
     btn.click(
         generation_code,
-        inputs=[input, image_input, file_input, setting, history, current_model, search_toggle],
-        outputs=[code_output, history, sandbox, status_indicator, history_output]
+        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle],
+        outputs=[code_output, history, sandbox, history_output]
     )
-    clear_btn.click(clear_history, outputs=[history, history_output, file_input])
+    clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=True)

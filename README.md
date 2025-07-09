@@ -22,6 +22,7 @@ AnyCoder is an AI-powered code generator that helps you create applications by d
 - **Multi-Model Support**: Choose from various AI models including DeepSeek, ERNIE-4.5-VL, MiniMax, and Qwen
 - **Image-to-Code**: Upload UI design images and get corresponding HTML/CSS code (ERNIE-4.5-VL model)
 - **Image Text Extraction**: Upload images and extract text using OCR for processing
+- **Website Redesign**: Enter a website URL to extract content and redesign it with modern, responsive layouts
 - **Live Preview**: See your generated code in action with the built-in sandbox
 - **Web Search Integration**: Enable real-time web search to get the latest information and best practices
 - **Chat History**: Keep track of your conversations and generated code
@@ -92,6 +93,61 @@ To use the image text extraction feature, you need to install Tesseract OCR on y
 - Upload an image containing text (like a screenshot, document, or handwritten notes)
 - The application will extract the text and include it in your prompt
 - You can then ask the AI to process, summarize, or work with the extracted text
+
+## Website Redesign Feature
+
+The website redesign feature allows you to extract content from existing websites and generate modern, responsive redesigns. This feature:
+
+1. **Extracts Website Content**: Automatically scrapes the target website to extract:
+   - Page title and meta description
+   - Navigation menu structure
+   - Main content sections
+   - Images and their descriptions
+   - Overall page structure and purpose
+
+2. **Generates Modern Redesigns**: Creates improved versions with:
+   - Modern, responsive layouts
+   - Enhanced user experience
+   - Better accessibility
+   - Mobile-first design principles
+   - Current design trends and best practices
+
+### How to Use Website Redesign
+
+1. **Enter a Website URL**: In the "🌐 Website URL (for redesign)" field, enter the URL of the website you want to redesign
+   - Example: `https://example.com`
+   - The URL can be with or without `https://`
+
+2. **Add Custom Requirements**: Optionally describe specific improvements you want:
+   - "Make it more modern and minimalist"
+   - "Add a dark mode toggle"
+   - "Improve the mobile layout"
+   - "Use a different color scheme"
+
+3. **Enable Web Search**: Toggle the web search feature to get the latest design trends and best practices
+
+4. **Generate**: Click "Generate" to create your redesigned website
+
+### Example Usage
+
+```
+URL: https://example.com
+Description: Redesign this website with a modern, minimalist approach. Use a clean typography and improve the mobile experience.
+```
+
+The AI will analyze the original website content and create a completely redesigned version that maintains the core functionality while providing a better user experience.
+
+### Supported Websites
+
+The feature works with most public websites, including:
+- Business websites
+- Portfolio sites
+- Blog platforms
+- E-commerce sites
+- Landing pages
+- Documentation sites
+
+**Note**: Some websites may block automated access or require JavaScript to load content. In such cases, the extraction may be limited.
 
 ## Available Models
 
