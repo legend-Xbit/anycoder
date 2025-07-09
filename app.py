@@ -473,14 +473,40 @@ def extract_website_content(url: str) -> str:
         if not parsed_url.netloc:
             return "Error: Invalid URL provided"
         
-        # Set headers to mimic a browser request
+        # Set comprehensive headers to mimic a real browser request
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0'
         }
         
-        # Make the request
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
+        # Create a session to maintain cookies and handle redirects
+        session = requests.Session()
+        session.headers.update(headers)
+        
+        # Make the request with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = session.get(url, timeout=15, allow_redirects=True)
+                response.raise_for_status()
+                break
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 403 and attempt < max_retries - 1:
+                    # Try with different User-Agent on 403
+                    session.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    continue
+                else:
+                    raise
         
         # Parse HTML content
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -572,6 +598,19 @@ PAGE STRUCTURE:
         
         return website_content.strip()
         
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 403:
+            return f"Error: Website blocked access (403 Forbidden). This website may have anti-bot protection. Try a different website or provide a description of what you want to build instead."
+        elif e.response.status_code == 404:
+            return f"Error: Website not found (404). Please check the URL and try again."
+        elif e.response.status_code >= 500:
+            return f"Error: Website server error ({e.response.status_code}). Please try again later."
+        else:
+            return f"Error accessing website: HTTP {e.response.status_code} - {str(e)}"
+    except requests.exceptions.Timeout:
+        return "Error: Request timed out. The website may be slow or unavailable."
+    except requests.exceptions.ConnectionError:
+        return "Error: Could not connect to the website. Please check your internet connection and the URL."
     except requests.exceptions.RequestException as e:
         return f"Error accessing website: {str(e)}"
     except Exception as e:
@@ -603,7 +642,17 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
             website_text = website_text[:8000]  # Limit to 8000 chars for prompt size
             query = f"{query}\n\n[Website content to redesign below]\n{website_text}"
         elif website_text.startswith("Error"):
-            query = f"{query}\n\n[Error extracting website: {website_text}]"
+            # Provide helpful guidance when website extraction fails
+            fallback_guidance = """
+Since I couldn't extract the website content, please provide additional details about what you'd like to build:
+
+1. What type of website is this? (e.g., e-commerce, blog, portfolio, dashboard)
+2. What are the main features you want?
+3. What's the target audience?
+4. Any specific design preferences? (colors, style, layout)
+
+This will help me create a better design for you."""
+            query = f"{query}\n\n[Error extracting website: {website_text}]{fallback_guidance}"
     
     # Enhance query with search if enabled
     enhanced_query = enhance_query_with_search(query, enable_search)
