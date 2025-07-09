@@ -523,4 +523,4 @@ with gr.Blocks(theme=gr.themes.Base(), title="AnyCoder - AI Code Generator") as 
     clear_btn.click(clear_history, outputs=[history, history_output])
 
 if __name__ == "__main__":
-    demo.queue(default_concurrency_limit=20).launch(ssr_mode=False)
+    demo.queue(default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=True)
