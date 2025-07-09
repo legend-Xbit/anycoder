@@ -250,7 +250,7 @@ def create_multimodal_message(text, image=None):
     return {"role": "user", "content": content}
 
 # Updated for faster Tavily search and closer prompt usage
-# Uses 'basic' search_depth and auto_parameters=True for speed and relevance
+# Uses 'advanced' search_depth and auto_parameters=True for speed and relevance
 
 def perform_web_search(query: str, max_results: int = 5, include_domains=None, exclude_domains=None) -> str:
     """Perform web search using Tavily and return formatted results (fast, prompt-focused)"""
@@ -258,10 +258,10 @@ def perform_web_search(query: str, max_results: int = 5, include_domains=None, e
         return "Web search is not available. Please set the TAVILY_API_KEY environment variable."
     
     try:
-        # Use basic search for speed, auto_parameters for prompt intent
+        # Use advanced search for better results, auto_parameters for prompt intent
         search_params = {
             "auto_parameters": True,
-            "search_depth": "basic",
+            "search_depth": "advanced",
             "max_results": min(max(1, max_results), 20),
             "include_answer": True
         }
