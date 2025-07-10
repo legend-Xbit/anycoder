@@ -235,7 +235,7 @@ def create_space_from_html(title: str, html_content: str, prompts: List[str] = N
         )
         
         # Prepare the HTML content with proper structure
-        full_html = f"""<!DOCTYPE html>
+        html_template = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -299,6 +299,8 @@ def create_space_from_html(title: str, html_content: str, prompts: List[str] = N
 </body>
 </html>"""
         
+        full_html = html_template.format(title=title, html_content=html_content)
+        
         # Upload the HTML file
         user_hf_api.upload_file(
             path_or_fileobj=full_html.encode('utf-8'),
@@ -308,7 +310,8 @@ def create_space_from_html(title: str, html_content: str, prompts: List[str] = N
         )
         
         # Create README.md with project info
-        readme_content = f"""# {title}
+        prompts_text = "".join([f"- {prompt}\n" for prompt in (prompts or [])])
+        readme_template = """# {title}
 
 This project was generated using [AnyCoder](https://huggingface.co/spaces/ahsenkhaliq/anycoder), an AI-powered code generator.
 
@@ -318,7 +321,7 @@ This is a static HTML application created by describing the requirements in plai
 
 ## Generated Prompts
 
-{f"".join([f"- {prompt}\n" for prompt in (prompts or [])])}
+{prompts_text}
 
 ## View Live
 
@@ -327,6 +330,8 @@ Visit: https://huggingface.co/spaces/{repo_name}
 ---
 *Generated with ❤️ using AnyCoder*
 """
+        
+        readme_content = readme_template.format(title=title, prompts_text=prompts_text, repo_name=repo_name)
         
         user_hf_api.upload_file(
             path_or_fileobj=readme_content.encode('utf-8'),
