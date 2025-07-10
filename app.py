@@ -14,9 +14,11 @@ import requests
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 import html2text
+import json
+import time
 
 import gradio as gr
-from huggingface_hub import InferenceClient
+from huggingface_hub import InferenceClient, HfApi, create_repo
 from tavily import TavilyClient
 
 # Configuration
@@ -159,12 +161,19 @@ DEMO_LIST = [
 ]
 
 # HF Inference Client
-YOUR_API_TOKEN = os.getenv('HF_TOKEN')
+HF_TOKEN = os.getenv('HF_TOKEN')
 client = InferenceClient(
     provider="auto",
-    api_key=YOUR_API_TOKEN,
+    api_key=HF_TOKEN,
     bill_to="huggingface"
 )
+
+# Type definitions
+History = List[Tuple[str, str]]
+Messages = List[Dict[str, str]]
+
+# HF API Client for deployment
+hf_api = HfApi(token=HF_TOKEN)
 
 # Tavily Search Client
 TAVILY_API_KEY = os.getenv('TAVILY_API_KEY')
@@ -176,8 +185,240 @@ if TAVILY_API_KEY:
         print(f"Failed to initialize Tavily client: {e}")
         tavily_client = None
 
-History = List[Tuple[str, str]]
-Messages = List[Dict[str, str]]
+# Deployment functions
+def create_space_from_html(title: str, html_content: str, prompts: List[str] = None, user_token: str = None, username: str = None) -> Dict:
+    """
+    Create a Hugging Face Space from generated HTML content
+    """
+    try:
+        # Use user token if provided, otherwise fall back to server token
+        api_token = user_token if user_token else HF_TOKEN
+        
+        if not api_token:
+            return {
+                "success": False,
+                "error": "No Hugging Face token available",
+                "message": "Please log in with your Hugging Face account to deploy"
+            }
+        
+        # Create API client with user token
+        user_hf_api = HfApi(token=api_token)
+        
+        # Get the current user's username if not provided
+        if not username:
+            try:
+                user_info = user_hf_api.whoami()
+                username = user_info.get('name', 'user')
+            except Exception as e:
+                print(f"Could not get user info: {e}")
+                return {
+                    "success": False,
+                    "error": "Invalid or expired token",
+                    "message": "Please check your Hugging Face token"
+                }
+        
+        # Clean the title for use as repo name
+        clean_title = re.sub(r'[^a-zA-Z0-9_-]', '-', title.lower())
+        clean_title = re.sub(r'-+', '-', clean_title).strip('-')
+        
+        # Add timestamp to ensure uniqueness
+        timestamp = int(time.time())
+        repo_name = f"{username}/{clean_title}-{timestamp}"
+        
+        # Create the space
+        repo_url = user_hf_api.create_repo(
+            repo_id=repo_name,
+            repo_type="space",
+            space_sdk="static",
+            private=False,
+            exist_ok=False
+        )
+        
+        # Prepare the HTML content with proper structure
+        full_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }}
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        .header {{
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }}
+        .header h1 {{
+            color: #333;
+            margin: 0;
+        }}
+        .header p {{
+            color: #666;
+            margin: 10px 0 0 0;
+        }}
+        .content {{
+            line-height: 1.6;
+        }}
+        .footer {{
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #f0f0f0;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{title}</h1>
+            <p>Generated with AnyCoder - AI Code Generator</p>
+        </div>
+        <div class="content">
+            {html_content}
+        </div>
+        <div class="footer">
+            <p>Created with ❤️ using AnyCoder</p>
+        </div>
+    </div>
+</body>
+</html>"""
+        
+        # Upload the HTML file
+        user_hf_api.upload_file(
+            path_or_fileobj=full_html.encode('utf-8'),
+            path_in_repo="index.html",
+            repo_id=repo_name,
+            repo_type="space"
+        )
+        
+        # Create README.md with project info
+        readme_content = f"""# {title}
+
+This project was generated using [AnyCoder](https://huggingface.co/spaces/ahsenkhaliq/anycoder), an AI-powered code generator.
+
+## About
+
+This is a static HTML application created by describing the requirements in plain English to an AI model.
+
+## Generated Prompts
+
+{f"".join([f"- {prompt}\n" for prompt in (prompts or [])])}
+
+## View Live
+
+Visit: https://huggingface.co/spaces/{repo_name}
+
+---
+*Generated with ❤️ using AnyCoder*
+"""
+        
+        user_hf_api.upload_file(
+            path_or_fileobj=readme_content.encode('utf-8'),
+            path_in_repo="README.md",
+            repo_id=repo_name,
+            repo_type="space"
+        )
+        
+        return {
+            "success": True,
+            "space_url": f"https://huggingface.co/spaces/{repo_name}",
+            "repo_name": repo_name,
+            "message": f"Successfully created space: {title}"
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": f"Failed to create space: {str(e)}"
+        }
+
+def deploy_to_space(title: str, html_content: str, history: History, oauth_profile: gr.OAuthProfile = None, oauth_token: gr.OAuthToken = None) -> str:
+    """
+    Deploy the generated HTML to a Hugging Face Space
+    """
+    if not title or not title.strip():
+        return "❌ Please enter a title for your space."
+    
+    if not html_content or not html_content.strip():
+        return "❌ No HTML content to deploy. Please generate some code first."
+    
+    # Check if user is authenticated
+    if not oauth_profile or not oauth_token:
+        return """❌ **Authentication Required**
+
+To deploy your application, you need to be logged in with your Hugging Face account.
+
+**How to log in:**
+1. Click the "Sign in with Hugging Face" button in the sidebar
+2. Authorize AnyCoder to access your Hugging Face account
+3. Try deploying again
+
+**Why login is required:**
+- Deployments are created under your own Hugging Face account
+- You need write permissions to create spaces
+- This ensures you own and can manage your deployed applications
+
+---
+*Please log in and try again.*"""
+    
+    # Get user information from OAuth profile
+    username = oauth_profile.name
+    user_token = oauth_token.token
+    
+    # Extract prompts from history
+    prompts = []
+    for user_msg, _ in history:
+        if isinstance(user_msg, str) and user_msg.strip():
+            prompts.append(user_msg.strip())
+    
+    # Use user's OAuth token to create space under their account
+    result = create_space_from_html(title.strip(), html_content, prompts, user_token, username)
+    
+    if result["success"]:
+        return f"""✅ **Successfully deployed!**
+
+**Space URL:** {result['space_url']}
+
+Your application is now live on Hugging Face Spaces under your account. You can share this URL with others to showcase your generated application.
+
+**What's next:**
+- Visit the space to see your application in action
+- Share the URL with friends and colleagues
+- Make modifications and redeploy as needed
+- Manage your space from your Hugging Face dashboard
+
+---
+*Generated with ❤️ using AnyCoder*"""
+    else:
+        return f"""❌ **Deployment failed**
+
+**Error:** {result['error']}
+
+**Possible solutions:**
+- Ensure you have write access to create spaces on your account
+- Try a different title (avoid special characters)
+- Check your internet connection
+- Make sure your Hugging Face account has the necessary permissions
+
+---
+*Please try again or contact support if the issue persists.*"""
 
 def history_to_messages(history: History, system: str) -> Messages:
     messages = [{'role': 'system', 'content': system}]
@@ -907,6 +1148,14 @@ with gr.Blocks(
         gr.Markdown("# AnyCoder")
         gr.Markdown("*AI-Powered Code Generator*")
         
+        # Login button at the top
+        login_btn = gr.LoginButton(
+            value="Sign in with Hugging Face",
+            logout_value="Logout ({})",
+            variant="huggingface",
+            size="sm"
+        )
+        
         # Main input section
         input = gr.Textbox(
             label="What would you like to build?",
@@ -951,6 +1200,30 @@ with gr.Blocks(
             choices=[model['name'] for model in AVAILABLE_MODELS],
             value=AVAILABLE_MODELS[0]['name'],
             label="Model"
+        )
+        
+        # Deployment section
+        gr.Markdown("---")
+        gr.Markdown("**🚀 Deploy to Space**")
+        
+        # Space title input
+        space_title_input = gr.Textbox(
+            label="Space title",
+            placeholder="My Awesome App",
+            lines=1
+        )
+        
+        # Deploy button
+        deploy_btn = gr.Button(
+            "🚀 Deploy to Space",
+            variant="primary",
+            size="lg"
+        )
+        
+        # Deployment status
+        deploy_status = gr.Markdown(
+            value="",
+            visible=False
         )
         
         # Quick examples (minimal)
@@ -1012,6 +1285,11 @@ with gr.Blocks(
                 )
             with gr.Tab("Preview"):
                 sandbox = gr.HTML(label="Live preview")
+            with gr.Tab("Deploy"):
+                deploy_output = gr.Markdown(
+                    value="## 🚀 Deploy Your Application\n\n1. Generate some code first\n2. Enter a title for your space\n3. Click 'Deploy to Space' in the sidebar\n\nYour application will be deployed to Hugging Face Spaces and you'll get a shareable URL!",
+                    label="Deployment Status"
+                )
             with gr.Tab("History"):
                 history_output = gr.Chatbot(show_label=False, height=400, type="messages")
 
@@ -1023,6 +1301,14 @@ with gr.Blocks(
         outputs=[code_output, history, sandbox, history_output]
     )
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
+    
+    # Deployment event handler
+    deploy_btn.click(
+        deploy_to_space,
+        inputs=[space_title_input, code_output, history],
+        outputs=[deploy_output],
+        api_name="deploy"
+    )
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=True)

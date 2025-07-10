@@ -9,6 +9,9 @@ app_file: app.py
 pinned: false
 disable_embedding: true
 hf_oauth: true
+hf_oauth_scopes:
+  - read
+  - write
 ---
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
@@ -27,6 +30,7 @@ AnyCoder is an AI-powered code generator that helps you create applications by d
 - **Web Search Integration**: Enable real-time web search to get the latest information and best practices
 - **Chat History**: Keep track of your conversations and generated code
 - **Quick Examples**: Pre-built examples to get you started quickly
+- **🚀 One-Click Deployment**: Deploy your generated applications directly to Hugging Face Spaces
 
 ## Installation
 
@@ -66,6 +70,56 @@ python app.py
 5. Click "Generate" to create your code
 
 6. View the generated code in the Code Editor tab or see it in action in the Live Preview tab
+
+7. **Deploy to Space**: Enter a title and click "🚀 Deploy to Space" to publish your application
+
+## 🚀 Deployment Feature
+
+AnyCoder now includes one-click deployment to Hugging Face Spaces! This feature allows you to:
+
+### How to Deploy
+
+1. **Login**: Click the "Sign in with Hugging Face" button in the sidebar and authorize with your Hugging Face account
+2. **Generate Code**: Generate some HTML code using the AI
+3. **Enter Title**: In the sidebar, enter a title for your space (e.g., "My Todo App")
+4. **Deploy**: Click the "🚀 Deploy to Space" button
+5. **Share**: Get a shareable URL for your deployed application
+
+**Note**: You need to be logged in with your Hugging Face account to deploy. This ensures that:
+- Deployments are created under your own account namespace
+- You can manage and update your spaces from your Hugging Face dashboard
+- Each deployment gets a unique URL under your username
+
+**Technical Note**: The deployment uses your personal OAuth token to create spaces under your account, ensuring full security and ownership of your deployed applications.
+
+### What Gets Deployed
+
+- **Complete HTML Application**: Your generated code wrapped in a professional template
+- **Responsive Design**: Mobile-friendly layout with modern styling
+- **Project Documentation**: README with project details and prompts used
+- **Live URL**: Publicly accessible URL that anyone can visit
+
+### Deployment Benefits
+
+- **Instant Publishing**: No need to set up hosting or domains
+- **Shareable**: Get a public URL to share with others
+- **Professional**: Clean, branded presentation of your work
+- **Version Control**: Each deployment creates a new space with timestamp
+- **Free Hosting**: Hosted on Hugging Face's infrastructure
+
+### Example Deployment
+
+```
+Title: "My Weather Dashboard"
+Generated Code: <div>Weather app HTML...</div>
+Result: https://huggingface.co/spaces/my-weather-dashboard-1234567890
+```
+
+The deployed space will include:
+- Your application with professional styling
+- A header with your title and AnyCoder branding
+- A footer with attribution
+- A README documenting the project
 
 ## Web Search Feature
 
