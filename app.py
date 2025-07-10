@@ -916,7 +916,7 @@ with gr.Blocks(
         
         # URL input for website redesign
         website_url_input = gr.Textbox(
-            label="Website URL (extracts HTML for redesign)",
+            label="Website URL for redesign",
             placeholder="https://example.com",
             lines=1,
             visible=True
