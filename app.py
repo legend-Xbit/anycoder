@@ -204,18 +204,20 @@ def create_space_from_html(title: str, html_content: str, prompts: List[str] = N
         # Create API client with user token
         user_hf_api = HfApi(token=api_token)
         
-        # Get the current user's username if not provided
-        if not username:
-            try:
-                user_info = user_hf_api.whoami()
+        # Debug: Test the token by getting user info
+        try:
+            user_info = user_hf_api.whoami()
+            print(f"Debug: User info from API: {user_info}")
+            if not username:
                 username = user_info.get('name', 'user')
-            except Exception as e:
-                print(f"Could not get user info: {e}")
-                return {
-                    "success": False,
-                    "error": "Invalid or expired token",
-                    "message": "Please check your Hugging Face token"
-                }
+            print(f"Debug: Final username: {username}")
+        except Exception as e:
+            print(f"Debug: Could not get user info: {e}")
+            return {
+                "success": False,
+                "error": f"Invalid or expired token: {str(e)}",
+                "message": "Please check your Hugging Face token and try logging in again"
+            }
         
         # Clean the title for use as repo name
         clean_title = re.sub(r'[^a-zA-Z0-9_-]', '-', title.lower())
@@ -225,14 +227,22 @@ def create_space_from_html(title: str, html_content: str, prompts: List[str] = N
         timestamp = int(time.time())
         repo_name = f"{username}/{clean_title}-{timestamp}"
         
+        print(f"Debug: Attempting to create space: {repo_name}")
+        print(f"Debug: Using token for user: {username}")
+        
         # Create the space
-        repo_url = user_hf_api.create_repo(
-            repo_id=repo_name,
-            repo_type="space",
-            space_sdk="static",
-            private=False,
-            exist_ok=False
-        )
+        try:
+            repo_url = user_hf_api.create_repo(
+                repo_id=repo_name,
+                repo_type="space",
+                space_sdk="static",
+                private=False,
+                exist_ok=False
+            )
+            print(f"Debug: Successfully created space: {repo_url}")
+        except Exception as e:
+            print(f"Debug: Failed to create space: {e}")
+            raise e
         
         # Prepare the HTML content with proper structure
         html_template = """<!DOCTYPE html>
@@ -386,6 +396,12 @@ To deploy your application, you need to be logged in with your Hugging Face acco
     # Get user information from OAuth profile
     username = oauth_profile.name
     user_token = oauth_token.token
+    
+    # Debug: Print token info (without exposing the actual token)
+    print(f"Debug: Username from OAuth: {username}")
+    print(f"Debug: Token type: {type(user_token)}")
+    print(f"Debug: Token length: {len(user_token) if user_token else 0}")
+    print(f"Debug: Token starts with: {user_token[:10] if user_token else 'None'}...")
     
     # Extract prompts from history
     prompts = []
