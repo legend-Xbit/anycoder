@@ -10,7 +10,6 @@ pinned: false
 disable_embedding: true
 hf_oauth: true
 hf_oauth_scopes:
-  - read-repos
   - write-repos
 ---
 
