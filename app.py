@@ -29,11 +29,15 @@ When asked to create an application, you should:
 5. Ensure the code is functional and follows best practices
 
 For website redesign tasks:
-- Analyze the extracted website content to understand the structure and purpose
-- Create a modern, responsive design that improves upon the original
-- Maintain the core functionality and content while enhancing the user experience
+- Use the provided original HTML code as the starting point for redesign
+- Preserve all original content, structure, and functionality
+- Keep the same semantic HTML structure but enhance the styling
+- Reuse all original images and their URLs from the HTML code
+- Create a modern, responsive design with improved typography and spacing
 - Use modern CSS frameworks and design patterns
 - Ensure accessibility and mobile responsiveness
+- Maintain the same navigation and user flow
+- Enhance the visual design while keeping the original layout structure
 
 If an image is provided, analyze it and use the visual information to better understand the user's requirements.
 
@@ -52,12 +56,16 @@ When asked to create an application, you should:
 6. Ensure the code is functional and follows best practices
 
 For website redesign tasks:
-- Analyze the extracted website content to understand the structure and purpose
+- Use the provided original HTML code as the starting point for redesign
+- Preserve all original content, structure, and functionality
+- Keep the same semantic HTML structure but enhance the styling
+- Reuse all original images and their URLs from the HTML code
 - Use web search to find current design trends and best practices for the specific type of website
-- Create a modern, responsive design that improves upon the original
-- Maintain the core functionality and content while enhancing the user experience
+- Create a modern, responsive design with improved typography and spacing
 - Use modern CSS frameworks and design patterns
 - Ensure accessibility and mobile responsiveness
+- Maintain the same navigation and user flow
+- Enhance the visual design while keeping the original layout structure
 
 If an image is provided, analyze it and use the visual information to better understand the user's requirements.
 
@@ -462,7 +470,7 @@ def extract_text_from_file(file_path):
         return f"Error extracting text: {e}"
 
 def extract_website_content(url: str) -> str:
-    """Extract content from a website URL"""
+    """Extract HTML code and content from a website URL"""
     try:
         # Validate URL
         parsed_url = urlparse(url)
@@ -508,12 +516,42 @@ def extract_website_content(url: str) -> str:
                 else:
                     raise
         
-        # Parse HTML content
-        soup = BeautifulSoup(response.content, 'html.parser')
+        # Get the raw HTML content with proper encoding
+        try:
+            # Try to get the content with automatic encoding detection
+            response.encoding = response.apparent_encoding
+            raw_html = response.text
+        except:
+            # Fallback to UTF-8 if encoding detection fails
+            raw_html = response.content.decode('utf-8', errors='ignore')
         
-        # Remove script and style elements
-        for script in soup(["script", "style"]):
-            script.decompose()
+        # Debug: Check if we got valid HTML
+        if not raw_html.strip().startswith('<!DOCTYPE') and not raw_html.strip().startswith('<html'):
+            print(f"Warning: Response doesn't look like HTML. First 200 chars: {raw_html[:200]}")
+            print(f"Response headers: {dict(response.headers)}")
+            print(f"Response encoding: {response.encoding}")
+            print(f"Apparent encoding: {response.apparent_encoding}")
+            
+            # Try alternative approaches
+            try:
+                raw_html = response.content.decode('latin-1', errors='ignore')
+                print("Tried latin-1 decoding")
+            except:
+                try:
+                    raw_html = response.content.decode('utf-8', errors='ignore')
+                    print("Tried UTF-8 decoding")
+                except:
+                    raw_html = response.content.decode('cp1252', errors='ignore')
+                    print("Tried cp1252 decoding")
+        
+        # Parse HTML content for analysis
+        soup = BeautifulSoup(raw_html, 'html.parser')
+        
+        # Check if this is a JavaScript-heavy site
+        script_tags = soup.find_all('script')
+        if len(script_tags) > 10:
+            print(f"Warning: This site has {len(script_tags)} script tags - it may be a JavaScript-heavy site")
+            print("The content might be loaded dynamically and not available in the initial HTML")
         
         # Extract title
         title = soup.find('title')
@@ -523,10 +561,8 @@ def extract_website_content(url: str) -> str:
         meta_desc = soup.find('meta', attrs={'name': 'description'})
         description = meta_desc.get('content', '') if meta_desc else ""
         
-        # Extract main content areas
+        # Extract main content areas for analysis
         content_sections = []
-        
-        # Look for common content containers
         main_selectors = [
             'main', 'article', '.content', '.main-content', '.post-content',
             '#content', '#main', '.entry-content', '.post-body'
@@ -539,16 +575,7 @@ def extract_website_content(url: str) -> str:
                 if len(text) > 100:  # Only include substantial content
                     content_sections.append(text)
         
-        # If no main content found, extract from body
-        if not content_sections:
-            body = soup.find('body')
-            if body:
-                # Remove navigation, footer, and other non-content elements
-                for element in body.find_all(['nav', 'footer', 'header', 'aside']):
-                    element.decompose()
-                content_sections.append(body.get_text().strip())
-        
-        # Extract navigation links
+        # Extract navigation links for analysis
         nav_links = []
         nav_elements = soup.find_all(['nav', 'header'])
         for nav in nav_elements:
@@ -559,41 +586,201 @@ def extract_website_content(url: str) -> str:
                 if link_text and link_href:
                     nav_links.append(f"{link_text}: {link_href}")
         
-        # Extract images
+        # Extract and fix image URLs in the HTML
+        img_elements = soup.find_all('img')
+        for img in img_elements:
+            src = img.get('src', '')
+            if src:
+                # Handle different URL formats
+                if src.startswith('//'):
+                    # Protocol-relative URL
+                    absolute_src = 'https:' + src
+                    img['src'] = absolute_src
+                elif src.startswith('/'):
+                    # Root-relative URL
+                    absolute_src = urljoin(url, src)
+                    img['src'] = absolute_src
+                elif not src.startswith(('http://', 'https://')):
+                    # Relative URL
+                    absolute_src = urljoin(url, src)
+                    img['src'] = absolute_src
+                # If it's already absolute, keep it as is
+                
+                # Also check for data-src (lazy loading) and other common attributes
+                data_src = img.get('data-src', '')
+                if data_src and not src:
+                    # Use data-src if src is empty
+                    if data_src.startswith('//'):
+                        absolute_data_src = 'https:' + data_src
+                        img['src'] = absolute_data_src
+                    elif data_src.startswith('/'):
+                        absolute_data_src = urljoin(url, data_src)
+                        img['src'] = absolute_data_src
+                    elif not data_src.startswith(('http://', 'https://')):
+                        absolute_data_src = urljoin(url, data_src)
+                        img['src'] = absolute_data_src
+                    else:
+                        img['src'] = data_src
+        
+        # Also fix background image URLs in style attributes
+        elements_with_style = soup.find_all(attrs={'style': True})
+        for element in elements_with_style:
+            style_attr = element.get('style', '')
+            # Find and replace relative URLs in background-image
+            import re
+            bg_pattern = r'background-image:\s*url\(["\']?([^"\']+)["\']?\)'
+            matches = re.findall(bg_pattern, style_attr, re.IGNORECASE)
+            for match in matches:
+                if match:
+                    if match.startswith('//'):
+                        absolute_bg = 'https:' + match
+                        style_attr = style_attr.replace(match, absolute_bg)
+                    elif match.startswith('/'):
+                        absolute_bg = urljoin(url, match)
+                        style_attr = style_attr.replace(match, absolute_bg)
+                    elif not match.startswith(('http://', 'https://')):
+                        absolute_bg = urljoin(url, match)
+                        style_attr = style_attr.replace(match, absolute_bg)
+            element['style'] = style_attr
+        
+        # Fix background images in <style> tags
+        style_elements = soup.find_all('style')
+        for style in style_elements:
+            if style.string:
+                style_content = style.string
+                # Find and replace relative URLs in background-image
+                bg_pattern = r'background-image:\s*url\(["\']?([^"\']+)["\']?\)'
+                matches = re.findall(bg_pattern, style_content, re.IGNORECASE)
+                for match in matches:
+                    if match:
+                        if match.startswith('//'):
+                            absolute_bg = 'https:' + match
+                            style_content = style_content.replace(match, absolute_bg)
+                        elif match.startswith('/'):
+                            absolute_bg = urljoin(url, match)
+                            style_content = style_content.replace(match, absolute_bg)
+                        elif not match.startswith(('http://', 'https://')):
+                            absolute_bg = urljoin(url, match)
+                            style_content = style_content.replace(match, absolute_bg)
+                style.string = style_content
+        
+        # Extract images for analysis (after fixing URLs)
         images = []
         img_elements = soup.find_all('img')
         for img in img_elements:
             src = img.get('src', '')
             alt = img.get('alt', '')
             if src:
-                # Convert relative URLs to absolute
-                if not src.startswith(('http://', 'https://')):
-                    src = urljoin(url, src)
-                images.append(f"Image: {alt} ({src})")
+                images.append({'src': src, 'alt': alt})
         
-        # Compile the extracted content
+        # Debug: Print some image URLs to see what we're getting
+        print(f"Found {len(images)} images:")
+        for i, img in enumerate(images[:5]):  # Show first 5 images
+            print(f"  {i+1}. {img['alt'] or 'No alt'} - {img['src']}")
+        
+        # Test a few image URLs to see if they're accessible
+        def test_image_url(img_url):
+            try:
+                test_response = requests.head(img_url, timeout=5, allow_redirects=True)
+                return test_response.status_code == 200
+            except:
+                return False
+        
+        # Test first few images
+        working_images = []
+        for img in images[:10]:  # Test first 10 images
+            if test_image_url(img['src']):
+                working_images.append(img)
+            else:
+                print(f"  ❌ Broken image: {img['src']}")
+        
+        print(f"Working images: {len(working_images)} out of {len(images)}")
+        
+        # Get the modified HTML with absolute URLs
+        modified_html = str(soup)
+        
+        # Clean and format the HTML for better readability
+        # Remove unnecessary whitespace and comments
+        import re
+        cleaned_html = re.sub(r'<!--.*?-->', '', modified_html, flags=re.DOTALL)  # Remove HTML comments
+        cleaned_html = re.sub(r'\s+', ' ', cleaned_html)  # Normalize whitespace
+        cleaned_html = re.sub(r'>\s+<', '><', cleaned_html)  # Remove whitespace between tags
+        
+        # Limit HTML size to avoid token limits (keep first 15000 chars)
+        if len(cleaned_html) > 15000:
+            cleaned_html = cleaned_html[:15000] + "\n<!-- ... HTML truncated for length ... -->"
+        
+                # Check if we got any meaningful content
+        if not title_text or title_text == "No title found":
+            title_text = url.split('/')[-1] or url.split('/')[-2] or "Website"
+        
+        # If we couldn't extract any meaningful content, provide a fallback
+        if len(cleaned_html.strip()) < 100:
+            website_content = f"""
+WEBSITE REDESIGN - EXTRACTION FAILED
+====================================
+
+URL: {url}
+Title: {title_text}
+
+ERROR: Could not extract meaningful HTML content from this website. This could be due to:
+1. The website uses heavy JavaScript to load content dynamically
+2. The website has anti-bot protection
+3. The website requires authentication
+4. The website is using advanced compression or encoding
+
+FALLBACK APPROACH:
+Please create a modern, responsive website design for a {title_text.lower()} website. Since I couldn't extract the original content, you can:
+
+1. Create a typical layout for this type of website
+2. Use placeholder content that would be appropriate
+3. Include modern design elements and responsive features
+4. Use a clean, professional design with good typography
+5. Make it mobile-friendly and accessible
+
+The website appears to be: {title_text}
+"""
+            return website_content.strip()
+        
+        # Compile the extracted content with the actual HTML code
         website_content = f"""
-WEBSITE CONTENT EXTRACTION
-==========================
+WEBSITE REDESIGN - ORIGINAL HTML CODE
+=====================================
 
 URL: {url}
 Title: {title_text}
 Description: {description}
 
-NAVIGATION MENU:
-{chr(10).join(nav_links[:10]) if nav_links else "No navigation found"}
-
-MAIN CONTENT:
-{chr(10).join(content_sections[:3]) if content_sections else "No main content found"}
-
-IMAGES:
-{chr(10).join(images[:10]) if images else "No images found"}
-
-PAGE STRUCTURE:
+PAGE ANALYSIS:
 - This appears to be a {title_text.lower()} website
 - Contains {len(content_sections)} main content sections
 - Has {len(nav_links)} navigation links
 - Includes {len(images)} images
+
+IMAGES FOUND (use these exact URLs in your redesign):
+{chr(10).join([f"• {img['alt'] or 'Image'} - {img['src']}" for img in working_images[:20]]) if working_images else "No working images found"}
+
+ALL IMAGES (including potentially broken ones):
+{chr(10).join([f"• {img['alt'] or 'Image'} - {img['src']}" for img in images[:20]]) if images else "No images found"}
+
+ORIGINAL HTML CODE (use this as the base for redesign):
+```html
+{cleaned_html}
+```
+
+REDESIGN INSTRUCTIONS:
+Please redesign this website with a modern, responsive layout while:
+1. Preserving all the original content and structure
+2. Maintaining the same navigation and functionality
+3. Using the original images and their URLs (listed above)
+4. Creating a modern, clean design with improved typography and spacing
+5. Making it fully responsive for mobile devices
+6. Using modern CSS frameworks and best practices
+7. Keeping the same semantic structure but with enhanced styling
+
+IMPORTANT: All image URLs in the HTML code above have been converted to absolute URLs and are ready to use. Make sure to preserve these exact image URLs in your redesigned version.
+
+The HTML code above contains the complete original website structure with all images properly linked. Use it as your starting point and create a modernized version.
 """
         
         return website_content.strip()
@@ -729,7 +916,7 @@ with gr.Blocks(
         
         # URL input for website redesign
         website_url_input = gr.Textbox(
-            label="Website URL (for redesign)",
+            label="Website URL (extracts HTML for redesign)",
             placeholder="https://example.com",
             lines=1,
             visible=True
