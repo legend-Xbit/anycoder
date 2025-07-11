@@ -581,77 +581,21 @@ The OAuth token appears to be invalid or in the wrong format. Please try logging
         user_info = test_api.whoami()
         print(f"Debug: Token test successful - user: {user_info.get('name', 'unknown')}")
         
-        # Check if user has the necessary permissions by trying to list their repos
+        # Test if user can create repositories by checking their account type
         try:
-            repos = test_api.list_repos(author=username, token=user_token)
-            print(f"Debug: User has {len(list(repos))} repositories")
+            # Try to get user info to check account capabilities
+            user_info = test_api.whoami()
+            print(f"Debug: User info: {user_info}")
             
-            # Test if user can create repositories by checking their account type
-            try:
-                # Try to get user info to check account capabilities
-                user_info = test_api.whoami()
-                print(f"Debug: User info: {user_info}")
-                
-                # Check if user has pro account or sufficient permissions
-                if user_info.get('type') == 'user':
-                    print("Debug: User account type confirmed")
-                else:
-                    print(f"Debug: User account type: {user_info.get('type', 'unknown')}")
-                    
-            except Exception as user_info_error:
-                print(f"Debug: Could not get detailed user info: {user_info_error}")
-                
-        except Exception as repo_error:
-            print(f"Debug: Could not list repos: {repo_error}")
-            
-            # Check if this is a scope/permission issue
-            error_msg = str(repo_error).lower()
-            if "403" in error_msg or "forbidden" in error_msg or "unauthorized" in error_msg:
-                return """❌ **Insufficient Permissions**
-
-Your Hugging Face account doesn't have the necessary permissions to create spaces. This could be because:
-
-1. **Missing OAuth Scopes**: You didn't grant all the required permissions during login
-2. **Account Restrictions**: Your account has restrictions on creating repositories
-3. **Token Scope Issues**: The OAuth token doesn't include the necessary scopes
-
-**Required Permissions:**
-- `read-repos` - Read access to repositories
-- `write-repos` - Write access to create repositories
-- `manage-repos` - Manage repository settings
-
-**Steps to fix:**
-1. **Logout**: Click the logout button in the sidebar
-2. **Login Again**: Click "Sign in with Hugging Face" again
-3. **Grant All Permissions**: When the authorization page appears, make sure to check ALL the requested permissions:
-   - ✅ read-repos
-   - ✅ write-repos
-   - ✅ manage-repos
-4. **Complete Authorization**: Click "Authorize" to complete the login
-5. **Try Deploying**: Try deploying again
-
-**Important:** Make sure you see all three permissions checked on the authorization page before clicking "Authorize".
-
----
-*Please log in again with full permissions.*""", update_oauth_status(oauth_profile, oauth_token)
+            # Check if user has pro account or sufficient permissions
+            if user_info.get('type') == 'user':
+                print("Debug: User account type confirmed")
             else:
-                return f"""❌ **Repository Access Error**
-
-Error: {str(repo_error)}
-
-This could be due to:
-- Network connectivity issues
-- Hugging Face API temporary problems
-- Account-specific restrictions
-
-**Steps to fix:**
-1. Check your internet connection
-2. Try logging out and logging back in
-3. Wait a few minutes and try again
-4. If the problem persists, check your Hugging Face account settings
-
----
-*Please try again or contact support if the issue persists.*""", update_oauth_status(oauth_profile, oauth_token)
+                print(f"Debug: User account type: {user_info.get('type', 'unknown')}")
+                
+        except Exception as user_info_error:
+            print(f"Debug: Could not get detailed user info: {user_info_error}")
+            # This is not a critical error, so we continue
             
     except Exception as token_error:
         print(f"Debug: Token test failed: {token_error}")
