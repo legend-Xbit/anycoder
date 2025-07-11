@@ -80,11 +80,18 @@ AnyCoder now includes one-click deployment to Hugging Face Spaces! This feature 
 
 ### How to Deploy
 
-1. **Login**: Click the "Sign in with Hugging Face" button in the sidebar and authorize with your Hugging Face account
-2. **Generate Code**: Generate some HTML code using the AI
-3. **Enter Title**: In the sidebar, enter a title for your space (e.g., "My Todo App")
-4. **Deploy**: Click the "🚀 Deploy to Space" button
-5. **Share**: Get a shareable URL for your deployed application
+1. **Login**: Click the "Sign in with Hugging Face" button in the sidebar
+2. **Authorize Permissions**: When the authorization page appears, make sure to grant ALL the requested permissions:
+   - ✅ **read-repos** - Read access to repositories
+   - ✅ **write-repos** - Write access to create repositories
+   - ✅ **manage-repos** - Manage repository settings
+3. **Complete Authorization**: Click "Authorize" to complete the login
+4. **Generate Code**: Generate some HTML code using the AI
+5. **Enter Title**: In the sidebar, enter a title for your space (e.g., "My Todo App")
+6. **Deploy**: Click the "🚀 Deploy to Space" button
+7. **Share**: Get a shareable URL for your deployed application
+
+**Important**: You must grant ALL three permissions during the OAuth authorization process. If you only grant partial permissions, deployment will fail.
 
 **Note**: You need to be logged in with your Hugging Face account to deploy. This ensures that:
 - Deployments are created under your own account namespace
@@ -92,6 +99,16 @@ AnyCoder now includes one-click deployment to Hugging Face Spaces! This feature 
 - Each deployment gets a unique URL under your username
 
 **Technical Note**: The deployment uses your personal OAuth token to create spaces under your account, ensuring full security and ownership of your deployed applications.
+
+### Troubleshooting Deployment Issues
+
+If you encounter permission errors during deployment:
+
+1. **Check Permissions**: Make sure you granted all three required permissions during login
+2. **Logout and Login Again**: Click logout and sign in again, ensuring all permissions are granted
+3. **Account Status**: Verify your Hugging Face account allows repository creation
+4. **Network Issues**: Check your internet connection and try again
+5. **Contact Support**: If issues persist, contact Hugging Face support
 
 ### What Gets Deployed
 

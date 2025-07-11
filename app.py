@@ -185,6 +185,39 @@ if TAVILY_API_KEY:
         print(f"Failed to initialize Tavily client: {e}")
         tavily_client = None
 
+def validate_oauth_scopes(oauth_token) -> Tuple[bool, List[str]]:
+    """
+    Validate that the OAuth token has the required scopes for creating spaces
+    Returns (is_valid, missing_scopes)
+    """
+    required_scopes = ['read-repos', 'write-repos', 'manage-repos']
+    
+    if not oauth_token:
+        return False, required_scopes
+    
+    # Try to get scopes from the token object
+    token_scopes = []
+    
+    # Check different ways scopes might be stored
+    if hasattr(oauth_token, 'scopes'):
+        token_scopes = oauth_token.scopes
+    elif hasattr(oauth_token, 'scope'):
+        token_scopes = oauth_token.scope.split(' ') if oauth_token.scope else []
+    elif hasattr(oauth_token, 'permissions'):
+        token_scopes = oauth_token.permissions
+    else:
+        # If we can't determine scopes, assume they're missing
+        return False, required_scopes
+    
+    # Convert to list if it's a string
+    if isinstance(token_scopes, str):
+        token_scopes = token_scopes.split(' ')
+    
+    # Check for required scopes
+    missing_scopes = [scope for scope in required_scopes if scope not in token_scopes]
+    
+    return len(missing_scopes) == 0, missing_scopes
+
 # Deployment functions
 def create_space_from_html(title: str, html_content: str, prompts: List[str] = None, user_token: str = None, username: str = None) -> Dict:
     """
@@ -430,15 +463,15 @@ Visit: https://huggingface.co/spaces/{repo_name}
                 "message": f"Failed to create space: {error_msg}"
             }
 
-def deploy_to_space(title: str, html_content: str, history: History, oauth_profile: gr.OAuthProfile = None, oauth_token: gr.OAuthToken = None) -> str:
+def deploy_to_space(title: str, html_content: str, history: History, oauth_profile: gr.OAuthProfile = None, oauth_token: gr.OAuthToken = None) -> Tuple[str, str]:
     """
     Deploy the generated HTML to a Hugging Face Space
     """
     if not title or not title.strip():
-        return "❌ Please enter a title for your space."
+        return "❌ Please enter a title for your space.", update_oauth_status(oauth_profile, oauth_token)
     
     if not html_content or not html_content.strip():
-        return "❌ No HTML content to deploy. Please generate some code first."
+        return "❌ No HTML content to deploy. Please generate some code first.", update_oauth_status(oauth_profile, oauth_token)
     
     # Check if user is authenticated
     if not oauth_profile or not oauth_token:
@@ -462,7 +495,7 @@ To deploy your application, you need to be logged in with your Hugging Face acco
 **Note:** Make sure to grant all the requested permissions when authorizing the application.
 
 ---
-*Please log in and try again.*"""
+*Please log in and try again.*""", update_oauth_status(oauth_profile, oauth_token)
     
     # Get user information from OAuth profile
     username = oauth_profile.name
@@ -480,6 +513,51 @@ To deploy your application, you need to be logged in with your Hugging Face acco
     print(f"Debug: OAuth profile attributes: {dir(oauth_profile) if oauth_profile else 'None'}")
     print(f"Debug: OAuth token attributes: {dir(oauth_token) if oauth_token else 'None'}")
     
+    # Check OAuth token scopes if available
+    if hasattr(oauth_token, 'scopes'):
+        print(f"Debug: OAuth token scopes: {oauth_token.scopes}")
+    else:
+        print("Debug: OAuth token scopes not available")
+    
+    # Check OAuth profile permissions if available
+    if hasattr(oauth_profile, 'permissions'):
+        print(f"Debug: OAuth profile permissions: {oauth_profile.permissions}")
+    else:
+        print("Debug: OAuth profile permissions not available")
+    
+    # Validate OAuth scopes
+    scopes_valid, missing_scopes = validate_oauth_scopes(oauth_token)
+    print(f"Debug: OAuth scopes valid: {scopes_valid}")
+    print(f"Debug: Missing scopes: {missing_scopes}")
+    
+    if not scopes_valid:
+        return f"""❌ **Missing OAuth Scopes**
+
+Your OAuth token is missing the required permissions to create spaces.
+
+**Missing Scopes:**
+{chr(10).join([f"- `{scope}`" for scope in missing_scopes])}
+
+**Required Scopes:**
+- `read-repos` - Read access to repositories
+- `write-repos` - Write access to create repositories  
+- `manage-repos` - Manage repository settings
+
+**Steps to fix:**
+1. **Logout**: Click the logout button in the sidebar
+2. **Login Again**: Click "Sign in with Hugging Face" again
+3. **Grant All Permissions**: When the authorization page appears, make sure to check ALL the requested permissions:
+   - ✅ read-repos
+   - ✅ write-repos
+   - ✅ manage-repos
+4. **Complete Authorization**: Click "Authorize" to complete the login
+5. **Try Deploying**: Try deploying again
+
+**Important:** Make sure you see all three permissions checked on the authorization page before clicking "Authorize".
+
+---
+*Please log in again with full permissions.*""", update_oauth_status(oauth_profile, oauth_token)
+    
     # Validate token format
     if not user_token or not user_token.startswith('hf_'):
         return """❌ **Invalid Token Format**
@@ -495,7 +573,7 @@ The OAuth token appears to be invalid or in the wrong format. Please try logging
 **Note:** Make sure you authorize all the required permissions when logging in.
 
 ---
-*Please try logging in again.*"""
+*Please try logging in again.*""", update_oauth_status(oauth_profile, oauth_token)
     
     # Test the token by making a simple API call
     try:
@@ -507,27 +585,73 @@ The OAuth token appears to be invalid or in the wrong format. Please try logging
         try:
             repos = test_api.list_repos(author=username, token=user_token)
             print(f"Debug: User has {len(list(repos))} repositories")
+            
+            # Test if user can create repositories by checking their account type
+            try:
+                # Try to get user info to check account capabilities
+                user_info = test_api.whoami()
+                print(f"Debug: User info: {user_info}")
+                
+                # Check if user has pro account or sufficient permissions
+                if user_info.get('type') == 'user':
+                    print("Debug: User account type confirmed")
+                else:
+                    print(f"Debug: User account type: {user_info.get('type', 'unknown')}")
+                    
+            except Exception as user_info_error:
+                print(f"Debug: Could not get detailed user info: {user_info_error}")
+                
         except Exception as repo_error:
             print(f"Debug: Could not list repos: {repo_error}")
-            return """❌ **Insufficient Permissions**
+            
+            # Check if this is a scope/permission issue
+            error_msg = str(repo_error).lower()
+            if "403" in error_msg or "forbidden" in error_msg or "unauthorized" in error_msg:
+                return """❌ **Insufficient Permissions**
 
 Your Hugging Face account doesn't have the necessary permissions to create spaces. This could be because:
 
-1. You didn't grant all the required permissions during login
-2. Your account has restrictions on creating repositories
-3. The OAuth token doesn't include the necessary scopes
+1. **Missing OAuth Scopes**: You didn't grant all the required permissions during login
+2. **Account Restrictions**: Your account has restrictions on creating repositories
+3. **Token Scope Issues**: The OAuth token doesn't include the necessary scopes
+
+**Required Permissions:**
+- `read-repos` - Read access to repositories
+- `write-repos` - Write access to create repositories
+- `manage-repos` - Manage repository settings
 
 **Steps to fix:**
-1. Click the logout button in the sidebar
-2. Click "Sign in with Hugging Face" again
-3. Make sure to grant ALL the requested permissions:
-   - read-repos
-   - write-repos
-   - manage-repos
-4. Try deploying again
+1. **Logout**: Click the logout button in the sidebar
+2. **Login Again**: Click "Sign in with Hugging Face" again
+3. **Grant All Permissions**: When the authorization page appears, make sure to check ALL the requested permissions:
+   - ✅ read-repos
+   - ✅ write-repos
+   - ✅ manage-repos
+4. **Complete Authorization**: Click "Authorize" to complete the login
+5. **Try Deploying**: Try deploying again
+
+**Important:** Make sure you see all three permissions checked on the authorization page before clicking "Authorize".
 
 ---
-*Please log in again with full permissions.*"""
+*Please log in again with full permissions.*""", update_oauth_status(oauth_profile, oauth_token)
+            else:
+                return f"""❌ **Repository Access Error**
+
+Error: {str(repo_error)}
+
+This could be due to:
+- Network connectivity issues
+- Hugging Face API temporary problems
+- Account-specific restrictions
+
+**Steps to fix:**
+1. Check your internet connection
+2. Try logging out and logging back in
+3. Wait a few minutes and try again
+4. If the problem persists, check your Hugging Face account settings
+
+---
+*Please try again or contact support if the issue persists.*""", update_oauth_status(oauth_profile, oauth_token)
             
     except Exception as token_error:
         print(f"Debug: Token test failed: {token_error}")
@@ -546,13 +670,94 @@ The OAuth token could not be validated. This could be because:
 4. Try deploying again
 
 ---
-*Please log in again.*"""
+*Please log in again.*""", update_oauth_status(oauth_profile, oauth_token)
     
     # Extract prompts from history
     prompts = []
     for user_msg, _ in history:
         if isinstance(user_msg, str) and user_msg.strip():
             prompts.append(user_msg.strip())
+    
+    # Test if user can create repositories by attempting a test creation
+    try:
+        test_api = HfApi(token=user_token)
+        
+        # Try to create a test repository to verify permissions
+        test_repo_name = f"{username}/test-permissions-{int(time.time())}"
+        print(f"Debug: Testing repository creation with: {test_repo_name}")
+        
+        try:
+            # Attempt to create a test repository
+            test_repo_url = test_api.create_repo(
+                repo_id=test_repo_name,
+                repo_type="model",
+                private=True,
+                exist_ok=False,
+                token=user_token
+            )
+            print(f"Debug: Successfully created test repository: {test_repo_url}")
+            
+            # Clean up the test repository
+            try:
+                test_api.delete_repo(repo_id=test_repo_name, token=user_token)
+                print(f"Debug: Successfully cleaned up test repository")
+            except Exception as cleanup_error:
+                print(f"Debug: Could not clean up test repository: {cleanup_error}")
+                
+        except Exception as test_create_error:
+            print(f"Debug: Could not create test repository: {test_create_error}")
+            error_msg = str(test_create_error).lower()
+            
+            if "403" in error_msg or "forbidden" in error_msg:
+                return """❌ **Repository Creation Permission Denied**
+
+Your Hugging Face account doesn't have permission to create repositories. This could be because:
+
+1. **Account Type**: Your account type may not allow repository creation
+2. **Organization Restrictions**: If you're part of an organization, there may be restrictions
+3. **Account Status**: Your account may be limited or suspended
+
+**Steps to fix:**
+1. **Check Account Status**: Visit https://huggingface.co/settings/account to check your account status
+2. **Verify Account Type**: Make sure your account allows repository creation
+3. **Contact Support**: If you believe this is an error, contact Hugging Face support
+4. **Try Different Account**: Consider using a different Hugging Face account
+
+**Note:** Free accounts should be able to create repositories. If you're having issues, it might be a temporary restriction.
+
+---
+*Please check your account settings or try with a different account.*""", update_oauth_status(oauth_profile, oauth_token)
+            else:
+                return f"""❌ **Repository Creation Test Failed**
+
+Error: {str(test_create_error)}
+
+This could be due to:
+- Network connectivity issues
+- Hugging Face API temporary problems
+- Account-specific restrictions
+
+**Steps to fix:**
+1. Check your internet connection
+2. Wait a few minutes and try again
+3. If the problem persists, check your Hugging Face account settings
+
+---
+*Please try again or contact support if the issue persists.*""", update_oauth_status(oauth_profile, oauth_token)
+                
+    except Exception as test_error:
+        print(f"Debug: Repository creation test failed: {test_error}")
+        return f"""❌ **Permission Test Failed**
+
+Could not test repository creation permissions: {str(test_error)}
+
+**Steps to fix:**
+1. Check your internet connection
+2. Try logging out and logging back in
+3. Wait a few minutes and try again
+
+---
+*Please try again or contact support if the issue persists.*""", update_oauth_status(oauth_profile, oauth_token)
     
     # Use user's OAuth token to create space under their account
     result = create_space_from_html(title.strip(), html_content, prompts, user_token, username)
@@ -571,7 +776,7 @@ Your application is now live on Hugging Face Spaces under your account. You can 
 - Manage your space from your Hugging Face dashboard
 
 ---
-*Generated with ❤️ using AnyCoder*"""
+*Generated with ❤️ using AnyCoder*""", update_oauth_status(oauth_profile, oauth_token)
     else:
         return f"""❌ **Deployment failed**
 
@@ -584,7 +789,7 @@ Your application is now live on Hugging Face Spaces under your account. You can 
 - Make sure your Hugging Face account has the necessary permissions
 
 ---
-*Please try again or contact support if the issue persists.*"""
+*Please try again or contact support if the issue persists.*""", update_oauth_status(oauth_profile, oauth_token)
 
 def history_to_messages(history: History, system: str) -> Messages:
     messages = [{'role': 'system', 'content': system}]
@@ -657,6 +862,20 @@ def history_render(history: History):
 
 def clear_history():
     return [], [], None, ""  # Empty lists for both tuple format and chatbot messages, None for file, empty string for website URL
+
+def update_oauth_status(oauth_profile: gr.OAuthProfile = None, oauth_token: gr.OAuthToken = None):
+    """Update the OAuth status indicator based on login state"""
+    if not oauth_profile or not oauth_token:
+        return "🔐 **Login Required**\nSign in to deploy applications"
+    
+    # Check if we have the required scopes
+    scopes_valid, missing_scopes = validate_oauth_scopes(oauth_token)
+    
+    if scopes_valid:
+        return f"✅ **Logged in as {oauth_profile.name}**\nReady to deploy applications"
+    else:
+        missing_list = ", ".join(missing_scopes)
+        return f"⚠️ **Incomplete Permissions**\nMissing: {missing_list}\nPlease logout and login again"
 
 def update_image_input_visibility(model):
     """Update image input visibility based on selected model"""
@@ -1325,6 +1544,8 @@ with gr.Blocks(
         # OAuth components are automatically injected as function parameters
         # when using gr.LoginButton() - no need to create them separately
         
+        # OAuth status will be updated automatically by Gradio's OAuth system
+        
         # Main input section
         input = gr.Textbox(
             label="What would you like to build?",
@@ -1415,6 +1636,12 @@ with gr.Blocks(
         else:
             gr.Markdown("✅ Web search available")
         
+        # OAuth status indicator
+        oauth_status = gr.Markdown(
+            value="🔐 **Login Required**\nSign in to deploy applications",
+            visible=True
+        )
+        
         # Hidden elements for functionality
         model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=False)
         
@@ -1461,15 +1688,16 @@ with gr.Blocks(
 ### Prerequisites
 1. **Login Required**: You must be logged in with your Hugging Face account
 2. **Permissions**: Grant the following permissions when logging in:
-   - read-repos
-   - write-repos
-   - manage-repos
+   - ✅ **read-repos** - Read access to repositories
+   - ✅ **write-repos** - Write access to create repositories
+   - ✅ **manage-repos** - Manage repository settings
 
 ### Steps to Deploy
 1. **Login**: Click "Sign in with Hugging Face" in the sidebar
-2. **Generate Code**: Generate some HTML code using the AI
-3. **Enter Title**: In the sidebar, enter a title for your space (e.g., "My Todo App")
-4. **Deploy**: Click the "🚀 Deploy to Space" button
+2. **Authorize Permissions**: When the authorization page appears, make sure to grant ALL the requested permissions
+3. **Generate Code**: Generate some HTML code using the AI
+4. **Enter Title**: In the sidebar, enter a title for your space (e.g., "My Todo App")
+5. **Deploy**: Click the "🚀 Deploy to Space" button
 
 ### What Happens
 - Your application will be deployed to Hugging Face Spaces under your account
@@ -1482,6 +1710,8 @@ If deployment fails:
 - Ensure you granted all required permissions during login
 - Try logging out and logging back in
 - Check that your Hugging Face account can create repositories
+
+**Important**: You must grant ALL three permissions during the OAuth authorization process.
 
 ---
 *Your application will be deployed to Hugging Face Spaces and you'll get a shareable URL!*""",
@@ -1503,7 +1733,7 @@ If deployment fails:
     deploy_btn.click(
         deploy_to_space,
         inputs=[space_title_input, code_output, history],
-        outputs=[deploy_output],
+        outputs=[deploy_output, oauth_status],
         api_name="deploy"
     )
 
