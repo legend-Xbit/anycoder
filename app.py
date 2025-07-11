@@ -211,6 +211,15 @@ def create_space_from_html(title: str, html_content: str, prompts: List[str] = N
             if not username:
                 username = user_info.get('name', 'user')
             print(f"Debug: Final username: {username}")
+            
+            # Additional validation
+            if not username or username == 'user':
+                return {
+                    "success": False,
+                    "error": "Could not retrieve username from token",
+                    "message": "The authentication token is valid but username could not be retrieved. Please try logging in again."
+                }
+                
         except Exception as e:
             print(f"Debug: Could not get user info: {e}")
             return {
@@ -232,16 +241,27 @@ def create_space_from_html(title: str, html_content: str, prompts: List[str] = N
         
         # Create the space
         try:
+            print(f"Debug: Creating space with parameters:")
+            print(f"  repo_id: {repo_name}")
+            print(f"  repo_type: space")
+            print(f"  space_sdk: static")
+            print(f"  private: False")
+            print(f"  exist_ok: False")
+            print(f"  token length: {len(api_token) if api_token else 0}")
+            
             repo_url = user_hf_api.create_repo(
                 repo_id=repo_name,
                 repo_type="space",
                 space_sdk="static",
                 private=False,
-                exist_ok=False
+                exist_ok=False,
+                token=api_token
             )
             print(f"Debug: Successfully created space: {repo_url}")
         except Exception as e:
             print(f"Debug: Failed to create space: {e}")
+            print(f"Debug: Exception type: {type(e)}")
+            print(f"Debug: Exception args: {e.args}")
             raise e
         
         # Prepare the HTML content with proper structure
@@ -311,13 +331,28 @@ def create_space_from_html(title: str, html_content: str, prompts: List[str] = N
         
         full_html = html_template.format(title=title, html_content=html_content)
         
+        # Check HTML content size
+        html_size = len(full_html.encode('utf-8'))
+        print(f"Debug: HTML content size: {html_size} bytes")
+        
+        if html_size > 1000000:  # 1MB limit
+            print(f"Debug: Warning - HTML content is large ({html_size} bytes)")
+            # Truncate if too large
+            if len(html_content) > 500000:  # 500KB limit for content
+                html_content = html_content[:500000] + "\n<!-- Content truncated due to size -->"
+                full_html = html_template.format(title=title, html_content=html_content)
+                print(f"Debug: HTML content truncated to {len(full_html.encode('utf-8'))} bytes")
+        
         # Upload the HTML file
+        print(f"Debug: Uploading index.html to {repo_name}")
         user_hf_api.upload_file(
             path_or_fileobj=full_html.encode('utf-8'),
             path_in_repo="index.html",
             repo_id=repo_name,
-            repo_type="space"
+            repo_type="space",
+            token=api_token
         )
+        print(f"Debug: Successfully uploaded index.html")
         
         # Create README.md with project info
         prompts_text = "".join([f"- {prompt}\n" for prompt in (prompts or [])])
@@ -343,12 +378,15 @@ Visit: https://huggingface.co/spaces/{repo_name}
         
         readme_content = readme_template.format(title=title, prompts_text=prompts_text, repo_name=repo_name)
         
+        print(f"Debug: Uploading README.md to {repo_name}")
         user_hf_api.upload_file(
             path_or_fileobj=readme_content.encode('utf-8'),
             path_in_repo="README.md",
             repo_id=repo_name,
-            repo_type="space"
+            repo_type="space",
+            token=api_token
         )
+        print(f"Debug: Successfully uploaded README.md")
         
         return {
             "success": True,
@@ -358,11 +396,39 @@ Visit: https://huggingface.co/spaces/{repo_name}
         }
         
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "message": f"Failed to create space: {str(e)}"
-        }
+        error_msg = str(e)
+        
+        # Handle specific API errors
+        if "401" in error_msg or "Unauthorized" in error_msg:
+            return {
+                "success": False,
+                "error": "Authentication failed - please log in again",
+                "message": "Your token may have expired. Please log out and log back in."
+            }
+        elif "403" in error_msg or "Forbidden" in error_msg:
+            return {
+                "success": False,
+                "error": "Permission denied - insufficient privileges",
+                "message": "You may not have permission to create spaces. Please check your Hugging Face account settings."
+            }
+        elif "409" in error_msg or "Conflict" in error_msg:
+            return {
+                "success": False,
+                "error": "Repository already exists",
+                "message": "A space with this name already exists. Please try a different title."
+            }
+        elif "422" in error_msg or "Validation" in error_msg:
+            return {
+                "success": False,
+                "error": "Invalid repository name",
+                "message": "The space title contains invalid characters. Please use only letters, numbers, hyphens, and underscores."
+            }
+        else:
+            return {
+                "success": False,
+                "error": error_msg,
+                "message": f"Failed to create space: {error_msg}"
+            }
 
 def deploy_to_space(title: str, html_content: str, history: History, oauth_profile: gr.OAuthProfile = None, oauth_token: gr.OAuthToken = None) -> str:
     """
@@ -382,13 +448,18 @@ To deploy your application, you need to be logged in with your Hugging Face acco
 
 **How to log in:**
 1. Click the "Sign in with Hugging Face" button in the sidebar
-2. Authorize AnyCoder to access your Hugging Face account
+2. Authorize AnyCoder to access your Hugging Face account with the required permissions:
+   - read-repos
+   - write-repos  
+   - manage-repos
 3. Try deploying again
 
 **Why login is required:**
 - Deployments are created under your own Hugging Face account
 - You need write permissions to create spaces
 - This ensures you own and can manage your deployed applications
+
+**Note:** Make sure to grant all the requested permissions when authorizing the application.
 
 ---
 *Please log in and try again.*"""
@@ -402,6 +473,80 @@ To deploy your application, you need to be logged in with your Hugging Face acco
     print(f"Debug: Token type: {type(user_token)}")
     print(f"Debug: Token length: {len(user_token) if user_token else 0}")
     print(f"Debug: Token starts with: {user_token[:10] if user_token else 'None'}...")
+    
+    # Additional debugging for OAuth components
+    print(f"Debug: OAuth profile type: {type(oauth_profile)}")
+    print(f"Debug: OAuth token type: {type(oauth_token)}")
+    print(f"Debug: OAuth profile attributes: {dir(oauth_profile) if oauth_profile else 'None'}")
+    print(f"Debug: OAuth token attributes: {dir(oauth_token) if oauth_token else 'None'}")
+    
+    # Validate token format
+    if not user_token or not user_token.startswith('hf_'):
+        return """❌ **Invalid Token Format**
+
+The OAuth token appears to be invalid or in the wrong format. Please try logging out and logging back in.
+
+**Steps to fix:**
+1. Click the logout button in the sidebar
+2. Click "Sign in with Hugging Face" again
+3. Authorize the application with the required permissions (read-repos, write-repos, manage-repos)
+4. Try deploying again
+
+**Note:** Make sure you authorize all the required permissions when logging in.
+
+---
+*Please try logging in again.*"""
+    
+    # Test the token by making a simple API call
+    try:
+        test_api = HfApi(token=user_token)
+        user_info = test_api.whoami()
+        print(f"Debug: Token test successful - user: {user_info.get('name', 'unknown')}")
+        
+        # Check if user has the necessary permissions by trying to list their repos
+        try:
+            repos = test_api.list_repos(author=username, token=user_token)
+            print(f"Debug: User has {len(list(repos))} repositories")
+        except Exception as repo_error:
+            print(f"Debug: Could not list repos: {repo_error}")
+            return """❌ **Insufficient Permissions**
+
+Your Hugging Face account doesn't have the necessary permissions to create spaces. This could be because:
+
+1. You didn't grant all the required permissions during login
+2. Your account has restrictions on creating repositories
+3. The OAuth token doesn't include the necessary scopes
+
+**Steps to fix:**
+1. Click the logout button in the sidebar
+2. Click "Sign in with Hugging Face" again
+3. Make sure to grant ALL the requested permissions:
+   - read-repos
+   - write-repos
+   - manage-repos
+4. Try deploying again
+
+---
+*Please log in again with full permissions.*"""
+            
+    except Exception as token_error:
+        print(f"Debug: Token test failed: {token_error}")
+        return """❌ **Token Validation Failed**
+
+The OAuth token could not be validated. This could be because:
+
+1. The token has expired
+2. The token doesn't have the right permissions
+3. There's an issue with the authentication
+
+**Steps to fix:**
+1. Click the logout button in the sidebar
+2. Click "Sign in with Hugging Face" again
+3. Authorize with all required permissions
+4. Try deploying again
+
+---
+*Please log in again.*"""
     
     # Extract prompts from history
     prompts = []
@@ -1177,6 +1322,9 @@ with gr.Blocks(
             size="sm"
         )
         
+        # OAuth components are automatically injected as function parameters
+        # when using gr.LoginButton() - no need to create them separately
+        
         # Main input section
         input = gr.Textbox(
             label="What would you like to build?",
@@ -1308,7 +1456,35 @@ with gr.Blocks(
                 sandbox = gr.HTML(label="Live preview")
             with gr.Tab("Deploy"):
                 deploy_output = gr.Markdown(
-                    value="## 🚀 Deploy Your Application\n\n1. Generate some code first\n2. Enter a title for your space\n3. Click 'Deploy to Space' in the sidebar\n\nYour application will be deployed to Hugging Face Spaces and you'll get a shareable URL!",
+                    value="""## 🚀 Deploy Your Application
+
+### Prerequisites
+1. **Login Required**: You must be logged in with your Hugging Face account
+2. **Permissions**: Grant the following permissions when logging in:
+   - read-repos
+   - write-repos
+   - manage-repos
+
+### Steps to Deploy
+1. **Login**: Click "Sign in with Hugging Face" in the sidebar
+2. **Generate Code**: Generate some HTML code using the AI
+3. **Enter Title**: In the sidebar, enter a title for your space (e.g., "My Todo App")
+4. **Deploy**: Click the "🚀 Deploy to Space" button
+
+### What Happens
+- Your application will be deployed to Hugging Face Spaces under your account
+- You'll get a shareable URL (e.g., `https://huggingface.co/spaces/yourusername/my-app-1234567890`)
+- The deployment includes professional styling and documentation
+
+### Troubleshooting
+If deployment fails:
+- Make sure you're logged in with the correct account
+- Ensure you granted all required permissions during login
+- Try logging out and logging back in
+- Check that your Hugging Face account can create repositories
+
+---
+*Your application will be deployed to Hugging Face Spaces and you'll get a shareable URL!*""",
                     label="Deployment Status"
                 )
             with gr.Tab("History"):
