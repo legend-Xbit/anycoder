@@ -914,7 +914,7 @@ with gr.Blocks(
     setting = gr.State({
         "system": SystemPrompt,
     })
-    current_model = gr.State(AVAILABLE_MODELS[0])
+    current_model = gr.State(AVAILABLE_MODELS[1])  # DeepSeek V3
     open_panel = gr.State(None)
 
     with gr.Sidebar():
@@ -965,7 +965,7 @@ with gr.Blocks(
         # Model selection (minimal)
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
-            value=AVAILABLE_MODELS[0]['name'],
+            value=AVAILABLE_MODELS[1]['name'],  # DeepSeek V3
             label="Model"
         )
         
@@ -990,13 +990,13 @@ with gr.Blocks(
             gr.Markdown("✅ Web search available")
         
         # Hidden elements for functionality
-        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=False)
+        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[1]['name']}", visible=False)  # DeepSeek V3
         
         def on_model_change(model_name):
             for m in AVAILABLE_MODELS:
                 if m['name'] == model_name:
                     return m, f"**Model:** {m['name']}", update_image_input_visibility(m)
-            return AVAILABLE_MODELS[0], f"**Model:** {AVAILABLE_MODELS[0]['name']}", update_image_input_visibility(AVAILABLE_MODELS[0])
+            return AVAILABLE_MODELS[1], f"**Model:** {AVAILABLE_MODELS[1]['name']}", update_image_input_visibility(AVAILABLE_MODELS[1])  # DeepSeek V3 fallback
         
         def save_prompt(input):
             return {setting: {"system": input}}
