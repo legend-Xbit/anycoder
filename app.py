@@ -18,7 +18,7 @@ import json
 import time
 
 import gradio as gr
-from huggingface_hub import InferenceClient, HfApi, create_repo, whoami
+from huggingface_hub import InferenceClient
 from tavily import TavilyClient
 
 # Configuration
@@ -413,188 +413,6 @@ def demo_card_click(e: gr.EventData):
     except (KeyError, IndexError, AttributeError) as e:
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
-
-def get_user_info(profile: gr.OAuthProfile | None) -> str:
-    """Get user information from OAuth profile"""
-    if profile is None:
-        return "👤 **Guest User**\n*Sign in to personalize your experience*"
-    return f"👤 **{profile.name}**\n*Welcome back!*"
-
-def create_space_from_code(html_code: str, title: str, oauth_token: gr.OAuthToken | None) -> str:
-    """Create a new Hugging Face Space with the generated HTML code"""
-    if not oauth_token:
-        return "❌ **Error:** Please sign in with your Hugging Face account to deploy spaces."
-    
-    if not html_code or not html_code.strip():
-        return "❌ **Error:** No code to deploy. Please generate some code first."
-    
-    if not title or not title.strip():
-        return "❌ **Error:** Please provide a title for your space."
-    
-    try:
-        # Clean up the title for use as repo name
-        import re
-        clean_title = re.sub(r'[^a-zA-Z0-9\s-]', '', title)
-        clean_title = re.sub(r'\s+', '-', clean_title).lower()
-        clean_title = clean_title[:50]  # Limit length
-        
-        # Get user info to create repo under their account
-        user_info = whoami(oauth_token.token)
-        username = user_info.get('name', 'unknown')
-        
-        # Create unique repo ID
-        import time
-        timestamp = int(time.time())
-        repo_id = f"{username}/{clean_title}-{timestamp}"
-        
-        # Create the space
-        api = HfApi(token=oauth_token.token)
-        api.create_repo(
-            repo_id=repo_id,
-            repo_type="space",
-            space_sdk="static",
-            space_hardware="cpu-basic"
-        )
-        
-        # Create the HTML file content
-        html_content = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title}</title>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }}
-        .container {{
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 2.5em;
-            font-weight: 300;
-        }}
-        .header p {{
-            margin: 10px 0 0 0;
-            opacity: 0.9;
-            font-size: 1.1em;
-        }}
-        .content {{
-            padding: 40px;
-        }}
-        .footer {{
-            background: #f8f9fa;
-            padding: 20px;
-            text-align: center;
-            color: #666;
-            border-top: 1px solid #eee;
-        }}
-        .footer a {{
-            color: #667eea;
-            text-decoration: none;
-        }}
-        .footer a:hover {{
-            text-decoration: underline;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{title}</h1>
-            <p>Generated with AnyCoder - AI-Powered Code Generator</p>
-        </div>
-        <div class="content">
-            {html_code}
-        </div>
-        <div class="footer">
-            <p>🚀 Created with <a href="https://huggingface.co/spaces/anycoder" target="_blank">AnyCoder</a> | 
-            <a href="https://huggingface.co/spaces" target="_blank">Hugging Face Spaces</a></p>
-        </div>
-    </div>
-</body>
-</html>"""
-        
-        # Upload the HTML file
-        api.upload_file(
-            repo_id=repo_id,
-            repo_type="space",
-            path_in_repo="index.html",
-            path_or_fileobj=html_content.encode('utf-8')
-        )
-        
-        # Create a README for the space
-        readme_content = f"""---
-title: {title}
-emoji: 🚀
-colorFrom: blue
-colorTo: purple
-sdk: static
-sdk_version: 1.0.0
-app_file: index.html
-pinned: false
----
-
-# {title}
-
-This application was generated using AnyCoder, an AI-powered code generator.
-
-## About
-
-This space contains a web application created by describing requirements in natural language and having AI generate the corresponding HTML/CSS/JavaScript code.
-
-## Features
-
-- Responsive design
-- Modern UI/UX
-- Cross-browser compatibility
-- Mobile-friendly layout
-
-## Generated Code
-
-The application code was automatically generated and includes:
-- HTML structure
-- CSS styling
-- JavaScript functionality (if applicable)
-
-## Created With
-
-- [AnyCoder](https://huggingface.co/spaces/anycoder) - AI-Powered Code Generator
-- [Hugging Face Spaces](https://huggingface.co/spaces) - Deployment Platform
-
----
-*Generated on {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}*
-"""
-        
-        api.upload_file(
-            repo_id=repo_id,
-            repo_type="space",
-            path_in_repo="README.md",
-            path_or_fileobj=readme_content.encode('utf-8')
-        )
-        
-        space_url = f"https://huggingface.co/spaces/{repo_id}"
-        return f"✅ **Success!** Your space has been created and deployed.\n\n**Space URL:** {space_url}\n\n**Repository:** {repo_id}\n\nYour application is now live and accessible to anyone with the link!"
-        
-    except Exception as e:
-        return f"❌ **Error creating space:** {str(e)}\n\nPlease make sure you have the necessary permissions and try again."
-
 
 def extract_text_from_image(image_path):
     """Extract text from image using OCR"""
@@ -1092,16 +910,7 @@ with gr.Blocks(
         gr.Markdown("# AnyCoder")
         gr.Markdown("*AI-Powered Code Generator*")
         
-        # OAuth Login Button
-        login_btn = gr.LoginButton()
-        
-        # User profile display
-        user_info = gr.Markdown("👤 **Guest User**\n*Sign in to personalize your experience*")
-        
         gr.Markdown("---")  # Separator
-        
-        # Load user info on app load
-        demo.load(get_user_info, inputs=None, outputs=user_info)
         
         # Main input section
         input = gr.Textbox(
@@ -1169,17 +978,6 @@ with gr.Blocks(
         else:
             gr.Markdown("✅ Web search available")
         
-        # Space deployment section
-        gr.Markdown("---")
-        gr.Markdown("**🚀 Deploy to Space**")
-        space_title = gr.Textbox(
-            label="Space title",
-            placeholder="My Awesome App",
-            lines=1
-        )
-        deploy_btn = gr.Button("Create Space", variant="primary", size="sm")
-        deploy_status = gr.Markdown("", visible=False)
-        
         # Hidden elements for functionality
         model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=False)
         
@@ -1229,19 +1027,6 @@ with gr.Blocks(
         outputs=[code_output, history, sandbox, history_output]
     )
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
-    
-    # Deploy space event handler
-    def deploy_space_wrapper(title, current_code, oauth_token: gr.OAuthToken | None):
-        return create_space_from_code(current_code, title, oauth_token)
-    
-    deploy_btn.click(
-        deploy_space_wrapper,
-        inputs=[space_title, code_output],
-        outputs=deploy_status
-    ).then(
-        lambda: gr.update(visible=True),
-        outputs=deploy_status
-    )
 
 if __name__ == "__main__":
     demo.queue(default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=True)
