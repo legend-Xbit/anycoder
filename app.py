@@ -106,6 +106,11 @@ AVAILABLE_MODELS = [
         "name": "SmolLM3-3B",
         "id": "HuggingFaceTB/SmolLM3-3B",
         "description": "SmolLM3-3B model for code generation and general tasks"
+    },
+    {
+        "name": "GLM-4.1V-9B-Thinking",
+        "id": "THUDM/GLM-4.1V-9B-Thinking",
+        "description": "GLM-4.1V-9B-Thinking model for multimodal code generation with image support"
     }
 ]
 
@@ -257,7 +262,8 @@ def clear_history():
 def update_image_input_visibility(model):
     """Update image input visibility based on selected model"""
     is_ernie_vl = model.get("id") == "baidu/ERNIE-4.5-VL-424B-A47B-Base-PT"
-    return gr.update(visible=is_ernie_vl)
+    is_glm_vl = model.get("id") == "THUDM/GLM-4.1V-9B-Thinking"
+    return gr.update(visible=is_ernie_vl or is_glm_vl)
 
 def process_image_for_model(image):
     """Convert image to base64 for model input"""
