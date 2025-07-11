@@ -18,7 +18,7 @@ import json
 import time
 
 import gradio as gr
-from huggingface_hub import InferenceClient, HfApi, create_repo
+from huggingface_hub import InferenceClient, HfApi, create_repo, whoami
 from tavily import TavilyClient
 
 # Configuration
@@ -172,9 +172,6 @@ client = InferenceClient(
 History = List[Tuple[str, str]]
 Messages = List[Dict[str, str]]
 
-# HF API Client for deployment
-hf_api = HfApi(token=HF_TOKEN)
-
 # Tavily Search Client
 TAVILY_API_KEY = os.getenv('TAVILY_API_KEY')
 tavily_client = None
@@ -184,556 +181,6 @@ if TAVILY_API_KEY:
     except Exception as e:
         print(f"Failed to initialize Tavily client: {e}")
         tavily_client = None
-
-def validate_oauth_scopes(oauth_token) -> Tuple[bool, List[str]]:
-    """
-    Validate that the OAuth token has the required scopes for creating spaces
-    Returns (is_valid, missing_scopes)
-    """
-    required_scopes = ['read-repos', 'write-repos', 'manage-repos']
-    
-    if not oauth_token:
-        return False, required_scopes
-    
-    # Try to get scopes from the token object
-    token_scopes = []
-    
-    # Check different ways scopes might be stored
-    if hasattr(oauth_token, 'scopes'):
-        token_scopes = oauth_token.scopes
-    elif hasattr(oauth_token, 'scope'):
-        token_scopes = oauth_token.scope.split(' ') if oauth_token.scope else []
-    elif hasattr(oauth_token, 'permissions'):
-        token_scopes = oauth_token.permissions
-    else:
-        # If we can't determine scopes, assume they're missing
-        return False, required_scopes
-    
-    # Convert to list if it's a string
-    if isinstance(token_scopes, str):
-        token_scopes = token_scopes.split(' ')
-    
-    # Check for required scopes
-    missing_scopes = [scope for scope in required_scopes if scope not in token_scopes]
-    
-    return len(missing_scopes) == 0, missing_scopes
-
-# Deployment functions
-def create_space_from_html(title: str, html_content: str, prompts: List[str] = None, user_token: str = None, username: str = None) -> Dict:
-    """
-    Create a Hugging Face Space from generated HTML content
-    """
-    try:
-        # Use user token if provided, otherwise fall back to server token
-        api_token = user_token if user_token else HF_TOKEN
-        
-        if not api_token:
-            return {
-                "success": False,
-                "error": "No Hugging Face token available",
-                "message": "Please log in with your Hugging Face account to deploy"
-            }
-        
-        # Create API client with user token
-        user_hf_api = HfApi(token=api_token)
-        
-        # Debug: Test the token by getting user info
-        try:
-            user_info = user_hf_api.whoami()
-            print(f"Debug: User info from API: {user_info}")
-            if not username:
-                username = user_info.get('name', 'user')
-            print(f"Debug: Final username: {username}")
-            
-            # Additional validation
-            if not username or username == 'user':
-                return {
-                    "success": False,
-                    "error": "Could not retrieve username from token",
-                    "message": "The authentication token is valid but username could not be retrieved. Please try logging in again."
-                }
-                
-        except Exception as e:
-            print(f"Debug: Could not get user info: {e}")
-            return {
-                "success": False,
-                "error": f"Invalid or expired token: {str(e)}",
-                "message": "Please check your Hugging Face token and try logging in again"
-            }
-        
-        # Clean the title for use as repo name
-        clean_title = re.sub(r'[^a-zA-Z0-9_-]', '-', title.lower())
-        clean_title = re.sub(r'-+', '-', clean_title).strip('-')
-        
-        # Add timestamp to ensure uniqueness
-        timestamp = int(time.time())
-        repo_name = f"{username}/{clean_title}-{timestamp}"
-        
-        print(f"Debug: Attempting to create space: {repo_name}")
-        print(f"Debug: Using token for user: {username}")
-        
-        # Create the space
-        try:
-            print(f"Debug: Creating space with parameters:")
-            print(f"  repo_id: {repo_name}")
-            print(f"  repo_type: space")
-            print(f"  space_sdk: static")
-            print(f"  private: False")
-            print(f"  exist_ok: False")
-            print(f"  token length: {len(api_token) if api_token else 0}")
-            
-            repo_url = user_hf_api.create_repo(
-                repo_id=repo_name,
-                repo_type="space",
-                space_sdk="static",
-                private=False,
-                exist_ok=False,
-                token=api_token
-            )
-            print(f"Debug: Successfully created space: {repo_url}")
-        except Exception as e:
-            print(f"Debug: Failed to create space: {e}")
-            print(f"Debug: Exception type: {type(e)}")
-            print(f"Debug: Exception args: {e.args}")
-            raise e
-        
-        # Prepare the HTML content with proper structure
-        html_template = """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title}</title>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }}
-        .container {{
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }}
-        .header {{
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #f0f0f0;
-        }}
-        .header h1 {{
-            color: #333;
-            margin: 0;
-        }}
-        .header p {{
-            color: #666;
-            margin: 10px 0 0 0;
-        }}
-        .content {{
-            line-height: 1.6;
-        }}
-        .footer {{
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #f0f0f0;
-            text-align: center;
-            color: #666;
-            font-size: 14px;
-        }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{title}</h1>
-            <p>Generated with AnyCoder - AI Code Generator</p>
-        </div>
-        <div class="content">
-            {html_content}
-        </div>
-        <div class="footer">
-            <p>Created with ❤️ using AnyCoder</p>
-        </div>
-    </div>
-</body>
-</html>"""
-        
-        full_html = html_template.format(title=title, html_content=html_content)
-        
-        # Check HTML content size
-        html_size = len(full_html.encode('utf-8'))
-        print(f"Debug: HTML content size: {html_size} bytes")
-        
-        if html_size > 1000000:  # 1MB limit
-            print(f"Debug: Warning - HTML content is large ({html_size} bytes)")
-            # Truncate if too large
-            if len(html_content) > 500000:  # 500KB limit for content
-                html_content = html_content[:500000] + "\n<!-- Content truncated due to size -->"
-                full_html = html_template.format(title=title, html_content=html_content)
-                print(f"Debug: HTML content truncated to {len(full_html.encode('utf-8'))} bytes")
-        
-        # Upload the HTML file
-        print(f"Debug: Uploading index.html to {repo_name}")
-        user_hf_api.upload_file(
-            path_or_fileobj=full_html.encode('utf-8'),
-            path_in_repo="index.html",
-            repo_id=repo_name,
-            repo_type="space",
-            token=api_token
-        )
-        print(f"Debug: Successfully uploaded index.html")
-        
-        # Create README.md with project info
-        prompts_text = "".join([f"- {prompt}\n" for prompt in (prompts or [])])
-        readme_template = """# {title}
-
-This project was generated using [AnyCoder](https://huggingface.co/spaces/ahsenkhaliq/anycoder), an AI-powered code generator.
-
-## About
-
-This is a static HTML application created by describing the requirements in plain English to an AI model.
-
-## Generated Prompts
-
-{prompts_text}
-
-## View Live
-
-Visit: https://huggingface.co/spaces/{repo_name}
-
----
-*Generated with ❤️ using AnyCoder*
-"""
-        
-        readme_content = readme_template.format(title=title, prompts_text=prompts_text, repo_name=repo_name)
-        
-        print(f"Debug: Uploading README.md to {repo_name}")
-        user_hf_api.upload_file(
-            path_or_fileobj=readme_content.encode('utf-8'),
-            path_in_repo="README.md",
-            repo_id=repo_name,
-            repo_type="space",
-            token=api_token
-        )
-        print(f"Debug: Successfully uploaded README.md")
-        
-        return {
-            "success": True,
-            "space_url": f"https://huggingface.co/spaces/{repo_name}",
-            "repo_name": repo_name,
-            "message": f"Successfully created space: {title}"
-        }
-        
-    except Exception as e:
-        error_msg = str(e)
-        
-        # Handle specific API errors
-        if "401" in error_msg or "Unauthorized" in error_msg:
-            return {
-                "success": False,
-                "error": "Authentication failed - please log in again",
-                "message": "Your token may have expired. Please log out and log back in."
-            }
-        elif "403" in error_msg or "Forbidden" in error_msg:
-            return {
-                "success": False,
-                "error": "Permission denied - insufficient privileges",
-                "message": "You may not have permission to create spaces. Please check your Hugging Face account settings."
-            }
-        elif "409" in error_msg or "Conflict" in error_msg:
-            return {
-                "success": False,
-                "error": "Repository already exists",
-                "message": "A space with this name already exists. Please try a different title."
-            }
-        elif "422" in error_msg or "Validation" in error_msg:
-            return {
-                "success": False,
-                "error": "Invalid repository name",
-                "message": "The space title contains invalid characters. Please use only letters, numbers, hyphens, and underscores."
-            }
-        else:
-            return {
-                "success": False,
-                "error": error_msg,
-                "message": f"Failed to create space: {error_msg}"
-            }
-
-def deploy_to_space(title: str, html_content: str, history: History, oauth_profile: gr.OAuthProfile = None, oauth_token: gr.OAuthToken = None) -> Tuple[str, str]:
-    """
-    Deploy the generated HTML to a Hugging Face Space
-    """
-    if not title or not title.strip():
-        return "❌ Please enter a title for your space.", update_oauth_status(oauth_profile, oauth_token)
-    
-    if not html_content or not html_content.strip():
-        return "❌ No HTML content to deploy. Please generate some code first.", update_oauth_status(oauth_profile, oauth_token)
-    
-    # Check if user is authenticated
-    if not oauth_profile or not oauth_token:
-        return """❌ **Authentication Required**
-
-To deploy your application, you need to be logged in with your Hugging Face account.
-
-**How to log in:**
-1. Click the "Sign in with Hugging Face" button in the sidebar
-2. Authorize AnyCoder to access your Hugging Face account with the required permissions:
-   - read-repos
-   - write-repos  
-   - manage-repos
-3. Try deploying again
-
-**Why login is required:**
-- Deployments are created under your own Hugging Face account
-- You need write permissions to create spaces
-- This ensures you own and can manage your deployed applications
-
-**Note:** Make sure to grant all the requested permissions when authorizing the application.
-
----
-*Please log in and try again.*""", update_oauth_status(oauth_profile, oauth_token)
-    
-    # Get user information from OAuth profile
-    username = oauth_profile.name
-    user_token = oauth_token.token
-    
-    # Debug: Print token info (without exposing the actual token)
-    print(f"Debug: Username from OAuth: {username}")
-    print(f"Debug: Token type: {type(user_token)}")
-    print(f"Debug: Token length: {len(user_token) if user_token else 0}")
-    print(f"Debug: Token starts with: {user_token[:10] if user_token else 'None'}...")
-    
-    # Additional debugging for OAuth components
-    print(f"Debug: OAuth profile type: {type(oauth_profile)}")
-    print(f"Debug: OAuth token type: {type(oauth_token)}")
-    print(f"Debug: OAuth profile attributes: {dir(oauth_profile) if oauth_profile else 'None'}")
-    print(f"Debug: OAuth token attributes: {dir(oauth_token) if oauth_token else 'None'}")
-    
-    # Check OAuth token scopes if available
-    if hasattr(oauth_token, 'scopes'):
-        print(f"Debug: OAuth token scopes: {oauth_token.scopes}")
-    else:
-        print("Debug: OAuth token scopes not available")
-    
-    # Check OAuth profile permissions if available
-    if hasattr(oauth_profile, 'permissions'):
-        print(f"Debug: OAuth profile permissions: {oauth_profile.permissions}")
-    else:
-        print("Debug: OAuth profile permissions not available")
-    
-    # Validate OAuth scopes
-    scopes_valid, missing_scopes = validate_oauth_scopes(oauth_token)
-    print(f"Debug: OAuth scopes valid: {scopes_valid}")
-    print(f"Debug: Missing scopes: {missing_scopes}")
-    
-    if not scopes_valid:
-        return f"""❌ **Missing OAuth Scopes**
-
-Your OAuth token is missing the required permissions to create spaces.
-
-**Missing Scopes:**
-{chr(10).join([f"- `{scope}`" for scope in missing_scopes])}
-
-**Required Scopes:**
-- `read-repos` - Read access to repositories
-- `write-repos` - Write access to create repositories  
-- `manage-repos` - Manage repository settings
-
-**Steps to fix:**
-1. **Logout**: Click the logout button in the sidebar
-2. **Login Again**: Click "Sign in with Hugging Face" again
-3. **Grant All Permissions**: When the authorization page appears, make sure to check ALL the requested permissions:
-   - ✅ read-repos
-   - ✅ write-repos
-   - ✅ manage-repos
-4. **Complete Authorization**: Click "Authorize" to complete the login
-5. **Try Deploying**: Try deploying again
-
-**Important:** Make sure you see all three permissions checked on the authorization page before clicking "Authorize".
-
----
-*Please log in again with full permissions.*""", update_oauth_status(oauth_profile, oauth_token)
-    
-    # Validate token format
-    if not user_token or not user_token.startswith('hf_'):
-        return """❌ **Invalid Token Format**
-
-The OAuth token appears to be invalid or in the wrong format. Please try logging out and logging back in.
-
-**Steps to fix:**
-1. Click the logout button in the sidebar
-2. Click "Sign in with Hugging Face" again
-3. Authorize the application with the required permissions (read-repos, write-repos, manage-repos)
-4. Try deploying again
-
-**Note:** Make sure you authorize all the required permissions when logging in.
-
----
-*Please try logging in again.*""", update_oauth_status(oauth_profile, oauth_token)
-    
-    # Test the token by making a simple API call
-    try:
-        test_api = HfApi(token=user_token)
-        user_info = test_api.whoami()
-        print(f"Debug: Token test successful - user: {user_info.get('name', 'unknown')}")
-        
-        # Test if user can create repositories by checking their account type
-        try:
-            # Try to get user info to check account capabilities
-            user_info = test_api.whoami()
-            print(f"Debug: User info: {user_info}")
-            
-            # Check if user has pro account or sufficient permissions
-            if user_info.get('type') == 'user':
-                print("Debug: User account type confirmed")
-            else:
-                print(f"Debug: User account type: {user_info.get('type', 'unknown')}")
-                
-        except Exception as user_info_error:
-            print(f"Debug: Could not get detailed user info: {user_info_error}")
-            # This is not a critical error, so we continue
-            
-    except Exception as token_error:
-        print(f"Debug: Token test failed: {token_error}")
-        return """❌ **Token Validation Failed**
-
-The OAuth token could not be validated. This could be because:
-
-1. The token has expired
-2. The token doesn't have the right permissions
-3. There's an issue with the authentication
-
-**Steps to fix:**
-1. Click the logout button in the sidebar
-2. Click "Sign in with Hugging Face" again
-3. Authorize with all required permissions
-4. Try deploying again
-
----
-*Please log in again.*""", update_oauth_status(oauth_profile, oauth_token)
-    
-    # Extract prompts from history
-    prompts = []
-    for user_msg, _ in history:
-        if isinstance(user_msg, str) and user_msg.strip():
-            prompts.append(user_msg.strip())
-    
-    # Test if user can create repositories by attempting a test creation
-    try:
-        test_api = HfApi(token=user_token)
-        
-        # Try to create a test repository to verify permissions
-        test_repo_name = f"{username}/test-permissions-{int(time.time())}"
-        print(f"Debug: Testing repository creation with: {test_repo_name}")
-        
-        try:
-            # Attempt to create a test repository
-            test_repo_url = test_api.create_repo(
-                repo_id=test_repo_name,
-                repo_type="model",
-                private=True,
-                exist_ok=False,
-                token=user_token
-            )
-            print(f"Debug: Successfully created test repository: {test_repo_url}")
-            
-            # Clean up the test repository
-            try:
-                test_api.delete_repo(repo_id=test_repo_name, token=user_token)
-                print(f"Debug: Successfully cleaned up test repository")
-            except Exception as cleanup_error:
-                print(f"Debug: Could not clean up test repository: {cleanup_error}")
-                
-        except Exception as test_create_error:
-            print(f"Debug: Could not create test repository: {test_create_error}")
-            error_msg = str(test_create_error).lower()
-            
-            if "403" in error_msg or "forbidden" in error_msg:
-                return """❌ **Repository Creation Permission Denied**
-
-Your Hugging Face account doesn't have permission to create repositories. This could be because:
-
-1. **Account Type**: Your account type may not allow repository creation
-2. **Organization Restrictions**: If you're part of an organization, there may be restrictions
-3. **Account Status**: Your account may be limited or suspended
-
-**Steps to fix:**
-1. **Check Account Status**: Visit https://huggingface.co/settings/account to check your account status
-2. **Verify Account Type**: Make sure your account allows repository creation
-3. **Contact Support**: If you believe this is an error, contact Hugging Face support
-4. **Try Different Account**: Consider using a different Hugging Face account
-
-**Note:** Free accounts should be able to create repositories. If you're having issues, it might be a temporary restriction.
-
----
-*Please check your account settings or try with a different account.*""", update_oauth_status(oauth_profile, oauth_token)
-            else:
-                return f"""❌ **Repository Creation Test Failed**
-
-Error: {str(test_create_error)}
-
-This could be due to:
-- Network connectivity issues
-- Hugging Face API temporary problems
-- Account-specific restrictions
-
-**Steps to fix:**
-1. Check your internet connection
-2. Wait a few minutes and try again
-3. If the problem persists, check your Hugging Face account settings
-
----
-*Please try again or contact support if the issue persists.*""", update_oauth_status(oauth_profile, oauth_token)
-                
-    except Exception as test_error:
-        print(f"Debug: Repository creation test failed: {test_error}")
-        return f"""❌ **Permission Test Failed**
-
-Could not test repository creation permissions: {str(test_error)}
-
-**Steps to fix:**
-1. Check your internet connection
-2. Try logging out and logging back in
-3. Wait a few minutes and try again
-
----
-*Please try again or contact support if the issue persists.*""", update_oauth_status(oauth_profile, oauth_token)
-    
-    # Use user's OAuth token to create space under their account
-    result = create_space_from_html(title.strip(), html_content, prompts, user_token, username)
-    
-    if result["success"]:
-        return f"""✅ **Successfully deployed!**
-
-**Space URL:** {result['space_url']}
-
-Your application is now live on Hugging Face Spaces under your account. You can share this URL with others to showcase your generated application.
-
-**What's next:**
-- Visit the space to see your application in action
-- Share the URL with friends and colleagues
-- Make modifications and redeploy as needed
-- Manage your space from your Hugging Face dashboard
-
----
-*Generated with ❤️ using AnyCoder*""", update_oauth_status(oauth_profile, oauth_token)
-    else:
-        return f"""❌ **Deployment failed**
-
-**Error:** {result['error']}
-
-**Possible solutions:**
-- Ensure you have write access to create spaces on your account
-- Try a different title (avoid special characters)
-- Check your internet connection
-- Make sure your Hugging Face account has the necessary permissions
-
----
-*Please try again or contact support if the issue persists.*""", update_oauth_status(oauth_profile, oauth_token)
 
 def history_to_messages(history: History, system: str) -> Messages:
     messages = [{'role': 'system', 'content': system}]
@@ -806,20 +253,6 @@ def history_render(history: History):
 
 def clear_history():
     return [], [], None, ""  # Empty lists for both tuple format and chatbot messages, None for file, empty string for website URL
-
-def update_oauth_status(oauth_profile: gr.OAuthProfile = None, oauth_token: gr.OAuthToken = None):
-    """Update the OAuth status indicator based on login state"""
-    if not oauth_profile or not oauth_token:
-        return "🔐 **Login Required**\nSign in to deploy applications"
-    
-    # Check if we have the required scopes
-    scopes_valid, missing_scopes = validate_oauth_scopes(oauth_token)
-    
-    if scopes_valid:
-        return f"✅ **Logged in as {oauth_profile.name}**\nReady to deploy applications"
-    else:
-        missing_list = ", ".join(missing_scopes)
-        return f"⚠️ **Incomplete Permissions**\nMissing: {missing_list}\nPlease logout and login again"
 
 def update_image_input_visibility(model):
     """Update image input visibility based on selected model"""
@@ -980,6 +413,188 @@ def demo_card_click(e: gr.EventData):
     except (KeyError, IndexError, AttributeError) as e:
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
+
+def get_user_info(profile: gr.OAuthProfile | None) -> str:
+    """Get user information from OAuth profile"""
+    if profile is None:
+        return "👤 **Guest User**\n*Sign in to personalize your experience*"
+    return f"👤 **{profile.name}**\n*Welcome back!*"
+
+def create_space_from_code(html_code: str, title: str, oauth_token: gr.OAuthToken | None) -> str:
+    """Create a new Hugging Face Space with the generated HTML code"""
+    if not oauth_token:
+        return "❌ **Error:** Please sign in with your Hugging Face account to deploy spaces."
+    
+    if not html_code or not html_code.strip():
+        return "❌ **Error:** No code to deploy. Please generate some code first."
+    
+    if not title or not title.strip():
+        return "❌ **Error:** Please provide a title for your space."
+    
+    try:
+        # Clean up the title for use as repo name
+        import re
+        clean_title = re.sub(r'[^a-zA-Z0-9\s-]', '', title)
+        clean_title = re.sub(r'\s+', '-', clean_title).lower()
+        clean_title = clean_title[:50]  # Limit length
+        
+        # Get user info to create repo under their account
+        user_info = whoami(oauth_token.token)
+        username = user_info.get('name', 'unknown')
+        
+        # Create unique repo ID
+        import time
+        timestamp = int(time.time())
+        repo_id = f"{username}/{clean_title}-{timestamp}"
+        
+        # Create the space
+        api = HfApi(token=oauth_token.token)
+        api.create_repo(
+            repo_id=repo_id,
+            repo_type="space",
+            space_sdk="static",
+            space_hardware="cpu-basic"
+        )
+        
+        # Create the HTML file content
+        html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }}
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }}
+        .header p {{
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }}
+        .content {{
+            padding: 40px;
+        }}
+        .footer {{
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #eee;
+        }}
+        .footer a {{
+            color: #667eea;
+            text-decoration: none;
+        }}
+        .footer a:hover {{
+            text-decoration: underline;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{title}</h1>
+            <p>Generated with AnyCoder - AI-Powered Code Generator</p>
+        </div>
+        <div class="content">
+            {html_code}
+        </div>
+        <div class="footer">
+            <p>🚀 Created with <a href="https://huggingface.co/spaces/anycoder" target="_blank">AnyCoder</a> | 
+            <a href="https://huggingface.co/spaces" target="_blank">Hugging Face Spaces</a></p>
+        </div>
+    </div>
+</body>
+</html>"""
+        
+        # Upload the HTML file
+        api.upload_file(
+            repo_id=repo_id,
+            repo_type="space",
+            path_in_repo="index.html",
+            path_or_fileobj=html_content.encode('utf-8')
+        )
+        
+        # Create a README for the space
+        readme_content = f"""---
+title: {title}
+emoji: 🚀
+colorFrom: blue
+colorTo: purple
+sdk: static
+sdk_version: 1.0.0
+app_file: index.html
+pinned: false
+---
+
+# {title}
+
+This application was generated using AnyCoder, an AI-powered code generator.
+
+## About
+
+This space contains a web application created by describing requirements in natural language and having AI generate the corresponding HTML/CSS/JavaScript code.
+
+## Features
+
+- Responsive design
+- Modern UI/UX
+- Cross-browser compatibility
+- Mobile-friendly layout
+
+## Generated Code
+
+The application code was automatically generated and includes:
+- HTML structure
+- CSS styling
+- JavaScript functionality (if applicable)
+
+## Created With
+
+- [AnyCoder](https://huggingface.co/spaces/anycoder) - AI-Powered Code Generator
+- [Hugging Face Spaces](https://huggingface.co/spaces) - Deployment Platform
+
+---
+*Generated on {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}*
+"""
+        
+        api.upload_file(
+            repo_id=repo_id,
+            repo_type="space",
+            path_in_repo="README.md",
+            path_or_fileobj=readme_content.encode('utf-8')
+        )
+        
+        space_url = f"https://huggingface.co/spaces/{repo_id}"
+        return f"✅ **Success!** Your space has been created and deployed.\n\n**Space URL:** {space_url}\n\n**Repository:** {repo_id}\n\nYour application is now live and accessible to anyone with the link!"
+        
+    except Exception as e:
+        return f"❌ **Error creating space:** {str(e)}\n\nPlease make sure you have the necessary permissions and try again."
+
 
 def extract_text_from_image(image_path):
     """Extract text from image using OCR"""
@@ -1477,18 +1092,16 @@ with gr.Blocks(
         gr.Markdown("# AnyCoder")
         gr.Markdown("*AI-Powered Code Generator*")
         
-        # Login button at the top
-        login_btn = gr.LoginButton(
-            value="Sign in with Hugging Face",
-            logout_value="Logout ({})",
-            variant="huggingface",
-            size="sm"
-        )
+        # OAuth Login Button
+        login_btn = gr.LoginButton()
         
-        # OAuth components are automatically injected as function parameters
-        # when using gr.LoginButton() - no need to create them separately
+        # User profile display
+        user_info = gr.Markdown("👤 **Guest User**\n*Sign in to personalize your experience*")
         
-        # OAuth status will be updated automatically by Gradio's OAuth system
+        gr.Markdown("---")  # Separator
+        
+        # Load user info on app load
+        demo.load(get_user_info, inputs=None, outputs=user_info)
         
         # Main input section
         input = gr.Textbox(
@@ -1536,30 +1149,6 @@ with gr.Blocks(
             label="Model"
         )
         
-        # Deployment section
-        gr.Markdown("---")
-        gr.Markdown("**🚀 Deploy to Space**")
-        
-        # Space title input
-        space_title_input = gr.Textbox(
-            label="Space title",
-            placeholder="My Awesome App",
-            lines=1
-        )
-        
-        # Deploy button
-        deploy_btn = gr.Button(
-            "🚀 Deploy to Space",
-            variant="primary",
-            size="lg"
-        )
-        
-        # Deployment status
-        deploy_status = gr.Markdown(
-            value="",
-            visible=False
-        )
-        
         # Quick examples (minimal)
         gr.Markdown("**Quick start**")
         with gr.Column():
@@ -1580,11 +1169,16 @@ with gr.Blocks(
         else:
             gr.Markdown("✅ Web search available")
         
-        # OAuth status indicator
-        oauth_status = gr.Markdown(
-            value="🔐 **Login Required**\nSign in to deploy applications",
-            visible=True
+        # Space deployment section
+        gr.Markdown("---")
+        gr.Markdown("**🚀 Deploy to Space**")
+        space_title = gr.Textbox(
+            label="Space title",
+            placeholder="My Awesome App",
+            lines=1
         )
+        deploy_btn = gr.Button("Create Space", variant="primary", size="sm")
+        deploy_status = gr.Markdown("", visible=False)
         
         # Hidden elements for functionality
         model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=False)
@@ -1625,45 +1219,8 @@ with gr.Blocks(
                 )
             with gr.Tab("Preview"):
                 sandbox = gr.HTML(label="Live preview")
-            with gr.Tab("Deploy"):
-                deploy_output = gr.Markdown(
-                    value="""## 🚀 Deploy Your Application
-
-### Prerequisites
-1. **Login Required**: You must be logged in with your Hugging Face account
-2. **Permissions**: Grant the following permissions when logging in:
-   - ✅ **read-repos** - Read access to repositories
-   - ✅ **write-repos** - Write access to create repositories
-   - ✅ **manage-repos** - Manage repository settings
-
-### Steps to Deploy
-1. **Login**: Click "Sign in with Hugging Face" in the sidebar
-2. **Authorize Permissions**: When the authorization page appears, make sure to grant ALL the requested permissions
-3. **Generate Code**: Generate some HTML code using the AI
-4. **Enter Title**: In the sidebar, enter a title for your space (e.g., "My Todo App")
-5. **Deploy**: Click the "🚀 Deploy to Space" button
-
-### What Happens
-- Your application will be deployed to Hugging Face Spaces under your account
-- You'll get a shareable URL (e.g., `https://huggingface.co/spaces/yourusername/my-app-1234567890`)
-- The deployment includes professional styling and documentation
-
-### Troubleshooting
-If deployment fails:
-- Make sure you're logged in with the correct account
-- Ensure you granted all required permissions during login
-- Try logging out and logging back in
-- Check that your Hugging Face account can create repositories
-
-**Important**: You must grant ALL three permissions during the OAuth authorization process.
-
----
-*Your application will be deployed to Hugging Face Spaces and you'll get a shareable URL!*""",
-                    label="Deployment Status"
-                )
             with gr.Tab("History"):
                 history_output = gr.Chatbot(show_label=False, height=400, type="messages")
-
 
     # Event handlers
     btn.click(
@@ -1673,12 +1230,17 @@ If deployment fails:
     )
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
     
-    # Deployment event handler
+    # Deploy space event handler
+    def deploy_space_wrapper(title, current_code, oauth_token: gr.OAuthToken | None):
+        return create_space_from_code(current_code, title, oauth_token)
+    
     deploy_btn.click(
-        deploy_to_space,
-        inputs=[space_title_input, code_output, history],
-        outputs=[deploy_output, oauth_status],
-        api_name="deploy"
+        deploy_space_wrapper,
+        inputs=[space_title, code_output],
+        outputs=deploy_status
+    ).then(
+        lambda: gr.update(visible=True),
+        outputs=deploy_status
     )
 
 if __name__ == "__main__":
