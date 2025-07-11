@@ -78,6 +78,11 @@ Always output only the HTML code inside a ```html ... ``` code block, and do not
 # Available models
 AVAILABLE_MODELS = [
     {
+        "name": "Moonshot Kimi-K2",
+        "id": "moonshotai/Kimi-K2-Instruct",
+        "description": "Moonshot AI Kimi-K2-Instruct model for code generation and general tasks"
+    },
+    {
         "name": "DeepSeek V3",
         "id": "deepseek-ai/DeepSeek-V3-0324",
         "description": "DeepSeek V3 model for code generation"
