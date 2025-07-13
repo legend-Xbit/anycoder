@@ -21,14 +21,13 @@ import gradio as gr
 from huggingface_hub import InferenceClient
 from tavily import TavilyClient
 
+# Search/Replace Constants
+SEARCH_START = "<<<<<<< SEARCH"
+DIVIDER = "======="
+REPLACE_END = ">>>>>>> REPLACE"
+
 # Configuration
-SystemPrompt = """You are a helpful coding assistant. You help users create applications by generating code based on their requirements. 
-When asked to create an application, you should:
-1. Understand the user's requirements
-2. Generate clean, working code
-3. Provide HTML output when appropriate for web applications
-4. Include necessary comments and documentation
-5. Ensure the code is functional and follows best practices
+SystemPrompt = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING TAILWINDCSS. Use as much as you can TailwindCSS for the CSS, if you can't do something with TailwindCSS, then use custom CSS (make sure to import <script src="https://cdn.tailwindcss.com"></script> in the head). Also, try to ellaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
 For website redesign tasks:
 - Use the provided original HTML code as the starting point for redesign
@@ -48,14 +47,9 @@ Always respond with code that can be executed or rendered directly.
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
 
 # System prompt with search capability
-SystemPromptWithSearch = """You are a helpful coding assistant with access to real-time web search. You help users create applications by generating code based on their requirements. 
-When asked to create an application, you should:
-1. Understand the user's requirements
-2. Use web search when needed to find the latest information, best practices, or specific technologies
-3. Generate clean, working code
-4. Provide HTML output when appropriate for web applications
-5. Include necessary comments and documentation
-6. Ensure the code is functional and follows best practices
+SystemPromptWithSearch = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING TAILWINDCSS. Use as much as you can TailwindCSS for the CSS, if you can't do something with TailwindCSS, then use custom CSS (make sure to import <script src="https://cdn.tailwindcss.com"></script> in the head). Also, try to ellaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
+
+You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies.
 
 For website redesign tasks:
 - Use the provided original HTML code as the starting point for redesign
@@ -74,6 +68,45 @@ If an image is provided, analyze it and use the visual information to better und
 Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
+
+# Follow-up system prompt for modifying existing HTML files
+FollowUpSystemPrompt = f"""You are an expert web developer modifying an existing HTML file.
+The user wants to apply changes based on their request.
+You MUST output ONLY the changes required using the following SEARCH/REPLACE block format. Do NOT output the entire file.
+Explain the changes briefly *before* the blocks if necessary, but the code changes THEMSELVES MUST be within the blocks.
+Format Rules:
+1. Start with {SEARCH_START}
+2. Provide the exact lines from the current code that need to be replaced.
+3. Use {DIVIDER} to separate the search block from the replacement.
+4. Provide the new lines that should replace the original lines.
+5. End with {REPLACE_END}
+6. You can use multiple SEARCH/REPLACE blocks if changes are needed in different parts of the file.
+7. To insert code, use an empty SEARCH block (only {SEARCH_START} and {DIVIDER} on their lines) if inserting at the very beginning, otherwise provide the line *before* the insertion point in the SEARCH block and include that line plus the new lines in the REPLACE block.
+8. To delete code, provide the lines to delete in the SEARCH block and leave the REPLACE block empty (only {DIVIDER} and {REPLACE_END} on their lines).
+9. IMPORTANT: The SEARCH block must *exactly* match the current code, including indentation and whitespace.
+Example Modifying Code:
+```
+Some explanation...
+{SEARCH_START}
+    <h1>Old Title</h1>
+{DIVIDER}
+    <h1>New Title</h1>
+{REPLACE_END}
+{SEARCH_START}
+  </body>
+{DIVIDER}
+    <script>console.log("Added script");</script>
+  </body>
+{REPLACE_END}
+```
+Example Deleting Code:
+```
+Removing the paragraph...
+{SEARCH_START}
+  <p>This paragraph will be deleted.</p>
+{DIVIDER}
+{REPLACE_END}
+```"""
 
 # Available models
 AVAILABLE_MODELS = [
@@ -167,6 +200,14 @@ DEMO_LIST = [
     {
         "title": "Website Redesign",
         "description": "Enter a website URL to extract its content and redesign it with a modern, responsive layout"
+    },
+    {
+        "title": "Modify HTML",
+        "description": "After generating HTML, ask me to modify it with specific changes using search/replace format"
+    },
+    {
+        "title": "Search/Replace Example",
+        "description": "Generate HTML first, then ask: 'Change the title to My New Title' or 'Add a blue background to the body'"
     }
 ]
 
@@ -309,6 +350,70 @@ def create_multimodal_message(text, image=None):
     ]
     
     return {"role": "user", "content": content}
+
+def apply_search_replace_changes(original_html: str, changes_text: str) -> str:
+    """Apply search/replace changes to HTML content"""
+    if not changes_text.strip():
+        return original_html
+    
+    # Split the changes text into individual search/replace blocks
+    blocks = []
+    current_block = ""
+    lines = changes_text.split('\n')
+    
+    for line in lines:
+        if line.strip() == SEARCH_START:
+            if current_block.strip():
+                blocks.append(current_block.strip())
+            current_block = line + '\n'
+        elif line.strip() == REPLACE_END:
+            current_block += line + '\n'
+            blocks.append(current_block.strip())
+            current_block = ""
+        else:
+            current_block += line + '\n'
+    
+    if current_block.strip():
+        blocks.append(current_block.strip())
+    
+    modified_html = original_html
+    
+    for block in blocks:
+        if not block.strip():
+            continue
+            
+        # Parse the search/replace block
+        lines = block.split('\n')
+        search_lines = []
+        replace_lines = []
+        in_search = False
+        in_replace = False
+        
+        for line in lines:
+            if line.strip() == SEARCH_START:
+                in_search = True
+                in_replace = False
+            elif line.strip() == DIVIDER:
+                in_search = False
+                in_replace = True
+            elif line.strip() == REPLACE_END:
+                in_replace = False
+            elif in_search:
+                search_lines.append(line)
+            elif in_replace:
+                replace_lines.append(line)
+        
+        # Apply the search/replace
+        if search_lines:
+            search_text = '\n'.join(search_lines).strip()
+            replace_text = '\n'.join(replace_lines).strip()
+            
+            if search_text in modified_html:
+                modified_html = modified_html.replace(search_text, replace_text)
+            else:
+                print(f"Warning: Search text not found in HTML: {search_text[:100]}...")
+    
+    return modified_html
 
 # Updated for faster Tavily search and closer prompt usage
 # Uses 'advanced' search_depth and auto_parameters=True for speed and relevance
@@ -823,8 +928,22 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
     if _history is None:
         _history = []
     
-    # Choose system prompt based on search setting
-    system_prompt = SystemPromptWithSearch if enable_search else _setting['system']
+    # Check if there's existing HTML content in history to determine if this is a modification request
+    has_existing_html = False
+    if _history:
+        # Check the last assistant message for HTML content
+        last_assistant_msg = _history[-1][1] if len(_history) > 0 else ""
+        if '<!DOCTYPE html>' in last_assistant_msg or '<html' in last_assistant_msg:
+            has_existing_html = True
+    
+    # Choose system prompt based on context
+    if has_existing_html:
+        # Use follow-up prompt for modifying existing HTML
+        system_prompt = FollowUpSystemPrompt
+    else:
+        # Use regular prompt for new generation
+        system_prompt = SystemPromptWithSearch if enable_search else _setting['system']
+    
     messages = history_to_messages(_history, system_prompt)
     
     # Extract file text and append to query if file is present
@@ -879,16 +998,37 @@ This will help me create a better design for you."""
                     code_output: clean_code,
                     history_output: history_to_chatbot_messages(_history),
                 }
-        _history = messages_to_history(messages + [{
-            'role': 'assistant',
-            'content': content
-        }])
-        yield {
-            code_output: remove_code_block(content),
-            history: _history,
-            sandbox: send_to_sandbox(remove_code_block(content)),
-            history_output: history_to_chatbot_messages(_history),
-        }
+        # Handle response based on whether this is a modification or new generation
+        if has_existing_html:
+            # Apply search/replace changes to existing HTML
+            last_html = _history[-1][1] if _history else ""
+            modified_html = apply_search_replace_changes(last_html, remove_code_block(content))
+            clean_html = remove_code_block(modified_html)
+            
+            # Update history with the cleaned HTML
+            _history = messages_to_history(messages + [{
+                'role': 'assistant',
+                'content': clean_html
+            }])
+            
+            yield {
+                code_output: clean_html,
+                history: _history,
+                sandbox: send_to_sandbox(clean_html),
+                history_output: history_to_chatbot_messages(_history),
+            }
+        else:
+            # Regular generation - use the content as is
+            _history = messages_to_history(messages + [{
+                'role': 'assistant',
+                'content': content
+            }])
+            yield {
+                code_output: remove_code_block(content),
+                history: _history,
+                sandbox: send_to_sandbox(remove_code_block(content)),
+                history_output: history_to_chatbot_messages(_history),
+            }
     except Exception as e:
         error_message = f"Error: {str(e)}"
         yield {
