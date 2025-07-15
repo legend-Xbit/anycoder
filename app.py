@@ -1260,4 +1260,4 @@ with gr.Blocks(
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
 
 if __name__ == "__main__":
-    demo.queue(api_open=False, default_concurrency_limit=20).launch(ssr_mode=False, mcp_server=False, show_api=False)
+    demo.queue(api_open=False, default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=False, show_api=False)
