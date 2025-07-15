@@ -21,13 +21,21 @@ import gradio as gr
 from huggingface_hub import InferenceClient
 from tavily import TavilyClient
 
+# Gradio supported languages for syntax highlighting
+GRADIO_SUPPORTED_LANGUAGES = [
+    "python", "c", "cpp", "markdown", "latex", "json", "html", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper", None
+]
+
+def get_gradio_language(language):
+    return language if language in GRADIO_SUPPORTED_LANGUAGES else None
+
 # Search/Replace Constants
 SEARCH_START = "<<<<<<< SEARCH"
 DIVIDER = "======="
 REPLACE_END = ">>>>>>> REPLACE"
 
 # Configuration
-SystemPrompt = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
+HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
 For website redesign tasks:
 - Use the provided original HTML code as the starting point for redesign
@@ -46,8 +54,10 @@ Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
 
+GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ```{language} ... ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible."""
+
 # System prompt with search capability
-SystemPromptWithSearch = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
+HTML_SYSTEM_PROMPT_WITH_SEARCH = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
 You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies.
 
@@ -68,6 +78,10 @@ If an image is provided, analyze it and use the visual information to better und
 Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
+
+GENERIC_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert {language} developer. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for {language}.
+
+Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ```{language} ... ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible."""
 
 # Follow-up system prompt for modifying existing HTML files
 FollowUpSystemPrompt = f"""You are an expert web developer modifying an existing HTML file.
@@ -926,7 +940,7 @@ The HTML code above contains the complete original website structure with all im
     except Exception as e:
         return f"Error extracting website content: {str(e)}"
 
-def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False):
+def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html"):
     if query is None:
         query = ''
     if _history is None:
@@ -945,8 +959,11 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
         # Use follow-up prompt for modifying existing HTML
         system_prompt = FollowUpSystemPrompt
     else:
-        # Use regular prompt for new generation
-        system_prompt = SystemPromptWithSearch if enable_search else _setting['system']
+        # Use language-specific prompt
+        if language == "html":
+            system_prompt = HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else HTML_SYSTEM_PROMPT
+        else:
+            system_prompt = GENERIC_SYSTEM_PROMPT_WITH_SEARCH.format(language=language) if enable_search else GENERIC_SYSTEM_PROMPT.format(language=language)
     
     messages = history_to_messages(_history, system_prompt)
     
@@ -1005,24 +1022,24 @@ This will help me create a better design for you."""
                     # Fallback: If the model returns a full HTML file, use it directly
                     if clean_code.strip().startswith("<!DOCTYPE html>") or clean_code.strip().startswith("<html"):
                         yield {
-                            code_output: clean_code,
+                            code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_to_sandbox(clean_code),
+                            sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                         }
                     else:
                         last_html = _history[-1][1] if _history else ""
                         modified_html = apply_search_replace_changes(last_html, clean_code)
                         clean_html = remove_code_block(modified_html)
                         yield {
-                            code_output: clean_html,
+                            code_output: gr.update(value=clean_html, language=get_gradio_language(language)),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_to_sandbox(clean_html),
+                            sandbox: send_to_sandbox(clean_html) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                         }
                 else:
                     yield {
-                        code_output: clean_code,
+                        code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                         history_output: history_to_chatbot_messages(_history),
-                        sandbox: send_to_sandbox(clean_code),
+                        sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                     }
         # Handle response based on whether this is a modification or new generation
         if has_existing_html:
@@ -1080,7 +1097,7 @@ with gr.Blocks(
 ) as demo:
     history = gr.State([])
     setting = gr.State({
-        "system": SystemPrompt,
+        "system": HTML_SYSTEM_PROMPT,
     })
     current_model = gr.State(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2
     open_panel = gr.State(None)
@@ -1098,6 +1115,16 @@ with gr.Blocks(
             label="What would you like to build?",
             placeholder="Describe your application...",
             lines=3,
+            visible=False
+        )
+        # Language dropdown for code generation
+        language_choices = [
+            "python", "c", "cpp", "markdown", "latex", "json", "html", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
+        ]
+        language_dropdown = gr.Dropdown(
+            choices=language_choices,
+            value="html",
+            label="Code Language",
             visible=False
         )
         website_url_input = gr.Textbox(
@@ -1160,7 +1187,7 @@ with gr.Blocks(
         )
         with gr.Accordion("Advanced", open=False, visible=False) as advanced_accordion:
             systemPromptInput = gr.Textbox(
-                value=SystemPrompt,
+                value=HTML_SYSTEM_PROMPT,
                 label="System prompt",
                 lines=5
             )
@@ -1174,7 +1201,7 @@ with gr.Blocks(
             logged_in = label.startswith("Logout (")
             # Only update if state changes
             if last_state == logged_in:
-                return [gr.skip()] * 12  # skip updating all outputs
+                return [gr.skip()] * 13  # skip updating all outputs
             return (
                 logged_in,  # login_state
                 gr.update(visible=not logged_in),  # login_required_msg
@@ -1188,11 +1215,12 @@ with gr.Blocks(
                 gr.update(visible=logged_in),      # quick_examples_col
                 gr.update(visible=logged_in),      # advanced_accordion
                 logged_in,  # update last_login_state
+                gr.update(visible=logged_in),      # language_dropdown
             )
         timer.tick(
             fn=check_login,
             inputs=[login_button, last_login_state],
-            outputs=[login_state, login_required_msg, input, website_url_input, file_input, btn, clear_btn, search_toggle, model_dropdown, quick_examples_col, advanced_accordion, last_login_state]
+            outputs=[login_state, login_required_msg, input, website_url_input, file_input, btn, clear_btn, search_toggle, model_dropdown, quick_examples_col, advanced_accordion, last_login_state, language_dropdown]
         )
 
     with gr.Column():
@@ -1210,11 +1238,25 @@ with gr.Blocks(
                 history_output = gr.Chatbot(show_label=False, height=400, type="messages")
 
     # Event handlers
+    def update_code_language(language):
+        return gr.update(language=get_gradio_language(language))
+
+    language_dropdown.change(update_code_language, inputs=language_dropdown, outputs=code_output)
+
+    def preview_logic(code, language):
+        if language == "html":
+            return send_to_sandbox(code)
+        else:
+            return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
+
     btn.click(
         generation_code,
-        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle],
+        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown],
         outputs=[code_output, history, sandbox, history_output]
     )
+    # Update preview when code or language changes
+    code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
+    language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
 
 if __name__ == "__main__":
