@@ -27,7 +27,7 @@ DIVIDER = "======="
 REPLACE_END = ">>>>>>> REPLACE"
 
 # Configuration
-SystemPrompt = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING TAILWINDCSS. Use as much as you can TailwindCSS for the CSS, if you can't do something with TailwindCSS, then use custom CSS (make sure to import <script src="https://cdn.tailwindcss.com"></script> in the head). Also, try to ellaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
+SystemPrompt = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
 For website redesign tasks:
 - Use the provided original HTML code as the starting point for redesign
@@ -47,7 +47,7 @@ Always respond with code that can be executed or rendered directly.
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
 
 # System prompt with search capability
-SystemPromptWithSearch = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING TAILWINDCSS. Use as much as you can TailwindCSS for the CSS, if you can't do something with TailwindCSS, then use custom CSS (make sure to import <script src="https://cdn.tailwindcss.com"></script> in the head). Also, try to ellaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
+SystemPromptWithSearch = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
 You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies.
 
@@ -1001,23 +1001,44 @@ This will help me create a better design for you."""
                 content += chunk.choices[0].delta.content
                 clean_code = remove_code_block(content)
                 search_status = " (with web search)" if enable_search and tavily_client else ""
-                yield {
-                    code_output: clean_code,
-                    history_output: history_to_chatbot_messages(_history),
-                }
+                if has_existing_html:
+                    # Fallback: If the model returns a full HTML file, use it directly
+                    if clean_code.strip().startswith("<!DOCTYPE html>") or clean_code.strip().startswith("<html"):
+                        yield {
+                            code_output: clean_code,
+                            history_output: history_to_chatbot_messages(_history),
+                            sandbox: send_to_sandbox(clean_code),
+                        }
+                    else:
+                        last_html = _history[-1][1] if _history else ""
+                        modified_html = apply_search_replace_changes(last_html, clean_code)
+                        clean_html = remove_code_block(modified_html)
+                        yield {
+                            code_output: clean_html,
+                            history_output: history_to_chatbot_messages(_history),
+                            sandbox: send_to_sandbox(clean_html),
+                        }
+                else:
+                    yield {
+                        code_output: clean_code,
+                        history_output: history_to_chatbot_messages(_history),
+                        sandbox: send_to_sandbox(clean_code),
+                    }
         # Handle response based on whether this is a modification or new generation
         if has_existing_html:
-            # Apply search/replace changes to existing HTML
-            last_html = _history[-1][1] if _history else ""
-            modified_html = apply_search_replace_changes(last_html, remove_code_block(content))
-            clean_html = remove_code_block(modified_html)
-            
+            # Fallback: If the model returns a full HTML file, use it directly
+            final_code = remove_code_block(content)
+            if final_code.strip().startswith("<!DOCTYPE html>") or final_code.strip().startswith("<html"):
+                clean_html = final_code
+            else:
+                last_html = _history[-1][1] if _history else ""
+                modified_html = apply_search_replace_changes(last_html, final_code)
+                clean_html = remove_code_block(modified_html)
             # Update history with the cleaned HTML
             _history = messages_to_history(messages + [{
                 'role': 'assistant',
                 'content': clean_html
             }])
-            
             yield {
                 code_output: clean_html,
                 history: _history,
