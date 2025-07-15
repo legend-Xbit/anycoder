@@ -1104,18 +1104,18 @@ with gr.Blocks(
     last_login_state = gr.State(None)
 
     with gr.Sidebar():
-        # Add Hugging Face Login Button at the top of the sidebar
-        login_button = gr.LoginButton(
-            value="Sign in with Hugging Face",
-            variant="huggingface",
-            size="lg"
-        )
-        login_required_msg = gr.Markdown("**Please sign in with Hugging Face to use the app.**", visible=True)
+        # Remove Hugging Face Login Button and login-required message
+        # login_button = gr.LoginButton(
+        #     value="Sign in with Hugging Face",
+        #     variant="huggingface",
+        #     size="lg"
+        # )
+        # login_required_msg = gr.Markdown("**Please sign in with Hugging Face to use the app.**", visible=True)
         input = gr.Textbox(
             label="What would you like to build?",
             placeholder="Describe your application...",
             lines=3,
-            visible=False
+            visible=True  # Always visible
         )
         # Language dropdown for code generation
         language_choices = [
@@ -1125,39 +1125,39 @@ with gr.Blocks(
             choices=language_choices,
             value="html",
             label="Code Language",
-            visible=False
+            visible=True  # Always visible
         )
         website_url_input = gr.Textbox(
             label="Website URL for redesign",
             placeholder="https://example.com",
             lines=1,
-            visible=False
+            visible=True  # Always visible
         )
         file_input = gr.File(
             label="Reference file",
             file_types=[".pdf", ".txt", ".md", ".csv", ".docx", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"],
-            visible=False
+            visible=True  # Always visible
         )
         image_input = gr.Image(
             label="UI design image",
-            visible=False
+            visible=False  # Hidden by default; shown only for ERNIE-VL or GLM-VL
         )
         with gr.Row():
-            btn = gr.Button("Generate", variant="primary", size="lg", scale=2, visible=False)
-            clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=False)
+            btn = gr.Button("Generate", variant="primary", size="lg", scale=2, visible=True)  # Always visible
+            clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)  # Always visible
         search_toggle = gr.Checkbox(
             label="🔍 Web search",
             value=False,
-            visible=False
+            visible=True  # Always visible
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
             value=AVAILABLE_MODELS[0]['name'],  # Moonshot Kimi-K2
             label="Model",
-            visible=False
+            visible=True  # Always visible
         )
-        gr.Markdown("**Quick start**", visible=False)
-        with gr.Column(visible=False) as quick_examples_col:
+        gr.Markdown("**Quick start**", visible=True)
+        with gr.Column(visible=True) as quick_examples_col:
             for i, demo_item in enumerate(DEMO_LIST[:3]):
                 demo_card = gr.Button(
                     value=demo_item['title'], 
@@ -1169,10 +1169,10 @@ with gr.Blocks(
                     outputs=input
                 )
         if not tavily_client:
-            gr.Markdown("⚠️ Web search unavailable", visible=False)
+            gr.Markdown("⚠️ Web search unavailable", visible=True)
         else:
-            gr.Markdown("✅ Web search available", visible=False)
-        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=False)  # Moonshot Kimi-K2
+            gr.Markdown("✅ Web search available", visible=True)
+        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=True)  # Moonshot Kimi-K2
         def on_model_change(model_name):
             for m in AVAILABLE_MODELS:
                 if m['name'] == model_name:
@@ -1185,7 +1185,7 @@ with gr.Blocks(
             inputs=model_dropdown,
             outputs=[current_model, model_display, image_input]
         )
-        with gr.Accordion("Advanced", open=False, visible=False) as advanced_accordion:
+        with gr.Accordion("Advanced", open=False, visible=True) as advanced_accordion:
             systemPromptInput = gr.Textbox(
                 value=HTML_SYSTEM_PROMPT,
                 label="System prompt",
@@ -1194,34 +1194,34 @@ with gr.Blocks(
             save_prompt_btn = gr.Button("Save", variant="primary", size="sm")
             save_prompt_btn.click(save_prompt, inputs=systemPromptInput, outputs=setting)
 
-        # Timer-based login state polling
-        login_state = gr.State(False)
-        timer = gr.Timer(1, active=True)
-        def check_login(label, last_state):
-            logged_in = label.startswith("Logout (")
-            # Only update if state changes
-            if last_state == logged_in:
-                return [gr.skip()] * 13  # skip updating all outputs
-            return (
-                logged_in,  # login_state
-                gr.update(visible=not logged_in),  # login_required_msg
-                gr.update(visible=logged_in),      # input
-                gr.update(visible=logged_in),      # website_url_input
-                gr.update(visible=logged_in),      # file_input
-                gr.update(visible=logged_in),      # btn
-                gr.update(visible=logged_in),      # clear_btn
-                gr.update(visible=logged_in),      # search_toggle
-                gr.update(visible=logged_in),      # model_dropdown
-                gr.update(visible=logged_in),      # quick_examples_col
-                gr.update(visible=logged_in),      # advanced_accordion
-                logged_in,  # update last_login_state
-                gr.update(visible=logged_in),      # language_dropdown
-            )
-        timer.tick(
-            fn=check_login,
-            inputs=[login_button, last_login_state],
-            outputs=[login_state, login_required_msg, input, website_url_input, file_input, btn, clear_btn, search_toggle, model_dropdown, quick_examples_col, advanced_accordion, last_login_state, language_dropdown]
-        )
+        # Remove login state and timer logic
+        # login_state = gr.State(False)
+        # timer = gr.Timer(1, active=True)
+        # def check_login(label, last_state):
+        #     logged_in = label.startswith("Logout (")
+        #     # Only update if state changes
+        #     if last_state == logged_in:
+        #         return [gr.skip()] * 13  # skip updating all outputs
+        #     return (
+        #         logged_in,  # login_state
+        #         gr.update(visible=not logged_in),  # login_required_msg
+        #         gr.update(visible=logged_in),      # input
+        #         gr.update(visible=logged_in),      # website_url_input
+        #         gr.update(visible=logged_in),      # file_input
+        #         gr.update(visible=logged_in),      # btn
+        #         gr.update(visible=logged_in),      # clear_btn
+        #         gr.update(visible=logged_in),      # search_toggle
+        #         gr.update(visible=logged_in),      # model_dropdown
+        #         gr.update(visible=logged_in),      # quick_examples_col
+        #         gr.update(visible=logged_in),      # advanced_accordion
+        #         logged_in,  # update last_login_state
+        #         gr.update(visible=logged_in),      # language_dropdown
+        #     )
+        # timer.tick(
+        #     fn=check_login,
+        #     inputs=[login_button, last_login_state],
+        #     outputs=[login_state, login_required_msg, input, website_url_input, file_input, btn, clear_btn, search_toggle, model_dropdown, quick_examples_col, advanced_accordion, last_login_state, language_dropdown]
+        # )
 
     with gr.Column():
         with gr.Tabs():
