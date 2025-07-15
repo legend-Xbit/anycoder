@@ -1061,7 +1061,7 @@ with gr.Blocks(
     setting = gr.State({
         "system": SystemPrompt,
     })
-    current_model = gr.State(AVAILABLE_MODELS[1])  # DeepSeek V3
+    current_model = gr.State(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2
     open_panel = gr.State(None)
     last_login_state = gr.State(None)
 
@@ -1104,7 +1104,7 @@ with gr.Blocks(
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
-            value=AVAILABLE_MODELS[1]['name'],  # DeepSeek V3
+            value=AVAILABLE_MODELS[0]['name'],  # Moonshot Kimi-K2
             label="Model",
             visible=False
         )
@@ -1124,12 +1124,12 @@ with gr.Blocks(
             gr.Markdown("⚠️ Web search unavailable", visible=False)
         else:
             gr.Markdown("✅ Web search available", visible=False)
-        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[1]['name']}", visible=False)  # DeepSeek V3
+        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=False)  # Moonshot Kimi-K2
         def on_model_change(model_name):
             for m in AVAILABLE_MODELS:
                 if m['name'] == model_name:
                     return m, f"**Model:** {m['name']}", update_image_input_visibility(m)
-            return AVAILABLE_MODELS[1], f"**Model:** {AVAILABLE_MODELS[1]['name']}", update_image_input_visibility(AVAILABLE_MODELS[1])  # DeepSeek V3 fallback
+            return AVAILABLE_MODELS[0], f"**Model:** {AVAILABLE_MODELS[0]['name']}", update_image_input_visibility(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2 fallback
         def save_prompt(input):
             return {setting: {"system": input}}
         model_dropdown.change(
