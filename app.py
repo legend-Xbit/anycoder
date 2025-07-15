@@ -213,11 +213,15 @@ DEMO_LIST = [
 
 # HF Inference Client
 HF_TOKEN = os.getenv('HF_TOKEN')
-client = InferenceClient(
-    provider="auto",
-    api_key=HF_TOKEN,
-    bill_to="huggingface"
-)
+
+def get_inference_client(model_id):
+    """Return an InferenceClient with provider based on model_id."""
+    provider = "groq" if model_id == "moonshotai/Kimi-K2-Instruct" else "auto"
+    return InferenceClient(
+        provider=provider,
+        api_key=HF_TOKEN,
+        bill_to="huggingface"
+    )
 
 # Type definitions
 History = List[Tuple[str, str]]
@@ -977,6 +981,9 @@ This will help me create a better design for you."""
     # Enhance query with search if enabled
     enhanced_query = enhance_query_with_search(query, enable_search)
     
+    # Use dynamic client based on selected model
+    client = get_inference_client(_current_model["id"])
+
     if image is not None:
         messages.append(create_multimodal_message(enhanced_query, image))
     else:
