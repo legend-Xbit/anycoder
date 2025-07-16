@@ -227,10 +227,11 @@ DEMO_LIST = [
 
 # HF Inference Client
 HF_TOKEN = os.getenv('HF_TOKEN')
+if not HF_TOKEN:
+    raise RuntimeError("HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token.")
 
-def get_inference_client(model_id):
-    """Return an InferenceClient with provider based on model_id."""
-    provider = "groq" if model_id == "moonshotai/Kimi-K2-Instruct" else "auto"
+def get_inference_client(model_id, provider="auto"):
+    """Return an InferenceClient with provider based on model_id and user selection."""
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
@@ -940,20 +941,24 @@ The HTML code above contains the complete original website structure with all im
     except Exception as e:
         return f"Error extracting website content: {str(e)}"
 
-def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html"):
+def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto"):
     if query is None:
         query = ''
     if _history is None:
         _history = []
-    
+    # Ensure _history is always a list of lists with at least 2 elements per item
+    if not isinstance(_history, list):
+        _history = []
+    _history = [h for h in _history if isinstance(h, list) and len(h) == 2]
+
     # Check if there's existing HTML content in history to determine if this is a modification request
     has_existing_html = False
-    if _history:
-        # Check the last assistant message for HTML content
-        last_assistant_msg = _history[-1][1] if len(_history) > 0 else ""
+    last_assistant_msg = ""
+    if _history and len(_history[-1]) > 1:
+        last_assistant_msg = _history[-1][1]
         if '<!DOCTYPE html>' in last_assistant_msg or '<html' in last_assistant_msg:
             has_existing_html = True
-    
+
     # Choose system prompt based on context
     if has_existing_html:
         # Use follow-up prompt for modifying existing HTML
@@ -964,9 +969,9 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
             system_prompt = HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else HTML_SYSTEM_PROMPT
         else:
             system_prompt = GENERIC_SYSTEM_PROMPT_WITH_SEARCH.format(language=language) if enable_search else GENERIC_SYSTEM_PROMPT.format(language=language)
-    
+
     messages = history_to_messages(_history, system_prompt)
-    
+
     # Extract file text and append to query if file is present
     file_text = ""
     if file:
@@ -974,7 +979,7 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
         if file_text:
             file_text = file_text[:5000]  # Limit to 5000 chars for prompt size
             query = f"{query}\n\n[Reference file content below]\n{file_text}"
-    
+
     # Extract website content and append to query if website URL is present
     website_text = ""
     if website_url and website_url.strip():
@@ -994,12 +999,12 @@ Since I couldn't extract the website content, please provide additional details 
 
 This will help me create a better design for you."""
             query = f"{query}\n\n[Error extracting website: {website_text}]{fallback_guidance}"
-    
+
     # Enhance query with search if enabled
     enhanced_query = enhance_query_with_search(query, enable_search)
-    
+
     # Use dynamic client based on selected model
-    client = get_inference_client(_current_model["id"])
+    client = get_inference_client(_current_model["id"], provider)
 
     if image is not None:
         messages.append(create_multimodal_message(enhanced_query, image))
@@ -1014,7 +1019,8 @@ This will help me create a better design for you."""
         )
         content = ""
         for chunk in completion:
-            if chunk.choices[0].delta.content:
+            # Only process if chunk.choices is non-empty
+            if hasattr(chunk, "choices") and chunk.choices and hasattr(chunk.choices[0], "delta") and hasattr(chunk.choices[0].delta, "content"):
                 content += chunk.choices[0].delta.content
                 clean_code = remove_code_block(content)
                 search_status = " (with web search)" if enable_search and tavily_client else ""
@@ -1027,7 +1033,7 @@ This will help me create a better design for you."""
                             sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                         }
                     else:
-                        last_html = _history[-1][1] if _history else ""
+                        last_html = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
                         modified_html = apply_search_replace_changes(last_html, clean_code)
                         clean_html = remove_code_block(modified_html)
                         yield {
@@ -1041,6 +1047,8 @@ This will help me create a better design for you."""
                         history_output: history_to_chatbot_messages(_history),
                         sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                     }
+            # Skip chunks with empty choices (end of stream)
+            # Do not treat as error
         # Handle response based on whether this is a modification or new generation
         if has_existing_html:
             # Fallback: If the model returns a full HTML file, use it directly
@@ -1048,14 +1056,11 @@ This will help me create a better design for you."""
             if final_code.strip().startswith("<!DOCTYPE html>") or final_code.strip().startswith("<html"):
                 clean_html = final_code
             else:
-                last_html = _history[-1][1] if _history else ""
+                last_html = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
                 modified_html = apply_search_replace_changes(last_html, final_code)
                 clean_html = remove_code_block(modified_html)
             # Update history with the cleaned HTML
-            _history = messages_to_history(messages + [{
-                'role': 'assistant',
-                'content': clean_html
-            }])
+            _history.append([query, clean_html])
             yield {
                 code_output: clean_html,
                 history: _history,
@@ -1064,10 +1069,7 @@ This will help me create a better design for you."""
             }
         else:
             # Regular generation - use the content as is
-            _history = messages_to_history(messages + [{
-                'role': 'assistant',
-                'content': content
-            }])
+            _history.append([query, content])
             yield {
                 code_output: remove_code_block(content),
                 history: _history,
@@ -1156,6 +1158,16 @@ with gr.Blocks(
             label="Model",
             visible=True  # Always visible
         )
+        provider_choices = [
+            "auto", "black-forest-labs", "cerebras", "cohere", "fal-ai", "featherless-ai", "fireworks-ai", "groq", "hf-inference", "hyperbolic", "nebius", "novita", "nscale", "openai", "replicate", "sambanova", "together"
+        ]
+        provider_dropdown = gr.Dropdown(
+            choices=provider_choices,
+            value="auto",
+            label="Provider",
+            visible=True
+        )
+        provider_state = gr.State("auto")
         gr.Markdown("**Quick start**", visible=True)
         with gr.Column(visible=True) as quick_examples_col:
             for i, demo_item in enumerate(DEMO_LIST[:3]):
@@ -1251,13 +1263,22 @@ with gr.Blocks(
 
     btn.click(
         generation_code,
-        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown],
+        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state],
         outputs=[code_output, history, sandbox, history_output]
     )
     # Update preview when code or language changes
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
+
+    def on_provider_change(provider):
+        return provider
+
+    provider_dropdown.change(
+        on_provider_change,
+        inputs=provider_dropdown,
+        outputs=provider_state
+    )
 
 if __name__ == "__main__":
     demo.queue(api_open=False, default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=False, show_api=False)
