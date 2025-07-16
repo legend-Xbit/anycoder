@@ -1119,7 +1119,7 @@ with gr.Blocks(
         )
         # Language dropdown for code generation
         language_choices = [
-            "python", "c", "cpp", "markdown", "latex", "json", "html", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
+            "html", "python", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
         ]
         language_dropdown = gr.Dropdown(
             choices=language_choices,
