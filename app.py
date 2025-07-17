@@ -1084,8 +1084,16 @@ This will help me create a better design for you."""
 # Deploy to Spaces logic
 
 def wrap_html_in_gradio_app(html_code):
-    # Minimal Gradio app that serves the HTML code
-    return f'''import gradio as gr\n\ndef show_html():\n    return """{html_code.replace('"', '\\"').replace("'", "\\'")}"""\n\ndemo = gr.Interface(fn=show_html, inputs=None, outputs=gr.HTML())\n\nif __name__ == "__main__":\n    demo.launch()\n'''
+    # Escape triple quotes for safe embedding
+    safe_html = html_code.replace('"""', r'\"\"\"')
+    return (
+        'import gradio as gr\n\n'
+        'def show_html():\n'
+        f'    return """{safe_html}"""\n\n'
+        'demo = gr.Interface(fn=show_html, inputs=None, outputs=gr.HTML())\n\n'
+        'if __name__ == "__main__":\n'
+        '    demo.launch()\n'
+    )
 
 def deploy_to_spaces(code):
     if not code or not code.strip():
