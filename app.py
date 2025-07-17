@@ -1161,8 +1161,8 @@ with gr.Blocks(
     with gr.Sidebar():
         login_button = gr.LoginButton()
         space_name_input = gr.Textbox(
-            label="Space name (e.g. my-cool-space)",
-            placeholder="Enter your Space name",
+            label="app name (e.g. my-cool-app)",
+            placeholder="Enter your app name",
             lines=1,
             visible=True
         )
