@@ -10,7 +10,7 @@ pinned: false
 disable_embedding: true
 hf_oauth: true
 hf_oauth_scopes:
-  - write-repos  # Needed to create/upload to Spaces on behalf of the user
+  - manage-repos  # Needed to create/upload/delete Spaces on behalf of the user
 # Note: 'openid' and 'profile' are always included by default and should not be listed here.
 ---
 
