@@ -1166,6 +1166,18 @@ with gr.Blocks(
             lines=1,
             visible=True
         )
+        # Add SDK selection dropdown
+        sdk_choices = [
+            ("Gradio (Python)", "gradio"),
+            ("Streamlit (Python)", "streamlit"),
+            ("Static (HTML)", "static")
+        ]
+        sdk_dropdown = gr.Dropdown(
+            choices=[x[0] for x in sdk_choices],
+            value="Gradio (Python)",
+            label="App SDK",
+            visible=True
+        )
         deploy_btn = gr.Button("🚀 Deploy App", variant="primary")
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
         input = gr.Textbox(
@@ -1286,37 +1298,47 @@ with gr.Blocks(
     def deploy_to_user_space(
         code, 
         space_name, 
+        sdk_name,  # new argument
         profile: gr.OAuthProfile | None = None, 
         token: gr.OAuthToken | None = None
     ):
         if not code or not code.strip():
             return gr.update(value="No code to deploy.", visible=True)
         if profile is None or token is None:
-            # Fallback to old method if not logged in
             return gr.update(value="Please log in with your Hugging Face account to deploy to your own Space. Otherwise, use the default deploy (opens in new tab).", visible=True)
         username = profile.username
         repo_id = f"{username}/{space_name.strip()}"
+        # Map SDK name to HF SDK slug
+        sdk_map = {
+            "Gradio (Python)": "gradio",
+            "Streamlit (Python)": "streamlit",
+            "Static (HTML)": "static"
+        }
+        sdk = sdk_map.get(sdk_name, "gradio")
         api = HfApi(token=token.token)
         # Create the Space if it doesn't exist
         try:
-            # Fix create_repo call: use repo_id, not name
             api.create_repo(
                 repo_id=repo_id,  # e.g. username/space_name
                 repo_type="space",
-                space_sdk="static",  # or "gradio" if you want a Gradio Space
+                space_sdk=sdk,  # Use selected SDK
                 exist_ok=True  # Don't error if it already exists
             )
         except Exception as e:
             return gr.update(value=f"Error creating Space: {e}", visible=True)
         # Save code to a temporary file
-        with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+        if sdk == "static":
+            file_name = "index.html"
+        else:
+            file_name = "app.py"
+        with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
             f.write(code)
             temp_path = f.name
         # Upload the file
         try:
             api.upload_file(
                 path_or_fileobj=temp_path,
-                path_in_repo="index.html",
+                path_in_repo=file_name,
                 repo_id=repo_id,
                 repo_type="space"
             )
@@ -1328,7 +1350,7 @@ with gr.Blocks(
     # Connect the deploy button to the new function
     deploy_btn.click(
         deploy_to_user_space,
-        inputs=[code_output, space_name_input],
+        inputs=[code_output, space_name_input, sdk_dropdown],
         outputs=deploy_status
     )
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
