@@ -176,10 +176,6 @@ DEMO_LIST = [
         "description": "Build a basic calculator with addition, subtraction, multiplication, and division"
     },
     {
-        "title": "Weather Dashboard",
-        "description": "Create a weather dashboard that displays current weather information"
-    },
-    {
         "title": "Chat Interface",
         "description": "Build a chat interface with message history and user input"
     },
@@ -1130,7 +1126,7 @@ with gr.Blocks(
             visible=True  # Always visible
         )
         website_url_input = gr.Textbox(
-            label="Website URL for redesign",
+            label="website for redesign",
             placeholder="https://example.com",
             lines=1,
             visible=True  # Always visible
@@ -1158,15 +1154,7 @@ with gr.Blocks(
             label="Model",
             visible=True  # Always visible
         )
-        provider_choices = [
-            "auto", "black-forest-labs", "cerebras", "cohere", "fal-ai", "featherless-ai", "fireworks-ai", "groq", "hf-inference", "hyperbolic", "nebius", "novita", "nscale", "openai", "replicate", "sambanova", "together"
-        ]
-        provider_dropdown = gr.Dropdown(
-            choices=provider_choices,
-            value="auto",
-            label="Provider",
-            visible=True
-        )
+        # Remove provider_choices and provider_dropdown, set provider_state to 'auto' only
         provider_state = gr.State("auto")
         gr.Markdown("**Quick start**", visible=True)
         with gr.Column(visible=True) as quick_examples_col:
@@ -1182,58 +1170,20 @@ with gr.Blocks(
                 )
         if not tavily_client:
             gr.Markdown("⚠️ Web search unavailable", visible=True)
-        else:
-            gr.Markdown("✅ Web search available", visible=True)
-        model_display = gr.Markdown(f"**Model:** {AVAILABLE_MODELS[0]['name']}", visible=True)  # Moonshot Kimi-K2
+        # Remove model display and web search available line
         def on_model_change(model_name):
             for m in AVAILABLE_MODELS:
                 if m['name'] == model_name:
-                    return m, f"**Model:** {m['name']}", update_image_input_visibility(m)
-            return AVAILABLE_MODELS[0], f"**Model:** {AVAILABLE_MODELS[0]['name']}", update_image_input_visibility(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2 fallback
+                    return m, update_image_input_visibility(m)
+            return AVAILABLE_MODELS[0], update_image_input_visibility(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2 fallback
         def save_prompt(input):
             return {setting: {"system": input}}
         model_dropdown.change(
-            on_model_change,
+            lambda model_name: on_model_change(model_name),
             inputs=model_dropdown,
-            outputs=[current_model, model_display, image_input]
+            outputs=[current_model, image_input]
         )
-        with gr.Accordion("Advanced", open=False, visible=True) as advanced_accordion:
-            systemPromptInput = gr.Textbox(
-                value=HTML_SYSTEM_PROMPT,
-                label="System prompt",
-                lines=5
-            )
-            save_prompt_btn = gr.Button("Save", variant="primary", size="sm")
-            save_prompt_btn.click(save_prompt, inputs=systemPromptInput, outputs=setting)
-
-        # Remove login state and timer logic
-        # login_state = gr.State(False)
-        # timer = gr.Timer(1, active=True)
-        # def check_login(label, last_state):
-        #     logged_in = label.startswith("Logout (")
-        #     # Only update if state changes
-        #     if last_state == logged_in:
-        #         return [gr.skip()] * 13  # skip updating all outputs
-        #     return (
-        #         logged_in,  # login_state
-        #         gr.update(visible=not logged_in),  # login_required_msg
-        #         gr.update(visible=logged_in),      # input
-        #         gr.update(visible=logged_in),      # website_url_input
-        #         gr.update(visible=logged_in),      # file_input
-        #         gr.update(visible=logged_in),      # btn
-        #         gr.update(visible=logged_in),      # clear_btn
-        #         gr.update(visible=logged_in),      # search_toggle
-        #         gr.update(visible=logged_in),      # model_dropdown
-        #         gr.update(visible=logged_in),      # quick_examples_col
-        #         gr.update(visible=logged_in),      # advanced_accordion
-        #         logged_in,  # update last_login_state
-        #         gr.update(visible=logged_in),      # language_dropdown
-        #     )
-        # timer.tick(
-        #     fn=check_login,
-        #     inputs=[login_button, last_login_state],
-        #     outputs=[login_state, login_required_msg, input, website_url_input, file_input, btn, clear_btn, search_toggle, model_dropdown, quick_examples_col, advanced_accordion, last_login_state, language_dropdown]
-        # )
+        # Remove the Advanced accordion and system prompt editing UI
 
     with gr.Column():
         with gr.Tabs():
@@ -1270,15 +1220,6 @@ with gr.Blocks(
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
-
-    def on_provider_change(provider):
-        return provider
-
-    provider_dropdown.change(
-        on_provider_change,
-        inputs=provider_dropdown,
-        outputs=provider_state
-    )
 
 if __name__ == "__main__":
     demo.queue(api_open=False, default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=False, show_api=False)
