@@ -9,6 +9,10 @@ app_file: app.py
 pinned: false
 disable_embedding: true
 hf_oauth: true
+hf_oauth_scopes:
+  - "openid"         # Always included: ID token
+  - "profile"        # Always included: user profile info
+  - "write-repos"    # Needed to create/upload to Spaces on behalf of the user
 ---
 
 Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference

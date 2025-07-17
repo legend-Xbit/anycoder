@@ -22,6 +22,8 @@ import urllib.parse
 import gradio as gr
 from huggingface_hub import InferenceClient
 from tavily import TavilyClient
+from huggingface_hub import HfApi
+import tempfile
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
@@ -1157,13 +1159,15 @@ with gr.Blocks(
     last_login_state = gr.State(None)
 
     with gr.Sidebar():
-        # Remove Hugging Face Login Button and login-required message
-        # login_button = gr.LoginButton(
-        #     value="Sign in with Hugging Face",
-        #     variant="huggingface",
-        #     size="lg"
-        # )
-        # login_required_msg = gr.Markdown("**Please sign in with Hugging Face to use the app.**", visible=True)
+        login_button = gr.LoginButton()
+        space_name_input = gr.Textbox(
+            label="Space name (e.g. my-cool-space)",
+            placeholder="Enter your Space name",
+            lines=1,
+            visible=True
+        )
+        deploy_btn = gr.Button("🚀 Deploy App", variant="primary")
+        deploy_status = gr.Markdown(visible=False, label="Deploy status")
         input = gr.Textbox(
             label="What would you like to build?",
             placeholder="Describe your application...",
@@ -1209,7 +1213,6 @@ with gr.Blocks(
             label="Model",
             visible=True  # Always visible
         )
-        # Remove provider_choices and provider_dropdown, set provider_state to 'auto' only
         provider_state = gr.State("auto")
         gr.Markdown("**Quick start**", visible=True)
         with gr.Column(visible=True) as quick_examples_col:
@@ -1239,6 +1242,8 @@ with gr.Blocks(
             outputs=[current_model, image_input]
         )
         # Remove the Advanced accordion and system prompt editing UI
+        # login_button.render()
+        # space_name_input.render()
 
     with gr.Column():
         with gr.Tabs():
@@ -1249,8 +1254,6 @@ with gr.Blocks(
                     interactive=False,
                     label="Generated code"
                 )
-                # Rename button to '🚀 Deploy App'
-                deploy_btn = gr.Button("🚀 Deploy App", variant="primary", size="sm", visible=True)
             with gr.Tab("Preview"):
                 sandbox = gr.HTML(label="Live preview")
             with gr.Tab("History"):
@@ -1280,11 +1283,56 @@ with gr.Blocks(
 
     # Deploy to Spaces logic
 
+    def deploy_to_user_space(
+        code, 
+        space_name, 
+        profile: gr.OAuthProfile | None = None, 
+        token: gr.OAuthToken | None = None
+    ):
+        if not code or not code.strip():
+            return gr.update(value="No code to deploy.", visible=True)
+        if profile is None or token is None:
+            # Fallback to old method if not logged in
+            return gr.update(value="Please log in with your Hugging Face account to deploy to your own Space. Otherwise, use the default deploy (opens in new tab).", visible=True)
+        username = profile.username
+        repo_id = f"{username}/{space_name.strip()}"
+        api = HfApi(token=token.token)
+        # Create the Space if it doesn't exist
+        try:
+            # Fix create_repo call: use repo_id, not name
+            api.create_repo(
+                repo_id=repo_id,  # e.g. username/space_name
+                repo_type="space",
+                space_sdk="static",  # or "gradio" if you want a Gradio Space
+                exist_ok=True  # Don't error if it already exists
+            )
+        except Exception as e:
+            return gr.update(value=f"Error creating Space: {e}", visible=True)
+        # Save code to a temporary file
+        with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        # Upload the file
+        try:
+            api.upload_file(
+                path_or_fileobj=temp_path,
+                path_in_repo="index.html",
+                repo_id=repo_id,
+                repo_type="space"
+            )
+            space_url = f"https://huggingface.co/spaces/{repo_id}"
+            return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+        except Exception as e:
+            return gr.update(value=f"Error uploading file: {e}", visible=True)
+
+    # Connect the deploy button to the new function
     deploy_btn.click(
-        fn=lambda code: deploy_to_spaces_static(code),
-        inputs=code_output,
-        outputs=None
+        deploy_to_user_space,
+        inputs=[code_output, space_name_input],
+        outputs=deploy_status
     )
+    # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
+    # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.
 
 if __name__ == "__main__":
     demo.queue(api_open=False, default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=False, show_api=False)
