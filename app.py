@@ -58,7 +58,7 @@ Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text."""
 
-GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ```{language} ... ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible."""
+GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible."""
 
 # System prompt with search capability
 HTML_SYSTEM_PROMPT_WITH_SEARCH = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
@@ -85,7 +85,7 @@ Always output only the HTML code inside a ```html ... ``` code block, and do not
 
 GENERIC_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert {language} developer. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for {language}.
 
-Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ```{language} ... ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible."""
+Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible."""
 
 # Follow-up system prompt for modifying existing HTML files
 FollowUpSystemPrompt = f"""You are an expert web developer modifying an existing HTML file.
@@ -316,6 +316,9 @@ def remove_code_block(text):
     # If no code block is found, check if the entire text is HTML
     if text.strip().startswith('<!DOCTYPE html>') or text.strip().startswith('<html') or text.strip().startswith('<'):
         return text.strip()
+    # Special handling for python: remove python marker
+    if text.strip().startswith('```python'):
+        return text.strip()[9:-3].strip()
     return text.strip()
 
 def history_render(history: History):
@@ -1174,7 +1177,7 @@ with gr.Blocks(
         ]
         sdk_dropdown = gr.Dropdown(
             choices=[x[0] for x in sdk_choices],
-            value="Gradio (Python)",
+            value="Static (HTML)",
             label="App SDK",
             visible=True
         )
