@@ -1157,7 +1157,6 @@ with gr.Blocks(
     current_model = gr.State(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2
     open_panel = gr.State(None)
     last_login_state = gr.State(None)
-    loaded_space_id = gr.State(None)
 
     with gr.Sidebar():
         login_button = gr.LoginButton()
@@ -1169,18 +1168,6 @@ with gr.Blocks(
         )
         deploy_btn = gr.Button("🚀 Deploy App", variant="primary")
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
-        
-        # --- Load Space UI ---
-        load_space_id = gr.Textbox(
-            label="Load Space (username/space_name)",
-            placeholder="e.g. huggingface-projects/hello-static",
-            lines=1,
-            visible=True
-        )
-        load_space_btn = gr.Button("Load Space", variant="secondary")
-        load_space_status = gr.Markdown(visible=False)
-        # --- End Load Space UI ---
-        
         input = gr.Textbox(
             label="What would you like to build?",
             placeholder="Describe your application...",
@@ -1299,30 +1286,28 @@ with gr.Blocks(
     def deploy_to_user_space(
         code, 
         space_name, 
-        profile,   # OAuth profile from LoginButton
-        token,     # OAuth token from LoginButton
-        loaded_space_id=None
+        profile: gr.OAuthProfile | None = None, 
+        token: gr.OAuthToken | None = None
     ):
         if not code or not code.strip():
             return gr.update(value="No code to deploy.", visible=True)
         if profile is None or token is None:
-            return gr.update(value="Please log in with your Hugging Face account to deploy to your own Space.", visible=True)
-        api = HfApi(token=token)
-        if loaded_space_id:
-            repo_id = loaded_space_id
-        else:
-            username = profile.username
-            repo_id = f"{username}/{space_name.strip()}"
-            # Create the Space if it doesn't exist
-            try:
-                api.create_repo(
-                    repo_id=repo_id,
-                    repo_type="space",
-                    space_sdk="static",
-                    exist_ok=True
-                )
-            except Exception as e:
-                return gr.update(value=f"Error creating Space: {e}", visible=True)
+            # Fallback to old method if not logged in
+            return gr.update(value="Please log in with your Hugging Face account to deploy to your own Space. Otherwise, use the default deploy (opens in new tab).", visible=True)
+        username = profile.username
+        repo_id = f"{username}/{space_name.strip()}"
+        api = HfApi(token=token.token)
+        # Create the Space if it doesn't exist
+        try:
+            # Fix create_repo call: use repo_id, not name
+            api.create_repo(
+                repo_id=repo_id,  # e.g. username/space_name
+                repo_type="space",
+                space_sdk="static",  # or "gradio" if you want a Gradio Space
+                exist_ok=True  # Don't error if it already exists
+            )
+        except Exception as e:
+            return gr.update(value=f"Error creating Space: {e}", visible=True)
         # Save code to a temporary file
         with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
             f.write(code)
@@ -1343,45 +1328,11 @@ with gr.Blocks(
     # Connect the deploy button to the new function
     deploy_btn.click(
         deploy_to_user_space,
-        inputs=[code_output, space_name_input, login_button, login_button, loaded_space_id],
+        inputs=[code_output, space_name_input],
         outputs=deploy_status
     )
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
     # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.
-
-    # --- Load Space logic ---
-    from huggingface_hub import HfApi, hf_hub_download
-    def load_space_index_html(space_id, history):
-        api = HfApi()
-        try:
-            files = api.list_repo_files(space_id, repo_type="space")
-            if "index.html" not in files:
-                return gr.update(value="No index.html found in this Space.", visible=True), gr.update(value="", language="html"), None, "", gr.update(visible=True), history, None
-            # Download the file
-            local_path = hf_hub_download(repo_id=space_id, filename="index.html", repo_type="space")
-            with open(local_path, "r", encoding="utf-8") as f:
-                html_code = f.read()
-            # Set as last assistant message in history
-            new_history = history.copy() if history else []
-            # Use a synthetic user message for clarity
-            new_history.append([f"Loaded index.html from {space_id}", html_code])
-            return (
-                gr.update(value=f"Loaded index.html from {space_id}", visible=True),
-                gr.update(value=html_code, language="html"),
-                send_to_sandbox(html_code),
-                history_to_chatbot_messages(new_history),
-                gr.update(visible=True),
-                new_history,
-                space_id
-            )
-        except Exception as e:
-            return gr.update(value=f"Error: {e}", visible=True), gr.update(value="", language="html"), None, "", gr.update(visible=True), history, None
-    load_space_btn.click(
-        load_space_index_html,
-        inputs=[load_space_id, history],
-        outputs=[load_space_status, code_output, sandbox, history_output, load_space_status, history, loaded_space_id]
-    )
-    # --- End Load Space logic ---
 
 if __name__ == "__main__":
     demo.queue(api_open=False, default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=False, show_api=False)
