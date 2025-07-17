@@ -312,6 +312,9 @@ def remove_code_block(text):
         match = re.search(pattern, text, re.DOTALL)
         if match:
             extracted = match.group(1).strip()
+            # Remove a leading language marker line (e.g., 'python') if present
+            if extracted.split('\n', 1)[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plsql', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
+                return extracted.split('\n', 1)[1] if '\n' in extracted else ''
             return extracted
     # If no code block is found, check if the entire text is HTML
     if text.strip().startswith('<!DOCTYPE html>') or text.strip().startswith('<html') or text.strip().startswith('<'):
@@ -319,6 +322,10 @@ def remove_code_block(text):
     # Special handling for python: remove python marker
     if text.strip().startswith('```python'):
         return text.strip()[9:-3].strip()
+    # Remove a leading language marker line if present (fallback)
+    lines = text.strip().split('\n', 1)
+    if lines[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plsql', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
+        return lines[1] if len(lines) > 1 else ''
     return text.strip()
 
 def history_render(history: History):
