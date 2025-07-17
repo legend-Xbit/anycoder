@@ -16,6 +16,8 @@ from bs4 import BeautifulSoup
 import html2text
 import json
 import time
+import webbrowser
+import urllib.parse
 
 import gradio as gr
 from huggingface_hub import InferenceClient
@@ -1079,6 +1081,51 @@ This will help me create a better design for you."""
             history_output: history_to_chatbot_messages(_history),
         }
 
+# Deploy to Spaces logic
+
+def wrap_html_in_gradio_app(html_code):
+    # Minimal Gradio app that serves the HTML code
+    return f'''import gradio as gr\n\ndef show_html():\n    return """{html_code.replace('"', '\\"').replace("'", "\\'")}"""\n\ndemo = gr.Interface(fn=show_html, inputs=None, outputs=gr.HTML())\n\nif __name__ == "__main__":\n    demo.launch()\n'''
+
+def deploy_to_spaces(code):
+    if not code or not code.strip():
+        return  # Do nothing if code is empty
+    # Wrap the HTML code in a Gradio app
+    app_py = wrap_html_in_gradio_app(code.strip())
+    base_url = "https://huggingface.co/new-space"
+    params = urllib.parse.urlencode({
+        "name": "new-space",
+        "sdk": "gradio"
+    })
+    # Use urlencode for file params
+    files_params = urllib.parse.urlencode({
+        "files[0][path]": "app.py",
+        "files[0][content]": app_py
+    })
+    full_url = f"{base_url}?{params}&{files_params}"
+    webbrowser.open_new_tab(full_url)
+
+def wrap_html_in_static_app(html_code):
+    # For static Spaces, just use the HTML code as-is
+    return html_code
+
+def deploy_to_spaces_static(code):
+    if not code or not code.strip():
+        return  # Do nothing if code is empty
+    # Use the HTML code directly for static Spaces
+    app_html = wrap_html_in_static_app(code.strip())
+    base_url = "https://huggingface.co/new-space"
+    params = urllib.parse.urlencode({
+        "name": "new-space",
+        "sdk": "static"
+    })
+    files_params = urllib.parse.urlencode({
+        "files[0][path]": "index.html",
+        "files[0][content]": app_html
+    })
+    full_url = f"{base_url}?{params}&{files_params}"
+    webbrowser.open_new_tab(full_url)
+
 # Main application
 with gr.Blocks(
     theme=gr.themes.Base(
@@ -1194,6 +1241,8 @@ with gr.Blocks(
                     interactive=False,
                     label="Generated code"
                 )
+                # Rename button to '🚀 Deploy App'
+                deploy_btn = gr.Button("🚀 Deploy App", variant="primary", size="sm", visible=True)
             with gr.Tab("Preview"):
                 sandbox = gr.HTML(label="Live preview")
             with gr.Tab("History"):
@@ -1220,6 +1269,14 @@ with gr.Blocks(
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
+
+    # Deploy to Spaces logic
+
+    deploy_btn.click(
+        fn=lambda code: deploy_to_spaces_static(code),
+        inputs=code_output,
+        outputs=None
+    )
 
 if __name__ == "__main__":
     demo.queue(api_open=False, default_concurrency_limit=20).launch(ssr_mode=True, mcp_server=False, show_api=False)
