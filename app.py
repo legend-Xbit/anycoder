@@ -1373,16 +1373,16 @@ with gr.Blocks(
             req_path = os.path.join(temp_dir, "requirements.txt")
             with open(req_path, "w") as f:
                 f.write(reqs)
-            # 2. Write Dockerfile (EXACT content as screenshot, no escaping)
+            # 2. Write Dockerfile (EXACT content as screenshot, with proper line breaks)
             dockerfile_content = '''FROM python:3.9-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    software-properties-common \
-    git \
+RUN apt-get update && apt-get install -y \\
+    build-essential \\
+    curl \\
+    software-properties-common \\
+    git \\
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
