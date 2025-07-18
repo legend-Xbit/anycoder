@@ -232,6 +232,9 @@ if not HF_TOKEN:
 
 def get_inference_client(model_id, provider="auto"):
     """Return an InferenceClient with provider based on model_id and user selection."""
+    if model_id == "moonshotai/Kimi-K2-Instruct":
+        provider = "groq"
+
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
@@ -1030,7 +1033,12 @@ This will help me create a better design for you."""
         content = ""
         for chunk in completion:
             # Only process if chunk.choices is non-empty
-            if hasattr(chunk, "choices") and chunk.choices and hasattr(chunk.choices[0], "delta") and hasattr(chunk.choices[0].delta, "content"):
+            if (
+                hasattr(chunk, "choices") and chunk.choices and 
+                hasattr(chunk.choices[0], "delta") and 
+                hasattr(chunk.choices[0].delta, "content") and 
+                chunk.choices[0].delta.content is not None
+            ):
                 content += chunk.choices[0].delta.content
                 clean_code = remove_code_block(content)
                 search_status = " (with web search)" if enable_search and tavily_client else ""
