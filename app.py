@@ -1178,31 +1178,11 @@ with gr.Blocks(
 
     with gr.Sidebar():
         login_button = gr.LoginButton()
-        space_name_input = gr.Textbox(
-            label="app name (e.g. my-cool-app)",
-            placeholder="Enter your app name",
-            lines=1,
-            visible=True
-        )
-        # Add SDK selection dropdown
-        sdk_choices = [
-            ("Gradio (Python)", "gradio"),
-            ("Streamlit (Python)", "streamlit"),
-            ("Static (HTML)", "static")
-        ]
-        sdk_dropdown = gr.Dropdown(
-            choices=[x[0] for x in sdk_choices],
-            value="Static (HTML)",
-            label="App SDK",
-            visible=True
-        )
-        deploy_btn = gr.Button("🚀 Deploy App", variant="primary")
-        deploy_status = gr.Markdown(visible=False, label="Deploy status")
         input = gr.Textbox(
             label="What would you like to build?",
             placeholder="Describe your application...",
             lines=3,
-            visible=True  # Always visible
+            visible=True
         )
         # Language dropdown for code generation
         language_choices = [
@@ -1212,36 +1192,57 @@ with gr.Blocks(
             choices=language_choices,
             value="html",
             label="Code Language",
-            visible=True  # Always visible
+            visible=True
         )
         website_url_input = gr.Textbox(
             label="website for redesign",
             placeholder="https://example.com",
             lines=1,
-            visible=True  # Always visible
+            visible=True
         )
         file_input = gr.File(
             label="Reference file",
             file_types=[".pdf", ".txt", ".md", ".csv", ".docx", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"],
-            visible=True  # Always visible
+            visible=True
         )
         image_input = gr.Image(
             label="UI design image",
-            visible=False  # Hidden by default; shown only for ERNIE-VL or GLM-VL
+            visible=False
         )
         with gr.Row():
-            btn = gr.Button("Generate", variant="primary", size="lg", scale=2, visible=True)  # Always visible
-            clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)  # Always visible
+            btn = gr.Button("Generate", variant="primary", size="lg", scale=2, visible=True)
+            clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)
+        # --- Move deploy/app name/sdk here, right before web search ---
+        space_name_input = gr.Textbox(
+            label="app name (e.g. my-cool-app)",
+            placeholder="Enter your app name",
+            lines=1,
+            visible=False
+        )
+        sdk_choices = [
+            ("Gradio (Python)", "gradio"),
+            ("Streamlit (Python)", "streamlit"),
+            ("Static (HTML)", "static")
+        ]
+        sdk_dropdown = gr.Dropdown(
+            choices=[x[0] for x in sdk_choices],
+            value="Static (HTML)",
+            label="App SDK",
+            visible=False
+        )
+        deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=False)
+        deploy_status = gr.Markdown(visible=False, label="Deploy status")
+        # --- End move ---
         search_toggle = gr.Checkbox(
             label="🔍 Web search",
             value=False,
-            visible=True  # Always visible
+            visible=True
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
-            value=AVAILABLE_MODELS[0]['name'],  # Moonshot Kimi-K2
+            value=AVAILABLE_MODELS[0]['name'],
             label="Model",
-            visible=True  # Always visible
+            visible=True
         )
         provider_state = gr.State("auto")
         gr.Markdown("**Quick start**", visible=True)
@@ -1263,7 +1264,7 @@ with gr.Blocks(
             for m in AVAILABLE_MODELS:
                 if m['name'] == model_name:
                     return m, update_image_input_visibility(m)
-            return AVAILABLE_MODELS[0], update_image_input_visibility(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2 fallback
+            return AVAILABLE_MODELS[0], update_image_input_visibility(AVAILABLE_MODELS[0])
         def save_prompt(input):
             return {setting: {"system": input}}
         model_dropdown.change(
@@ -1271,9 +1272,8 @@ with gr.Blocks(
             inputs=model_dropdown,
             outputs=[current_model, image_input]
         )
-        # Remove the Advanced accordion and system prompt editing UI
-        # login_button.render()
-        # space_name_input.render()
+        # --- Remove deploy/app name/sdk from bottom column ---
+        # (delete the gr.Column() block containing space_name_input, sdk_dropdown, deploy_btn, deploy_status)
 
     with gr.Column():
         with gr.Tabs():
@@ -1301,15 +1301,26 @@ with gr.Blocks(
         else:
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
 
+    def show_deploy_components(*args):
+        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
+
+    def hide_deploy_components(*args):
+        return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False)]
+
     btn.click(
         generation_code,
         inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state],
         outputs=[code_output, history, sandbox, history_output]
+    ).then(
+        show_deploy_components,
+        None,
+        [space_name_input, sdk_dropdown, deploy_btn]
     )
     # Update preview when code or language changes
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
+    clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn])
 
     # Deploy to Spaces logic
 
