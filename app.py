@@ -1369,7 +1369,7 @@ with gr.Blocks(
             # Create a temp dir for the structure
             temp_dir = tempfile.mkdtemp()
             # 1. Write requirements.txt
-            reqs = "streamlit>=1.28.0\n"
+            reqs = "altair\npandas\nstreamlit\n"
             req_path = os.path.join(temp_dir, "requirements.txt")
             with open(req_path, "w") as f:
                 f.write(reqs)
@@ -1403,22 +1403,8 @@ ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "-
             src_dir = os.path.join(temp_dir, "src")
             os.makedirs(src_dir, exist_ok=True)
             app_py_path = os.path.join(src_dir, "streamlit_app.py")
-            
-            # Convert HTML code to Streamlit app
-            # Escape the HTML content properly for the f-string
-            escaped_code = code.replace('"', '\\"').replace('\n', '\\n')
-            streamlit_app_code = f'''import streamlit as st
-
-st.set_page_config(page_title="Generated App", layout="wide")
-
-# Display the HTML content
-html_content = """{escaped_code}"""
-
-st.components.v1.html(html_content, height=800, scrolling=True)
-'''
-            
             with open(app_py_path, "w") as f:
-                f.write(streamlit_app_code)
+                f.write(code)
             # Prepare files to upload
             files_to_upload = [
                 (req_path, "requirements.txt"),
