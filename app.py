@@ -1369,7 +1369,7 @@ with gr.Blocks(
             # Create a temp dir for the structure
             temp_dir = tempfile.mkdtemp()
             # 1. Write requirements.txt
-            reqs = "altair\npandas\nstreamlit\n"
+            reqs = "streamlit>=1.28.0\n"
             req_path = os.path.join(temp_dir, "requirements.txt")
             with open(req_path, "w") as f:
                 f.write(reqs)
@@ -1397,14 +1397,26 @@ HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
 ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
 '''
             dockerfile_path = os.path.join(temp_dir, "Dockerfile")
-            with open(dockerfile_path, "w", newline="\n") as f:
+            with open(dockerfile_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(dockerfile_content)
             # 3. Write src/streamlit_app.py
             src_dir = os.path.join(temp_dir, "src")
             os.makedirs(src_dir, exist_ok=True)
             app_py_path = os.path.join(src_dir, "streamlit_app.py")
+            
+            # Convert HTML code to Streamlit app
+            streamlit_app_code = f'''import streamlit as st
+
+st.set_page_config(page_title="Generated App", layout="wide")
+
+# Display the HTML content
+html_content = """{code.replace('"""', '\\"""')}"""
+
+st.components.v1.html(html_content, height=800, scrolling=True)
+'''
+            
             with open(app_py_path, "w") as f:
-                f.write(code)
+                f.write(streamlit_app_code)
             # Prepare files to upload
             files_to_upload = [
                 (req_path, "requirements.txt"),
