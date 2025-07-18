@@ -1321,7 +1321,7 @@ with gr.Blocks(
         # Map SDK name to HF SDK slug
         sdk_map = {
             "Gradio (Python)": "gradio",
-            "Streamlit (Python)": "streamlit",
+            "Streamlit (Python)": "docker",  # Use 'docker' for Streamlit Spaces
             "Static (HTML)": "static"
         }
         sdk = sdk_map.get(sdk_name, "gradio")
