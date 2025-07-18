@@ -1373,7 +1373,7 @@ with gr.Blocks(
             req_path = os.path.join(temp_dir, "requirements.txt")
             with open(req_path, "w") as f:
                 f.write(reqs)
-            # 2. Write Dockerfile
+            # 2. Write Dockerfile (EXACT content as screenshot, no escaping)
             dockerfile_content = '''FROM python:3.9-slim
 
 WORKDIR /app
@@ -1397,7 +1397,7 @@ HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
 ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
 '''
             dockerfile_path = os.path.join(temp_dir, "Dockerfile")
-            with open(dockerfile_path, "w") as f:
+            with open(dockerfile_path, "w", newline="\n") as f:
                 f.write(dockerfile_content)
             # 3. Write src/streamlit_app.py
             src_dir = os.path.join(temp_dir, "src")
