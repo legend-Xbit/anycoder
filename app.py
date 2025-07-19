@@ -1405,11 +1405,35 @@ ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "-
             app_py_path = os.path.join(src_dir, "streamlit_app.py")
             with open(app_py_path, "w") as f:
                 f.write(code)
+            # 4. Write README.md in the required format
+            readme_content = f'''---
+title: {space_name.strip()}
+emoji: 🚀
+colorFrom: red
+colorTo: red
+sdk: docker
+app_port: 8501
+tags:
+- streamlit
+pinned: false
+short_description: Streamlit template space
+---
+
+# Welcome to Streamlit!
+
+Edit `/src/streamlit_app.py` to customize this app to your heart's desire. :heart:
+
+If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community\nforums](https://discuss.streamlit.io).
+'''
+            readme_path = os.path.join(temp_dir, "README.md")
+            with open(readme_path, "w", encoding="utf-8") as f:
+                f.write(readme_content)
             # Prepare files to upload
             files_to_upload = [
                 (req_path, "requirements.txt"),
                 (dockerfile_path, "Dockerfile"),
                 (app_py_path, "src/streamlit_app.py"),
+                (readme_path, "README.md"),
             ]
         else:
             file_name = "app.py"
