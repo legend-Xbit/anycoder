@@ -1104,19 +1104,12 @@ This will help me create a better design for you."""
 # Deploy to Spaces logic
 
 def wrap_html_in_gradio_app(html_code):
-    # Use a more robust approach to handle HTML with quotes
-    import base64
-    # Encode HTML as base64 to avoid quote issues
-    html_bytes = html_code.encode('utf-8')
-    html_b64 = base64.b64encode(html_bytes).decode('utf-8')
-    
+    # Escape triple quotes for safe embedding
+    safe_html = html_code.replace('"""', r'\"\"\"')
     return (
-        'import gradio as gr\n'
-        'import base64\n\n'
+        'import gradio as gr\n\n'
         'def show_html():\n'
-        f'    html_b64 = "{html_b64}"\n'
-        '    html_code = base64.b64decode(html_b64).decode("utf-8")\n'
-        '    return html_code\n\n'
+        f'    return """{safe_html}"""\n\n'
         'demo = gr.Interface(fn=show_html, inputs=None, outputs=gr.HTML())\n\n'
         'if __name__ == "__main__":\n'
         '    demo.launch()\n'
@@ -1224,7 +1217,7 @@ with gr.Blocks(
             label="app name (e.g. my-cool-app)",
             placeholder="Enter your app name",
             lines=1,
-            visible=False
+            visible=True
         )
         sdk_choices = [
             ("Gradio (Python)", "gradio"),
@@ -1235,9 +1228,9 @@ with gr.Blocks(
             choices=[x[0] for x in sdk_choices],
             value="Static (HTML)",
             label="App SDK",
-            visible=False
+            visible=True
         )
-        deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=False)
+        deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=True)
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
         # --- End move ---
         search_toggle = gr.Checkbox(
@@ -1326,26 +1319,17 @@ with gr.Blocks(
         else:
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
 
-    def show_deploy_components(*args):
-        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True), gr.Markdown(visible=True)]
 
-    def hide_deploy_components(*args):
-        return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False), gr.Markdown(visible=False)]
 
     btn.click(
         generation_code,
         inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state],
         outputs=[code_output, history, sandbox, history_output]
-    ).then(
-        show_deploy_components,
-        None,
-        [space_name_input, sdk_dropdown, deploy_btn, deploy_status]
     )
     # Update preview when code or language changes
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
-    clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn, deploy_status])
 
     # Deploy to Spaces logic
 
@@ -1358,8 +1342,6 @@ with gr.Blocks(
     ):
         if not code or not code.strip():
             return gr.update(value="No code to deploy.", visible=True)
-        if not space_name or not space_name.strip():
-            return gr.update(value="Please enter a valid app name.", visible=True)
         if profile is None or token is None:
             return gr.update(value="Please log in with your Hugging Face account to deploy to your own Space. Otherwise, use the default deploy (opens in new tab).", visible=True)
         username = profile.username
@@ -1371,12 +1353,9 @@ with gr.Blocks(
             "Static (HTML)": "static"
         }
         sdk = sdk_map.get(sdk_name, "gradio")
-        if not sdk:
-            return gr.update(value="Invalid SDK selection. Please choose a valid SDK.", visible=True)
         api = HfApi(token=token.token)
         # Create the Space if it doesn't exist
         try:
-            print(f"Creating Space {repo_id} with SDK {sdk}")
             api.create_repo(
                 repo_id=repo_id,  # e.g. username/space_name
                 repo_type="space",
@@ -1384,29 +1363,11 @@ with gr.Blocks(
                 exist_ok=True  # Don't error if it already exists
             )
         except Exception as e:
-            print(f"Error creating Space: {e}")
             return gr.update(value=f"Error creating Space: {e}", visible=True)
         # Save code to a temporary file
         if sdk == "static":
             file_name = "index.html"
-            # Ensure the code is properly formatted for static HTML deployment
-            if not code.strip().startswith('<!DOCTYPE html>') and not code.strip().startswith('<html'):
-                # Wrap in basic HTML structure if not already present
-                code = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generated App</title>
-</head>
-<body>
-{code}
-</body>
-</html>"""
-            with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding='utf-8') as f:
-                f.write(code)
-                temp_path = f.name
-            files_to_upload = [(temp_path, file_name)]
+            app_code = code
         elif sdk == "docker":  # Streamlit (Python)
             import shutil
             import os
@@ -1485,43 +1446,56 @@ If you have any questions, checkout our [documentation](https://docs.streamlit.i
             # Check if the code is already Python/Gradio code or HTML
             if code.strip().startswith('import gradio') or code.strip().startswith('import gr') or 'gradio' in code.lower():
                 # Code is already Python/Gradio, use it directly
-                app_py = code
+                app_code = code
             else:
                 # Code is HTML, wrap it in a Gradio app structure
-                app_py = wrap_html_in_gradio_app(code)
+                app_code = wrap_html_in_gradio_app(code)
             with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding='utf-8') as f:
-                f.write(app_py)
+                f.write(app_code)
                 temp_path = f.name
             files_to_upload = [(temp_path, file_name)]
-        # Upload all files
+        # Upload the file(s)
         try:
-            for local_path, repo_path in files_to_upload:
-                print(f"Uploading {local_path} to {repo_path} in {repo_id}")
+            if sdk == "docker":  # Streamlit - upload multiple files
+                for local_path, repo_path in files_to_upload:
+                    api.upload_file(
+                        path_or_fileobj=local_path,
+                        path_in_repo=repo_path,
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+            else:  # Gradio or Static - upload single file
                 api.upload_file(
-                    path_or_fileobj=local_path,
-                    path_in_repo=repo_path,
+                    path_or_fileobj=temp_path,
+                    path_in_repo=file_name,
                     repo_id=repo_id,
                     repo_type="space"
                 )
             space_url = f"https://huggingface.co/spaces/{repo_id}"
             return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
         except Exception as e:
-            print(f"Deployment error: {e}")
             return gr.update(value=f"Error uploading file: {e}", visible=True)
         finally:
             # Clean up temporary files
             import os
-            for local_path, _ in files_to_upload:
+            if sdk == "docker":  # Streamlit - clean up multiple files
+                for local_path, _ in files_to_upload:
+                    try:
+                        if os.path.exists(local_path):
+                            os.unlink(local_path)
+                    except Exception as cleanup_error:
+                        print(f"Warning: Could not clean up {local_path}: {cleanup_error}")
+            else:  # Gradio or Static - clean up single file
                 try:
-                    if os.path.exists(local_path):
-                        os.unlink(local_path)
+                    if os.path.exists(temp_path):
+                        os.unlink(temp_path)
                 except Exception as cleanup_error:
-                    print(f"Warning: Could not clean up {local_path}: {cleanup_error}")
+                    print(f"Warning: Could not clean up {temp_path}: {cleanup_error}")
 
     # Connect the deploy button to the new function
     deploy_btn.click(
         deploy_to_user_space,
-        inputs=[code_output, space_name_input, sdk_dropdown],
+        inputs=[code_output, space_name_input, sdk_dropdown, login_button, login_button],
         outputs=deploy_status
     )
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
