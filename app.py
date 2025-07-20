@@ -58,6 +58,71 @@ Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output."""
 
+TRANSFORMERS_JS_SYSTEM_PROMPT = """You are an expert web developer creating a transformers.js application. You will generate THREE separate files: index.html, index.js, and style.css.
+
+IMPORTANT: You MUST output ALL THREE files in the following format:
+
+```html
+<!-- index.html content here -->
+```
+
+```javascript
+// index.js content here
+```
+
+```css
+/* style.css content here */
+```
+
+Requirements:
+1. Create a modern, responsive web application using transformers.js
+2. Use the transformers.js library for AI/ML functionality
+3. Create a clean, professional UI with good user experience
+4. Make the application fully responsive for mobile devices
+5. Use modern CSS practices and JavaScript ES6+ features
+6. Include proper error handling and loading states
+7. Follow accessibility best practices
+
+The index.html should contain the basic HTML structure and link to the CSS and JS files.
+The index.js should contain all the JavaScript logic including transformers.js integration.
+The style.css should contain all the styling for the application.
+
+Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+
+TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert web developer creating a transformers.js application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for transformers.js.
+
+You will generate THREE separate files: index.html, index.js, and style.css.
+
+IMPORTANT: You MUST output ALL THREE files in the following format:
+
+```html
+<!-- index.html content here -->
+```
+
+```javascript
+// index.js content here
+```
+
+```css
+/* style.css content here */
+```
+
+Requirements:
+1. Create a modern, responsive web application using transformers.js
+2. Use the transformers.js library for AI/ML functionality
+3. Use web search to find current best practices and latest transformers.js features
+4. Create a clean, professional UI with good user experience
+5. Make the application fully responsive for mobile devices
+6. Use modern CSS practices and JavaScript ES6+ features
+7. Include proper error handling and loading states
+8. Follow accessibility best practices
+
+The index.html should contain the basic HTML structure and link to the CSS and JS files.
+The index.js should contain all the JavaScript logic including transformers.js integration.
+The style.css should contain all the styling for the application.
+
+Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+
 GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output."""
 
 # System prompt with search capability
@@ -222,6 +287,10 @@ DEMO_LIST = [
     {
         "title": "Search/Replace Example",
         "description": "Generate HTML first, then ask: 'Change the title to My New Title' or 'Add a blue background to the body'"
+    },
+    {
+        "title": "Transformers.js App",
+        "description": "Create a transformers.js application with AI/ML functionality using the transformers.js library"
     }
 ]
 
@@ -330,6 +399,47 @@ def remove_code_block(text):
     if lines[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plSQL', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
         return lines[1] if len(lines) > 1 else ''
     return text.strip()
+
+def parse_transformers_js_output(text):
+    """Parse transformers.js output and extract the three files (index.html, index.js, style.css)"""
+    files = {
+        'index.html': '',
+        'index.js': '',
+        'style.css': ''
+    }
+    
+    # Patterns to match the three code blocks
+    html_pattern = r'```html\s*\n([\s\S]+?)\n```'
+    js_pattern = r'```javascript\s*\n([\s\S]+?)\n```'
+    css_pattern = r'```css\s*\n([\s\S]+?)\n```'
+    
+    # Extract HTML content
+    html_match = re.search(html_pattern, text, re.IGNORECASE)
+    if html_match:
+        files['index.html'] = html_match.group(1).strip()
+    
+    # Extract JavaScript content
+    js_match = re.search(js_pattern, text, re.IGNORECASE)
+    if js_match:
+        files['index.js'] = js_match.group(1).strip()
+    
+    # Extract CSS content
+    css_match = re.search(css_pattern, text, re.IGNORECASE)
+    if css_match:
+        files['style.css'] = css_match.group(1).strip()
+    
+    return files
+
+def format_transformers_js_output(files):
+    """Format the three files into a single display string"""
+    output = []
+    output.append("=== index.html ===")
+    output.append(files['index.html'])
+    output.append("\n=== index.js ===")
+    output.append(files['index.js'])
+    output.append("\n=== style.css ===")
+    output.append(files['style.css'])
+    return '\n'.join(output)
 
 def history_render(history: History):
     return gr.update(visible=True), history
@@ -980,6 +1090,8 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
         # Use language-specific prompt
         if language == "html":
             system_prompt = HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else HTML_SYSTEM_PROMPT
+        elif language == "transformers.js":
+            system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH if enable_search else TRANSFORMERS_JS_SYSTEM_PROMPT
         else:
             system_prompt = GENERIC_SYSTEM_PROMPT_WITH_SEARCH.format(language=language) if enable_search else GENERIC_SYSTEM_PROMPT.format(language=language)
 
@@ -1040,35 +1152,75 @@ This will help me create a better design for you."""
                 chunk.choices[0].delta.content is not None
             ):
                 content += chunk.choices[0].delta.content
-                clean_code = remove_code_block(content)
                 search_status = " (with web search)" if enable_search and tavily_client else ""
-                if has_existing_html:
-                    # Fallback: If the model returns a full HTML file, use it directly
-                    if clean_code.strip().startswith("<!DOCTYPE html>") or clean_code.strip().startswith("<html"):
+                
+                # Handle transformers.js output differently
+                if language == "transformers.js":
+                    files = parse_transformers_js_output(content)
+                    if files['index.html'] and files['index.js'] and files['style.css']:
+                        formatted_output = format_transformers_js_output(files)
+                        yield {
+                            code_output: gr.update(value=formatted_output, language="html"),
+                            history_output: history_to_chatbot_messages(_history),
+                            sandbox: send_to_sandbox(files['index.html']) if files['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                        }
+                    else:
+                        # Still streaming, show partial content
+                        yield {
+                            code_output: gr.update(value=content, language="html"),
+                            history_output: history_to_chatbot_messages(_history),
+                            sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Generating transformers.js app...</div>",
+                        }
+                else:
+                    clean_code = remove_code_block(content)
+                    if has_existing_html:
+                        # Fallback: If the model returns a full HTML file, use it directly
+                        if clean_code.strip().startswith("<!DOCTYPE html>") or clean_code.strip().startswith("<html"):
+                            yield {
+                                code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
+                                history_output: history_to_chatbot_messages(_history),
+                                sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                            }
+                        else:
+                            last_html = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
+                            modified_html = apply_search_replace_changes(last_html, clean_code)
+                            clean_html = remove_code_block(modified_html)
+                            yield {
+                                code_output: gr.update(value=clean_html, language=get_gradio_language(language)),
+                                history_output: history_to_chatbot_messages(_history),
+                                sandbox: send_to_sandbox(clean_html) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                            }
+                    else:
                         yield {
                             code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                             history_output: history_to_chatbot_messages(_history),
                             sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                         }
-                    else:
-                        last_html = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
-                        modified_html = apply_search_replace_changes(last_html, clean_code)
-                        clean_html = remove_code_block(modified_html)
-                        yield {
-                            code_output: gr.update(value=clean_html, language=get_gradio_language(language)),
-                            history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_to_sandbox(clean_html) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                        }
-                else:
-                    yield {
-                        code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
-                        history_output: history_to_chatbot_messages(_history),
-                        sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                    }
             # Skip chunks with empty choices (end of stream)
             # Do not treat as error
         # Handle response based on whether this is a modification or new generation
-        if has_existing_html:
+        if language == "transformers.js":
+            # Handle transformers.js output
+            files = parse_transformers_js_output(content)
+            if files['index.html'] and files['index.js'] and files['style.css']:
+                formatted_output = format_transformers_js_output(files)
+                _history.append([query, formatted_output])
+                yield {
+                    code_output: formatted_output,
+                    history: _history,
+                    sandbox: send_to_sandbox(files['index.html']),
+                    history_output: history_to_chatbot_messages(_history),
+                }
+            else:
+                # Fallback if parsing failed
+                _history.append([query, content])
+                yield {
+                    code_output: content,
+                    history: _history,
+                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Error parsing transformers.js output. Please try again.</div>",
+                    history_output: history_to_chatbot_messages(_history),
+                }
+        elif has_existing_html:
             # Fallback: If the model returns a full HTML file, use it directly
             final_code = remove_code_block(content)
             if final_code.strip().startswith("<!DOCTYPE html>") or final_code.strip().startswith("<html"):
@@ -1186,7 +1338,7 @@ with gr.Blocks(
         )
         # Language dropdown for code generation
         language_choices = [
-            "html", "python", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
+            "html", "python", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper", "transformers.js"
         ]
         language_dropdown = gr.Dropdown(
             choices=language_choices,
@@ -1222,7 +1374,8 @@ with gr.Blocks(
         sdk_choices = [
             ("Gradio (Python)", "gradio"),
             ("Streamlit (Python)", "streamlit"),
-            ("Static (HTML)", "static")
+            ("Static (HTML)", "static"),
+            ("Transformers.js", "transformers.js")
         ]
         sdk_dropdown = gr.Dropdown(
             choices=[x[0] for x in sdk_choices],
@@ -1293,11 +1446,27 @@ with gr.Blocks(
     def update_code_language(language):
         return gr.update(language=get_gradio_language(language))
 
+    def update_sdk_based_on_language(language):
+        if language == "transformers.js":
+            return gr.update(value="Transformers.js")
+        elif language == "html":
+            return gr.update(value="Static (HTML)")
+        else:
+            return gr.update(value="Gradio (Python)")
+
     language_dropdown.change(update_code_language, inputs=language_dropdown, outputs=code_output)
+    language_dropdown.change(update_sdk_based_on_language, inputs=language_dropdown, outputs=sdk_dropdown)
 
     def preview_logic(code, language):
         if language == "html":
             return send_to_sandbox(code)
+        elif language == "transformers.js":
+            # For transformers.js, extract the HTML part for preview
+            files = parse_transformers_js_output(code)
+            if files['index.html']:
+                return send_to_sandbox(files['index.html'])
+            else:
+                return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
         else:
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
 
@@ -1342,7 +1511,8 @@ with gr.Blocks(
         sdk_map = {
             "Gradio (Python)": "gradio",
             "Streamlit (Python)": "docker",  # Use 'docker' for Streamlit Spaces
-            "Static (HTML)": "static"
+            "Static (HTML)": "static",
+            "Transformers.js": "static"  # Transformers.js uses static SDK
         }
         sdk = sdk_map.get(sdk_name, "gradio")
         api = HfApi(token=token.token)
@@ -1394,6 +1564,87 @@ with gr.Blocks(
                     
             except Exception as e:
                 return gr.update(value=f"Error duplicating Streamlit space: {e}", visible=True)
+        # Transformers.js logic
+        elif sdk_name == "Transformers.js":
+            try:
+                # Use duplicate_space to create a transformers.js template space
+                from huggingface_hub import duplicate_space
+                
+                # Duplicate the transformers.js template space
+                duplicated_repo = duplicate_space(
+                    from_id="static-templates/transformers.js",
+                    to_id=space_name.strip(),
+                    token=token.token,
+                    exist_ok=True
+                )
+                
+                # Parse the transformers.js output to get the three files
+                files = parse_transformers_js_output(code)
+                
+                if not files['index.html'] or not files['index.js'] or not files['style.css']:
+                    return gr.update(value="Error: Could not parse transformers.js output. Please regenerate the code.", visible=True)
+                
+                # Upload the three files to the duplicated space
+                import tempfile
+                
+                # Upload index.html
+                with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+                    f.write(files['index.html'])
+                    temp_path = f.name
+                
+                try:
+                    api.upload_file(
+                        path_or_fileobj=temp_path,
+                        path_in_repo="index.html",
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+                except Exception as e:
+                    return gr.update(value=f"Error uploading index.html: {e}", visible=True)
+                finally:
+                    import os
+                    os.unlink(temp_path)
+                
+                # Upload index.js
+                with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
+                    f.write(files['index.js'])
+                    temp_path = f.name
+                
+                try:
+                    api.upload_file(
+                        path_or_fileobj=temp_path,
+                        path_in_repo="index.js",
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+                except Exception as e:
+                    return gr.update(value=f"Error uploading index.js: {e}", visible=True)
+                finally:
+                    import os
+                    os.unlink(temp_path)
+                
+                # Upload style.css
+                with tempfile.NamedTemporaryFile("w", suffix=".css", delete=False) as f:
+                    f.write(files['style.css'])
+                    temp_path = f.name
+                
+                try:
+                    api.upload_file(
+                        path_or_fileobj=temp_path,
+                        path_in_repo="style.css",
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+                    space_url = f"https://huggingface.co/spaces/{repo_id}"
+                    return gr.update(value=f"✅ Deployed! [Open your Transformers.js Space here]({space_url})", visible=True)
+                except Exception as e:
+                    return gr.update(value=f"Error uploading style.css: {e}", visible=True)
+                finally:
+                    import os
+                    os.unlink(temp_path)
+                    
+            except Exception as e:
+                return gr.update(value=f"Error duplicating Transformers.js space: {e}", visible=True)
         # Other SDKs (existing logic)
         if sdk == "static":
             file_name = "index.html"
