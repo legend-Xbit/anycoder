@@ -1346,102 +1346,54 @@ with gr.Blocks(
         }
         sdk = sdk_map.get(sdk_name, "gradio")
         api = HfApi(token=token.token)
-        # Create the Space if it doesn't exist
-        try:
-            api.create_repo(
-                repo_id=repo_id,  # e.g. username/space_name
-                repo_type="space",
-                space_sdk=sdk,  # Use selected SDK
-                exist_ok=True  # Don't error if it already exists
-            )
-        except Exception as e:
-            return gr.update(value=f"Error creating Space: {e}", visible=True)
+        # Create the Space if it doesn't exist (only for non-Streamlit spaces)
+        if sdk != "docker":
+            try:
+                api.create_repo(
+                    repo_id=repo_id,  # e.g. username/space_name
+                    repo_type="space",
+                    space_sdk=sdk,  # Use selected SDK
+                    exist_ok=True  # Don't error if it already exists
+                )
+            except Exception as e:
+                return gr.update(value=f"Error creating Space: {e}", visible=True)
         # Streamlit/docker logic
         if sdk == "docker":
-            import tempfile, os
-            temp_dir = tempfile.mkdtemp()
             try:
-                # 1. Write requirements.txt
-                reqs = "altair\npandas\nstreamlit\n"
-                req_path = os.path.join(temp_dir, "requirements.txt")
-                with open(req_path, "w") as f:
-                    f.write(reqs)
-                # 2. Write src/streamlit_app.py
-                src_dir = os.path.join(temp_dir, "src")
-                os.makedirs(src_dir, exist_ok=True)
-                app_path = os.path.join(src_dir, "streamlit_app.py")
-                with open(app_path, "w") as f:
+                # Use duplicate_space to create a Streamlit template space
+                from huggingface_hub import duplicate_space
+                
+                # Duplicate the streamlit template space
+                duplicated_repo = duplicate_space(
+                    from_id="streamlit/streamlit-template-space",
+                    to_id=space_name.strip(),
+                    token=token.token,
+                    exist_ok=True
+                )
+                
+                # Upload the user's code to the duplicated space
+                import tempfile
+                with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
                     f.write(code)
-                # 3. Write Dockerfile
-                dockerfile_content = '''FROM python:3.9-slim
-WORKDIR /app
-RUN apt-get update && apt-get install -y \\
-    build-essential \\
-    curl \\
-    software-properties-common \\
-    git \\
-    && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt ./
-COPY src/ ./src/
-RUN pip3 install -r requirements.txt
-EXPOSE 8501
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
-ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-'''
-                dockerfile_path = os.path.join(temp_dir, "Dockerfile")
-                with open(dockerfile_path, "w") as f:
-                    f.write(dockerfile_content)
-                # 4. Write README.md in the required format
-                readme_content = f'''---
-title: {space_name.strip()}
-emoji: 🚀
-colorFrom: red
-colorTo: red
-sdk: docker
-app_port: 8501
-tags:
-- streamlit
-pinned: false
-short_description: Streamlit template space
----
-# Welcome to Streamlit!
-Edit `/src/streamlit_app.py` to customize this app to your heart's desire. :heart:
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community\nforums](https://discuss.streamlit.io).
-'''
-                readme_path = os.path.join(temp_dir, "README.md")
-                with open(readme_path, "w") as f:
-                    f.write(readme_content)
-                # Upload all four files
-                api.upload_file(
-                    path_or_fileobj=req_path,
-                    path_in_repo="requirements.txt",
-                    repo_id=repo_id,
-                    repo_type="space"
-                )
-                api.upload_file(
-                    path_or_fileobj=app_path,
-                    path_in_repo="src/streamlit_app.py",
-                    repo_id=repo_id,
-                    repo_type="space"
-                )
-                api.upload_file(
-                    path_or_fileobj=dockerfile_path,
-                    path_in_repo="Dockerfile",
-                    repo_id=repo_id,
-                    repo_type="space"
-                )
-                api.upload_file(
-                    path_or_fileobj=readme_path,
-                    path_in_repo="README.md",
-                    repo_id=repo_id,
-                    repo_type="space"
-                )
-                space_url = f"https://huggingface.co/spaces/{repo_id}"
-                return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+                    temp_path = f.name
+                
+                try:
+                    api.upload_file(
+                        path_or_fileobj=temp_path,
+                        path_in_repo="src/streamlit_app.py",
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+                    space_url = f"https://huggingface.co/spaces/{repo_id}"
+                    return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+                except Exception as e:
+                    return gr.update(value=f"Error uploading Streamlit app: {e}", visible=True)
+                finally:
+                    import os
+                    os.unlink(temp_path)
+                    
             except Exception as e:
-                return gr.update(value=f"Error uploading Streamlit files: {e}", visible=True)
-            finally:
-                shutil.rmtree(temp_dir, ignore_errors=True)
+                return gr.update(value=f"Error duplicating Streamlit space: {e}", visible=True)
         # Other SDKs (existing logic)
         if sdk == "static":
             file_name = "index.html"
