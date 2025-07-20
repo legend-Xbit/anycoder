@@ -1265,8 +1265,19 @@ with gr.Blocks(
                 if m['name'] == model_name:
                     return m, update_image_input_visibility(m)
             return AVAILABLE_MODELS[0], update_image_input_visibility(AVAILABLE_MODELS[0])
+        
+        def on_sdk_change(sdk_name):
+            # Automatically set language based on SDK selection
+            if sdk_name == "Gradio (Python)":
+                return gr.update(value="python"), gr.update(language="python")
+            elif sdk_name == "Streamlit (Python)":
+                return gr.update(value="python"), gr.update(language="python")
+            else:  # Static (HTML)
+                return gr.update(value="html"), gr.update(language="html")
+        
         def save_prompt(input):
             return {setting: {"system": input}}
+        
         model_dropdown.change(
             lambda model_name: on_model_change(model_name),
             inputs=model_dropdown,
@@ -1294,6 +1305,13 @@ with gr.Blocks(
         return gr.update(language=get_gradio_language(language))
 
     language_dropdown.change(update_code_language, inputs=language_dropdown, outputs=code_output)
+    
+    # Add SDK change handler after code_output is defined
+    sdk_dropdown.change(
+        on_sdk_change,
+        inputs=sdk_dropdown,
+        outputs=[language_dropdown, code_output]
+    )
 
     def preview_logic(code, language):
         if language == "html":
@@ -1435,10 +1453,17 @@ If you have any questions, checkout our [documentation](https://docs.streamlit.i
                 (app_py_path, "src/streamlit_app.py"),
                 (readme_path, "README.md"),
             ]
-        else:
+        else:  # Gradio (Python)
             file_name = "app.py"
+            # Check if the code is already Python/Gradio code or HTML
+            if code.strip().startswith('import gradio') or code.strip().startswith('import gr') or 'gradio' in code.lower():
+                # Code is already Python/Gradio, use it directly
+                app_py = code
+            else:
+                # Code is HTML, wrap it in a Gradio app structure
+                app_py = wrap_html_in_gradio_app(code)
             with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-                f.write(code)
+                f.write(app_py)
                 temp_path = f.name
             files_to_upload = [(temp_path, file_name)]
         # Upload all files
