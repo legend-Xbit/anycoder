@@ -1217,7 +1217,7 @@ with gr.Blocks(
             label="app name (e.g. my-cool-app)",
             placeholder="Enter your app name",
             lines=1,
-            visible=True
+            visible=False
         )
         sdk_choices = [
             ("Gradio (Python)", "gradio"),
@@ -1228,9 +1228,9 @@ with gr.Blocks(
             choices=[x[0] for x in sdk_choices],
             value="Static (HTML)",
             label="App SDK",
-            visible=True
+            visible=False
         )
-        deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=True)
+        deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=False)
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
         # --- End move ---
         search_toggle = gr.Checkbox(
@@ -1265,19 +1265,8 @@ with gr.Blocks(
                 if m['name'] == model_name:
                     return m, update_image_input_visibility(m)
             return AVAILABLE_MODELS[0], update_image_input_visibility(AVAILABLE_MODELS[0])
-        
-        def on_sdk_change(sdk_name):
-            # Automatically set language based on SDK selection
-            if sdk_name == "Gradio (Python)":
-                return gr.update(value="python"), gr.update(language="python")
-            elif sdk_name == "Streamlit (Python)":
-                return gr.update(value="python"), gr.update(language="python")
-            else:  # Static (HTML)
-                return gr.update(value="html"), gr.update(language="html")
-        
         def save_prompt(input):
             return {setting: {"system": input}}
-        
         model_dropdown.change(
             lambda model_name: on_model_change(model_name),
             inputs=model_dropdown,
@@ -1305,13 +1294,6 @@ with gr.Blocks(
         return gr.update(language=get_gradio_language(language))
 
     language_dropdown.change(update_code_language, inputs=language_dropdown, outputs=code_output)
-    
-    # Add SDK change handler after code_output is defined
-    sdk_dropdown.change(
-        on_sdk_change,
-        inputs=sdk_dropdown,
-        outputs=[language_dropdown, code_output]
-    )
 
     def preview_logic(code, language):
         if language == "html":
@@ -1319,17 +1301,26 @@ with gr.Blocks(
         else:
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
 
+    def show_deploy_components(*args):
+        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
 
+    def hide_deploy_components(*args):
+        return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False)]
 
     btn.click(
         generation_code,
         inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state],
         outputs=[code_output, history, sandbox, history_output]
+    ).then(
+        show_deploy_components,
+        None,
+        [space_name_input, sdk_dropdown, deploy_btn]
     )
     # Update preview when code or language changes
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
+    clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn])
 
     # Deploy to Spaces logic
 
@@ -1367,135 +1358,28 @@ with gr.Blocks(
         # Save code to a temporary file
         if sdk == "static":
             file_name = "index.html"
-            app_code = code
-        elif sdk == "docker":  # Streamlit (Python)
-            import shutil
-            import os
-            import tempfile
-            # Create a temp dir for the structure
-            temp_dir = tempfile.mkdtemp()
-            # 1. Write requirements.txt
-            reqs = "altair\npandas\nstreamlit\n"
-            req_path = os.path.join(temp_dir, "requirements.txt")
-            with open(req_path, "w") as f:
-                f.write(reqs)
-            # 2. Write Dockerfile (EXACT content as screenshot, with proper line breaks)
-            dockerfile_content = '''FROM python:3.9-slim
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y \\
-    build-essential \\
-    curl \\
-    software-properties-common \\
-    git \\
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt ./
-COPY src/ ./src/
-
-RUN pip3 install -r requirements.txt
-
-EXPOSE 8501
-
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
-
-ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
-'''
-            dockerfile_path = os.path.join(temp_dir, "Dockerfile")
-            with open(dockerfile_path, "w", encoding="utf-8", newline="\n") as f:
-                f.write(dockerfile_content)
-            # 3. Write src/streamlit_app.py
-            src_dir = os.path.join(temp_dir, "src")
-            os.makedirs(src_dir, exist_ok=True)
-            app_py_path = os.path.join(src_dir, "streamlit_app.py")
-            with open(app_py_path, "w") as f:
-                f.write(code)
-            # 4. Write README.md in the required format
-            readme_content = f'''---
-title: {space_name.strip()}
-emoji: 🚀
-colorFrom: red
-colorTo: red
-sdk: docker
-app_port: 8501
-tags:
-- streamlit
-pinned: false
-short_description: Streamlit template space
----
-
-# Welcome to Streamlit!
-
-Edit `/src/streamlit_app.py` to customize this app to your heart's desire. :heart:
-
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community forums](https://discuss.streamlit.io).
-'''
-            readme_path = os.path.join(temp_dir, "README.md")
-            with open(readme_path, "w", encoding="utf-8") as f:
-                f.write(readme_content)
-            # Prepare files to upload
-            files_to_upload = [
-                (req_path, "requirements.txt"),
-                (dockerfile_path, "Dockerfile"),
-                (app_py_path, "src/streamlit_app.py"),
-                (readme_path, "README.md"),
-            ]
-        else:  # Gradio (Python)
+        else:
             file_name = "app.py"
-            # Check if the code is already Python/Gradio code or HTML
-            if code.strip().startswith('import gradio') or code.strip().startswith('import gr') or 'gradio' in code.lower():
-                # Code is already Python/Gradio, use it directly
-                app_code = code
-            else:
-                # Code is HTML, wrap it in a Gradio app structure
-                app_code = wrap_html_in_gradio_app(code)
-            with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding='utf-8') as f:
-                f.write(app_code)
-                temp_path = f.name
-            files_to_upload = [(temp_path, file_name)]
-        # Upload the file(s)
+        with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        # Upload the file
         try:
-            if sdk == "docker":  # Streamlit - upload multiple files
-                for local_path, repo_path in files_to_upload:
-                    api.upload_file(
-                        path_or_fileobj=local_path,
-                        path_in_repo=repo_path,
-                        repo_id=repo_id,
-                        repo_type="space"
-                    )
-            else:  # Gradio or Static - upload single file
-                api.upload_file(
-                    path_or_fileobj=temp_path,
-                    path_in_repo=file_name,
-                    repo_id=repo_id,
-                    repo_type="space"
-                )
+            api.upload_file(
+                path_or_fileobj=temp_path,
+                path_in_repo=file_name,
+                repo_id=repo_id,
+                repo_type="space"
+            )
             space_url = f"https://huggingface.co/spaces/{repo_id}"
             return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
         except Exception as e:
             return gr.update(value=f"Error uploading file: {e}", visible=True)
-        finally:
-            # Clean up temporary files
-            import os
-            if sdk == "docker":  # Streamlit - clean up multiple files
-                for local_path, _ in files_to_upload:
-                    try:
-                        if os.path.exists(local_path):
-                            os.unlink(local_path)
-                    except Exception as cleanup_error:
-                        print(f"Warning: Could not clean up {local_path}: {cleanup_error}")
-            else:  # Gradio or Static - clean up single file
-                try:
-                    if os.path.exists(temp_path):
-                        os.unlink(temp_path)
-                except Exception as cleanup_error:
-                    print(f"Warning: Could not clean up {temp_path}: {cleanup_error}")
 
     # Connect the deploy button to the new function
     deploy_btn.click(
         deploy_to_user_space,
-        inputs=[code_output, space_name_input, sdk_dropdown, login_button, login_button],
+        inputs=[code_output, space_name_input, sdk_dropdown],
         outputs=deploy_status
     )
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
