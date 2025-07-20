@@ -316,7 +316,7 @@ def remove_code_block(text):
         if match:
             extracted = match.group(1).strip()
             # Remove a leading language marker line (e.g., 'python') if present
-            if extracted.split('\n', 1)[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plsql', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
+            if extracted.split('\n', 1)[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plSQL', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
                 return extracted.split('\n', 1)[1] if '\n' in extracted else ''
             return extracted
     # If no code block is found, check if the entire text is HTML
@@ -327,7 +327,7 @@ def remove_code_block(text):
         return text.strip()[9:-3].strip()
     # Remove a leading language marker line if present (fallback)
     lines = text.strip().split('\n', 1)
-    if lines[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plsql', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
+    if lines[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plSQL', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
         return lines[1] if len(lines) > 1 else ''
     return text.strip()
 
@@ -1331,6 +1331,7 @@ with gr.Blocks(
         profile: gr.OAuthProfile | None = None, 
         token: gr.OAuthToken | None = None
     ):
+        import shutil
         if not code or not code.strip():
             return gr.update(value="No code to deploy.", visible=True)
         if profile is None or token is None:
@@ -1355,15 +1356,101 @@ with gr.Blocks(
             )
         except Exception as e:
             return gr.update(value=f"Error creating Space: {e}", visible=True)
-        # Save code to a temporary file
+        # Streamlit/docker logic
+        if sdk == "docker":
+            import tempfile, os
+            temp_dir = tempfile.mkdtemp()
+            try:
+                # 1. Write requirements.txt
+                reqs = "altair\npandas\nstreamlit\n"
+                req_path = os.path.join(temp_dir, "requirements.txt")
+                with open(req_path, "w") as f:
+                    f.write(reqs)
+                # 2. Write src/streamlit_app.py
+                src_dir = os.path.join(temp_dir, "src")
+                os.makedirs(src_dir, exist_ok=True)
+                app_path = os.path.join(src_dir, "streamlit_app.py")
+                with open(app_path, "w") as f:
+                    f.write(code)
+                # 3. Write Dockerfile
+                dockerfile_content = '''FROM python:3.9-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y \\
+    build-essential \\
+    curl \\
+    software-properties-common \\
+    git \\
+    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt ./
+COPY src/ ./src/
+RUN pip3 install -r requirements.txt
+EXPOSE 8501
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+ENTRYPOINT ["streamlit", "run", "src/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+'''
+                dockerfile_path = os.path.join(temp_dir, "Dockerfile")
+                with open(dockerfile_path, "w") as f:
+                    f.write(dockerfile_content)
+                # 4. Write README.md in the required format
+                readme_content = f'''---
+title: {space_name.strip()}
+emoji: 🚀
+colorFrom: red
+colorTo: red
+sdk: docker
+app_port: 8501
+tags:
+- streamlit
+pinned: false
+short_description: Streamlit template space
+---
+# Welcome to Streamlit!
+Edit `/src/streamlit_app.py` to customize this app to your heart's desire. :heart:
+If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community\nforums](https://discuss.streamlit.io).
+'''
+                readme_path = os.path.join(temp_dir, "README.md")
+                with open(readme_path, "w") as f:
+                    f.write(readme_content)
+                # Upload all four files
+                api.upload_file(
+                    path_or_fileobj=req_path,
+                    path_in_repo="requirements.txt",
+                    repo_id=repo_id,
+                    repo_type="space"
+                )
+                api.upload_file(
+                    path_or_fileobj=app_path,
+                    path_in_repo="src/streamlit_app.py",
+                    repo_id=repo_id,
+                    repo_type="space"
+                )
+                api.upload_file(
+                    path_or_fileobj=dockerfile_path,
+                    path_in_repo="Dockerfile",
+                    repo_id=repo_id,
+                    repo_type="space"
+                )
+                api.upload_file(
+                    path_or_fileobj=readme_path,
+                    path_in_repo="README.md",
+                    repo_id=repo_id,
+                    repo_type="space"
+                )
+                space_url = f"https://huggingface.co/spaces/{repo_id}"
+                return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+            except Exception as e:
+                return gr.update(value=f"Error uploading Streamlit files: {e}", visible=True)
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+        # Other SDKs (existing logic)
         if sdk == "static":
             file_name = "index.html"
         else:
             file_name = "app.py"
+        import tempfile
         with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
             f.write(code)
             temp_path = f.name
-        # Upload the file
         try:
             api.upload_file(
                 path_or_fileobj=temp_path,
