@@ -1320,10 +1320,10 @@ with gr.Blocks(
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
 
     def show_deploy_components(*args):
-        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
+        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True), gr.Markdown(visible=True)]
 
     def hide_deploy_components(*args):
-        return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False)]
+        return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False), gr.Markdown(visible=False)]
 
     btn.click(
         generation_code,
@@ -1332,13 +1332,13 @@ with gr.Blocks(
     ).then(
         show_deploy_components,
         None,
-        [space_name_input, sdk_dropdown, deploy_btn]
+        [space_name_input, sdk_dropdown, deploy_btn, deploy_status]
     )
     # Update preview when code or language changes
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
-    clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn])
+    clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn, deploy_status])
 
     # Deploy to Spaces logic
 
