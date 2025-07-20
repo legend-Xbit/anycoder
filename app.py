@@ -1104,12 +1104,19 @@ This will help me create a better design for you."""
 # Deploy to Spaces logic
 
 def wrap_html_in_gradio_app(html_code):
-    # Escape triple quotes for safe embedding
-    safe_html = html_code.replace('"""', r'\"\"\"')
+    # Use a more robust approach to handle HTML with quotes
+    import base64
+    # Encode HTML as base64 to avoid quote issues
+    html_bytes = html_code.encode('utf-8')
+    html_b64 = base64.b64encode(html_bytes).decode('utf-8')
+    
     return (
-        'import gradio as gr\n\n'
+        'import gradio as gr\n'
+        'import base64\n\n'
         'def show_html():\n'
-        f'    return """{safe_html}"""\n\n'
+        f'    html_b64 = "{html_b64}"\n'
+        '    html_code = base64.b64decode(html_b64).decode("utf-8")\n'
+        '    return html_code\n\n'
         'demo = gr.Interface(fn=show_html, inputs=None, outputs=gr.HTML())\n\n'
         'if __name__ == "__main__":\n'
         '    demo.launch()\n'
@@ -1351,6 +1358,8 @@ with gr.Blocks(
     ):
         if not code or not code.strip():
             return gr.update(value="No code to deploy.", visible=True)
+        if not space_name or not space_name.strip():
+            return gr.update(value="Please enter a valid app name.", visible=True)
         if profile is None or token is None:
             return gr.update(value="Please log in with your Hugging Face account to deploy to your own Space. Otherwise, use the default deploy (opens in new tab).", visible=True)
         username = profile.username
@@ -1362,9 +1371,12 @@ with gr.Blocks(
             "Static (HTML)": "static"
         }
         sdk = sdk_map.get(sdk_name, "gradio")
+        if not sdk:
+            return gr.update(value="Invalid SDK selection. Please choose a valid SDK.", visible=True)
         api = HfApi(token=token.token)
         # Create the Space if it doesn't exist
         try:
+            print(f"Creating Space {repo_id} with SDK {sdk}")
             api.create_repo(
                 repo_id=repo_id,  # e.g. username/space_name
                 repo_type="space",
@@ -1372,11 +1384,26 @@ with gr.Blocks(
                 exist_ok=True  # Don't error if it already exists
             )
         except Exception as e:
+            print(f"Error creating Space: {e}")
             return gr.update(value=f"Error creating Space: {e}", visible=True)
         # Save code to a temporary file
         if sdk == "static":
             file_name = "index.html"
-            with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+            # Ensure the code is properly formatted for static HTML deployment
+            if not code.strip().startswith('<!DOCTYPE html>') and not code.strip().startswith('<html'):
+                # Wrap in basic HTML structure if not already present
+                code = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated App</title>
+</head>
+<body>
+{code}
+</body>
+</html>"""
+            with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding='utf-8') as f:
                 f.write(code)
                 temp_path = f.name
             files_to_upload = [(temp_path, file_name)]
@@ -1441,7 +1468,7 @@ short_description: Streamlit template space
 
 Edit `/src/streamlit_app.py` to customize this app to your heart's desire. :heart:
 
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community\nforums](https://discuss.streamlit.io).
+If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community forums](https://discuss.streamlit.io).
 '''
             readme_path = os.path.join(temp_dir, "README.md")
             with open(readme_path, "w", encoding="utf-8") as f:
@@ -1462,13 +1489,14 @@ If you have any questions, checkout our [documentation](https://docs.streamlit.i
             else:
                 # Code is HTML, wrap it in a Gradio app structure
                 app_py = wrap_html_in_gradio_app(code)
-            with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding='utf-8') as f:
                 f.write(app_py)
                 temp_path = f.name
             files_to_upload = [(temp_path, file_name)]
         # Upload all files
         try:
             for local_path, repo_path in files_to_upload:
+                print(f"Uploading {local_path} to {repo_path} in {repo_id}")
                 api.upload_file(
                     path_or_fileobj=local_path,
                     path_in_repo=repo_path,
@@ -1478,7 +1506,17 @@ If you have any questions, checkout our [documentation](https://docs.streamlit.i
             space_url = f"https://huggingface.co/spaces/{repo_id}"
             return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
         except Exception as e:
+            print(f"Deployment error: {e}")
             return gr.update(value=f"Error uploading file: {e}", visible=True)
+        finally:
+            # Clean up temporary files
+            import os
+            for local_path, _ in files_to_upload:
+                try:
+                    if os.path.exists(local_path):
+                        os.unlink(local_path)
+                except Exception as cleanup_error:
+                    print(f"Warning: Could not clean up {local_path}: {cleanup_error}")
 
     # Connect the deploy button to the new function
     deploy_btn.click(
