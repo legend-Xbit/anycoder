@@ -428,6 +428,19 @@ def parse_transformers_js_output(text):
     if css_match:
         files['style.css'] = css_match.group(1).strip()
     
+    # Fallback: support === index.html === format if any file is missing
+    if not (files['index.html'] and files['index.js'] and files['style.css']):
+        # Use regex to extract sections
+        html_fallback = re.search(r'===\s*index\.html\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        js_fallback = re.search(r'===\s*index\.js\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        css_fallback = re.search(r'===\s*style\.css\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        if html_fallback:
+            files['index.html'] = html_fallback.group(1).strip()
+        if js_fallback:
+            files['index.js'] = js_fallback.group(1).strip()
+        if css_fallback:
+            files['style.css'] = css_fallback.group(1).strip()
+    
     return files
 
 def format_transformers_js_output(files):
