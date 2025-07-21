@@ -1516,8 +1516,8 @@ with gr.Blocks(
         }
         sdk = sdk_map.get(sdk_name, "gradio")
         api = HfApi(token=token.token)
-        # Create the Space if it doesn't exist (only for non-Streamlit spaces)
-        if sdk != "docker":
+        # Only create the repo for non-Transformers.js and non-Streamlit SDKs
+        if sdk != "docker" and sdk_name != "Transformers.js":
             try:
                 api.create_repo(
                     repo_id=repo_id,  # e.g. username/space_name
