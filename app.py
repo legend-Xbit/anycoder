@@ -1577,6 +1577,7 @@ with gr.Blocks(
                     token=token.token,
                     exist_ok=True
                 )
+                print("Duplicated repo result:", duplicated_repo, type(duplicated_repo))
                 
                 # Parse the transformers.js output to get the three files
                 files = parse_transformers_js_output(code)
