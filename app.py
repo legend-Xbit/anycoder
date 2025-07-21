@@ -1567,11 +1567,8 @@ with gr.Blocks(
         # Transformers.js logic
         elif sdk_name == "Transformers.js":
             try:
-                # Use duplicate_space to create a transformers.js template space
-                from huggingface_hub import duplicate_space
-                
-                # Duplicate the transformers.js template space
-                duplicated_repo = duplicate_space(
+                # Use HfApi().duplicate_space to create a transformers.js template space
+                api.duplicate_space(
                     from_id="static-templates/transformers.js",
                     to_id=space_name.strip(),
                     token=token.token,
