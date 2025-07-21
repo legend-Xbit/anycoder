@@ -1578,7 +1578,8 @@ with gr.Blocks(
                     exist_ok=True
                 )
                 print("Duplicated repo result:", duplicated_repo, type(duplicated_repo))
-                
+                # Show the duplicated space URL immediately for user feedback
+                gr.update(value=f"✅ Space duplicated! [Open your new Space here]({str(duplicated_repo)})", visible=True)
                 # Parse the transformers.js output to get the three files
                 files = parse_transformers_js_output(code)
                 
@@ -1645,7 +1646,7 @@ with gr.Blocks(
                     os.unlink(temp_path)
                     
             except Exception as e:
-                return gr.update(value=f"Error duplicating Transformers.js space: {e}", visible=True)
+                return gr.update(value=f"Error duplicating Transformers.js space: {e}. If this is a RepoUrl object error, ensure you are not accessing a .url attribute and use str(duplicated_repo) for the URL.", visible=True)
         # Other SDKs (existing logic)
         if sdk == "static":
             file_name = "index.html"
