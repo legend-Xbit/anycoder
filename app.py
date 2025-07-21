@@ -1567,8 +1567,11 @@ with gr.Blocks(
         # Transformers.js logic
         elif sdk_name == "Transformers.js":
             try:
-                # Use HfApi().duplicate_space to create a transformers.js template space
-                repo_url = api.duplicate_space(
+                # Use duplicate_space to create a transformers.js template space
+                from huggingface_hub import duplicate_space
+                
+                # Duplicate the transformers.js template space
+                duplicated_repo = duplicate_space(
                     from_id="static-templates/transformers.js",
                     to_id=space_name.strip(),
                     token=token.token,
@@ -1632,7 +1635,7 @@ with gr.Blocks(
                         repo_id=repo_id,
                         repo_type="space"
                     )
-                    space_url = str(repo_url)
+                    space_url = f"https://huggingface.co/spaces/{repo_id}"
                     return gr.update(value=f"✅ Deployed! [Open your Transformers.js Space here]({space_url})", visible=True)
                 except Exception as e:
                     return gr.update(value=f"Error uploading style.css: {e}", visible=True)
