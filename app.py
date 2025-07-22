@@ -513,10 +513,10 @@ def create_multimodal_message(text, image=None):
     
     return {"role": "user", "content": content}
 
-def apply_search_replace_changes(original_html: str, changes_text: str) -> str:
-    """Apply search/replace changes to HTML content"""
+def apply_search_replace_changes(original_content: str, changes_text: str) -> str:
+    """Apply search/replace changes to content (HTML, Python, etc.)"""
     if not changes_text.strip():
-        return original_html
+        return original_content
     
     # Split the changes text into individual search/replace blocks
     blocks = []
@@ -538,7 +538,7 @@ def apply_search_replace_changes(original_html: str, changes_text: str) -> str:
     if current_block.strip():
         blocks.append(current_block.strip())
     
-    modified_html = original_html
+    modified_content = original_content
     
     for block in blocks:
         if not block.strip():
@@ -570,12 +570,12 @@ def apply_search_replace_changes(original_html: str, changes_text: str) -> str:
             search_text = '\n'.join(search_lines).strip()
             replace_text = '\n'.join(replace_lines).strip()
             
-            if search_text in modified_html:
-                modified_html = modified_html.replace(search_text, replace_text)
+            if search_text in modified_content:
+                modified_content = modified_content.replace(search_text, replace_text)
             else:
-                print(f"Warning: Search text not found in HTML: {search_text[:100]}...")
+                print(f"Warning: Search text not found in content: {search_text[:100]}...")
     
-    return modified_html
+    return modified_content
 
 # Updated for faster Tavily search and closer prompt usage
 # Uses 'advanced' search_depth and auto_parameters=True for speed and relevance
@@ -1094,17 +1094,23 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
         _history = []
     _history = [h for h in _history if isinstance(h, list) and len(h) == 2]
 
-    # Check if there's existing HTML content in history to determine if this is a modification request
-    has_existing_html = False
+    # Check if there's existing content in history to determine if this is a modification request
+    has_existing_content = False
     last_assistant_msg = ""
     if _history and len(_history[-1]) > 1:
         last_assistant_msg = _history[-1][1]
-        if '<!DOCTYPE html>' in last_assistant_msg or '<html' in last_assistant_msg:
-            has_existing_html = True
+        # Check for various content types that indicate an existing project
+        if ('<!DOCTYPE html>' in last_assistant_msg or 
+            '<html' in last_assistant_msg or
+            'import gradio' in last_assistant_msg or
+            'import streamlit' in last_assistant_msg or
+            'def ' in last_assistant_msg and 'app' in last_assistant_msg or
+            'IMPORTED PROJECT FROM HUGGING FACE SPACE' in last_assistant_msg):
+            has_existing_content = True
 
     # Choose system prompt based on context
-    if has_existing_html:
-        # Use follow-up prompt for modifying existing HTML
+    if has_existing_content:
+        # Use follow-up prompt for modifying existing content
         system_prompt = FollowUpSystemPrompt
     else:
         # Use language-specific prompt
@@ -1260,22 +1266,24 @@ This will help me create a better design for you."""
                         }
                 else:
                     clean_code = remove_code_block(content)
-                    if has_existing_html:
-                        # Fallback: If the model returns a full HTML file, use it directly
+                    if has_existing_content:
+                        # Handle modification of existing content
                         if clean_code.strip().startswith("<!DOCTYPE html>") or clean_code.strip().startswith("<html"):
+                            # Model returned a complete HTML file
                             yield {
                                 code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                                 history_output: history_to_chatbot_messages(_history),
                                 sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                             }
                         else:
-                            last_html = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
-                            modified_html = apply_search_replace_changes(last_html, clean_code)
-                            clean_html = remove_code_block(modified_html)
+                            # Model returned search/replace changes - apply them
+                            last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
+                            modified_content = apply_search_replace_changes(last_content, clean_code)
+                            clean_content = remove_code_block(modified_content)
                             yield {
-                                code_output: gr.update(value=clean_html, language=get_gradio_language(language)),
+                                code_output: gr.update(value=clean_content, language=get_gradio_language(language)),
                                 history_output: history_to_chatbot_messages(_history),
-                                sandbox: send_to_sandbox(clean_html) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                                sandbox: send_to_sandbox(clean_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                             }
                     else:
                         yield {
@@ -1307,21 +1315,23 @@ This will help me create a better design for you."""
                     sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Error parsing transformers.js output. Please try again.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
-        elif has_existing_html:
-            # Fallback: If the model returns a full HTML file, use it directly
+        elif has_existing_content:
+            # Handle modification of existing content
             final_code = remove_code_block(content)
             if final_code.strip().startswith("<!DOCTYPE html>") or final_code.strip().startswith("<html"):
-                clean_html = final_code
+                # Model returned a complete HTML file
+                clean_content = final_code
             else:
-                last_html = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
-                modified_html = apply_search_replace_changes(last_html, final_code)
-                clean_html = remove_code_block(modified_html)
-            # Update history with the cleaned HTML
-            _history.append([query, clean_html])
+                # Model returned search/replace changes - apply them
+                last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
+                modified_content = apply_search_replace_changes(last_content, final_code)
+                clean_content = remove_code_block(modified_content)
+            # Update history with the cleaned content
+            _history.append([query, clean_content])
             yield {
-                code_output: clean_html,
+                code_output: clean_content,
                 history: _history,
-                sandbox: send_to_sandbox(clean_html),
+                sandbox: send_to_sandbox(clean_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                 history_output: history_to_chatbot_messages(_history),
             }
         else:
@@ -1393,6 +1403,114 @@ def deploy_to_spaces_static(code):
     full_url = f"{base_url}?{params}&{files_params}"
     webbrowser.open_new_tab(full_url)
 
+def check_hf_space_url(url: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    """Check if URL is a valid Hugging Face Spaces URL and extract username/project"""
+    import re
+    
+    # Pattern to match HF Spaces URLs
+    url_pattern = re.compile(
+        r'^(https?://)?(huggingface\.co|hf\.co)/spaces/([\w-]+)/([\w-]+)$',
+        re.IGNORECASE
+    )
+    
+    match = url_pattern.match(url.strip())
+    if match:
+        username = match.group(3)
+        project_name = match.group(4)
+        return True, username, project_name
+    return False, None, None
+
+def fetch_hf_space_content(username: str, project_name: str) -> str:
+    """Fetch content from a Hugging Face Space"""
+    try:
+        import requests
+        from huggingface_hub import HfApi
+        
+        # Try to get space info first
+        api = HfApi()
+        space_info = api.space_info(f"{username}/{project_name}")
+        
+        # Try to fetch the main file based on SDK
+        sdk = space_info.sdk
+        main_file = None
+        
+        if sdk == "static":
+            main_file = "index.html"
+        elif sdk == "gradio":
+            main_file = "app.py"
+        elif sdk == "streamlit":
+            main_file = "streamlit_app.py"
+        else:
+            # Try common files
+            for file in ["app.py", "index.html", "streamlit_app.py", "main.py"]:
+                try:
+                    content = api.hf_hub_download(
+                        repo_id=f"{username}/{project_name}",
+                        filename=file,
+                        repo_type="space"
+                    )
+                    main_file = file
+                    break
+                except:
+                    continue
+        
+        if main_file:
+            content = api.hf_hub_download(
+                repo_id=f"{username}/{project_name}",
+                filename=main_file,
+                repo_type="space"
+            )
+            
+            # Read the file content
+            with open(content, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+            
+            return f"""IMPORTED PROJECT FROM HUGGING FACE SPACE
+==============================================
+
+Space: {username}/{project_name}
+SDK: {sdk}
+Main File: {main_file}
+
+{file_content}"""
+        else:
+            return f"Error: Could not find main file in space {username}/{project_name}"
+            
+    except Exception as e:
+        return f"Error fetching space content: {str(e)}"
+
+def load_project_from_url(url: str) -> Tuple[str, str]:
+    """Load project from Hugging Face Space URL"""
+    # Validate URL
+    is_valid, username, project_name = check_hf_space_url(url)
+    
+    if not is_valid:
+        return "Error: Please enter a valid Hugging Face Spaces URL.\n\nExpected format: https://huggingface.co/spaces/username/project", ""
+    
+    # Fetch content
+    content = fetch_hf_space_content(username, project_name)
+    
+    if content.startswith("Error:"):
+        return content, ""
+    
+    # Extract the actual code content by removing metadata
+    lines = content.split('\n')
+    code_start = 0
+    for i, line in enumerate(lines):
+        # Skip metadata lines and find the start of actual code
+        if (line.strip() and 
+            not line.startswith('=') and 
+            not line.startswith('IMPORTED PROJECT') and
+            not line.startswith('Space:') and
+            not line.startswith('SDK:') and
+            not line.startswith('Main File:')):
+            code_start = i
+            break
+    
+    code_content = '\n'.join(lines[code_start:])
+    
+    return f"✅ Successfully imported project from {username}/{project_name}", code_content
+
 # Main application
 with gr.Blocks(
     theme=gr.themes.Base(
@@ -1417,6 +1535,20 @@ with gr.Blocks(
 
     with gr.Sidebar():
         login_button = gr.LoginButton()
+        
+        # Add Load Project section
+        with gr.Group():
+            gr.Markdown("**📥 Load Existing Project**")
+            load_project_url = gr.Textbox(
+                label="Hugging Face Space URL",
+                placeholder="https://huggingface.co/spaces/username/project",
+                lines=1
+            )
+            load_project_btn = gr.Button("Import Project", variant="secondary", size="sm")
+            load_project_status = gr.Markdown(visible=False)
+        
+        gr.Markdown("---")
+        
         input = gr.Textbox(
             label="What would you like to build?",
             placeholder="Describe your application...",
@@ -1529,6 +1661,44 @@ with gr.Blocks(
             with gr.Tab("History"):
                 history_output = gr.Chatbot(show_label=False, height=400, type="messages")
 
+    # Load project function
+    def handle_load_project(url):
+        if not url.strip():
+            return gr.update(value="Please enter a URL.", visible=True)
+        
+        status, code = load_project_from_url(url)
+        
+        if code:
+            # Extract space info for deployment
+            is_valid, username, project_name = check_hf_space_url(url)
+            space_info = f"{username}/{project_name}" if is_valid else ""
+            
+            # Success - update the code output and show success message
+            # Also update history to include the loaded project
+            loaded_history = [[f"Loaded project from {url}", code]]
+            return [
+                gr.update(value=status, visible=True),
+                gr.update(value=code, language="html"),
+                gr.update(value=send_to_sandbox(code) if code.strip().startswith('<!DOCTYPE html>') or code.strip().startswith('<html') else "<div style='padding:1em;color:#888;text-align:center;'>Preview not available for this file type.</div>"),
+                gr.update(value=""),
+                loaded_history,
+                history_to_chatbot_messages(loaded_history),
+                gr.update(value=space_info, visible=True),  # Update space name with loaded project
+                gr.update(value="Update Existing Space", visible=True)  # Change button text
+            ]
+        else:
+            # Error - just show error message
+            return [
+                gr.update(value=status, visible=True),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                [],
+                [],
+                gr.update(value="", visible=False),
+                gr.update(value="🚀 Deploy App", visible=False)
+            ]
+
     # Event handlers
     def update_code_language(language):
         return gr.update(language=get_gradio_language(language))
@@ -1563,6 +1733,13 @@ with gr.Blocks(
     def hide_deploy_components(*args):
         return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False)]
 
+    # Load project button event
+    load_project_btn.click(
+        handle_load_project,
+        inputs=[load_project_url],
+        outputs=[load_project_status, code_output, sandbox, load_project_url, history, history_output, space_name_input, deploy_btn]
+    )
+
     btn.click(
         generation_code,
         inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state],
@@ -1577,6 +1754,11 @@ with gr.Blocks(
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
     clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn])
+    # Reset space name and button text when clearing
+    clear_btn.click(
+        lambda: [gr.update(value=""), gr.update(value="🚀 Deploy App")],
+        outputs=[space_name_input, deploy_btn]
+    )
 
     # Deploy to Spaces logic
 
@@ -1592,8 +1774,34 @@ with gr.Blocks(
             return gr.update(value="No code to deploy.", visible=True)
         if profile is None or token is None:
             return gr.update(value="Please log in with your Hugging Face account to deploy to your own Space. Otherwise, use the default deploy (opens in new tab).", visible=True)
-        username = profile.username
-        repo_id = f"{username}/{space_name.strip()}"
+        
+        # Check if token has write permissions
+        if not token.token or token.token == "hf_":
+            return gr.update(value="Error: Invalid token. Please log in again with your Hugging Face account to get a valid write token.", visible=True)
+        
+        # Check if this is an update to an existing space (contains /)
+        is_update = "/" in space_name.strip()
+        if is_update:
+            # This is an existing space, use the provided space_name as repo_id
+            repo_id = space_name.strip()
+            # Extract username from repo_id for permission check
+            space_username = repo_id.split('/')[0]
+            if space_username != profile.username:
+                return gr.update(value=f"Error: You can only update your own spaces. This space belongs to {space_username}.", visible=True)
+            
+            # Verify the user has write access to this space
+            try:
+                api = HfApi(token=token.token)
+                # Try to get space info to verify access
+                space_info = api.space_info(repo_id)
+                if not space_info:
+                    return gr.update(value=f"Error: Could not access space {repo_id}. Please check your permissions.", visible=True)
+            except Exception as e:
+                return gr.update(value=f"Error: No write access to space {repo_id}. Please ensure you have the correct permissions. Error: {str(e)}", visible=True)
+        else:
+            # This is a new space, create repo_id with current user
+            username = profile.username
+            repo_id = f"{username}/{space_name.strip()}"
         # Map SDK name to HF SDK slug
         sdk_map = {
             "Gradio (Python)": "gradio",
@@ -1602,9 +1810,11 @@ with gr.Blocks(
             "Transformers.js": "static"  # Transformers.js uses static SDK
         }
         sdk = sdk_map.get(sdk_name, "gradio")
+        
+        # Create API client with user's token for proper authentication
         api = HfApi(token=token.token)
-        # Only create the repo for non-Transformers.js and non-Streamlit SDKs
-        if sdk != "docker" and sdk_name != "Transformers.js":
+        # Only create the repo for new spaces (not updates) and non-Transformers.js and non-Streamlit SDKs
+        if not is_update and sdk != "docker" and sdk_name != "Transformers.js":
             try:
                 api.create_repo(
                     repo_id=repo_id,  # e.g. username/space_name
@@ -1615,7 +1825,7 @@ with gr.Blocks(
             except Exception as e:
                 return gr.update(value=f"Error creating Space: {e}", visible=True)
         # Streamlit/docker logic
-        if sdk == "docker":
+        if sdk == "docker" and not is_update:
             try:
                 # Use duplicate_space to create a Streamlit template space
                 from huggingface_hub import duplicate_space
@@ -1642,9 +1852,14 @@ with gr.Blocks(
                         repo_type="space"
                     )
                     space_url = f"https://huggingface.co/spaces/{repo_id}"
-                    return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+                    action_text = "Updated" if is_update else "Deployed"
+                    return gr.update(value=f"✅ {action_text}! [Open your Space here]({space_url})", visible=True)
                 except Exception as e:
-                    return gr.update(value=f"Error uploading Streamlit app: {e}", visible=True)
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    else:
+                        return gr.update(value=f"Error uploading Streamlit app: {e}", visible=True)
                 finally:
                     import os
                     os.unlink(temp_path)
@@ -1652,7 +1867,7 @@ with gr.Blocks(
             except Exception as e:
                 return gr.update(value=f"Error duplicating Streamlit space: {e}", visible=True)
         # Transformers.js logic
-        elif sdk_name == "Transformers.js":
+        elif sdk_name == "Transformers.js" and not is_update:
             try:
                 # Use duplicate_space to create a transformers.js template space
                 from huggingface_hub import duplicate_space
@@ -1689,7 +1904,11 @@ with gr.Blocks(
                         repo_type="space"
                     )
                 except Exception as e:
-                    return gr.update(value=f"Error uploading index.html: {e}", visible=True)
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    else:
+                        return gr.update(value=f"Error uploading index.html: {e}", visible=True)
                 finally:
                     import os
                     os.unlink(temp_path)
@@ -1707,7 +1926,11 @@ with gr.Blocks(
                         repo_type="space"
                     )
                 except Exception as e:
-                    return gr.update(value=f"Error uploading index.js: {e}", visible=True)
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    else:
+                        return gr.update(value=f"Error uploading index.js: {e}", visible=True)
                 finally:
                     import os
                     os.unlink(temp_path)
@@ -1725,9 +1948,14 @@ with gr.Blocks(
                         repo_type="space"
                     )
                     space_url = f"https://huggingface.co/spaces/{repo_id}"
-                    return gr.update(value=f"✅ Deployed! [Open your Transformers.js Space here]({space_url})", visible=True)
+                    action_text = "Updated" if is_update else "Deployed"
+                    return gr.update(value=f"✅ {action_text}! [Open your Transformers.js Space here]({space_url})", visible=True)
                 except Exception as e:
-                    return gr.update(value=f"Error uploading style.css: {e}", visible=True)
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    else:
+                        return gr.update(value=f"Error uploading style.css: {e}", visible=True)
                 finally:
                     import os
                     os.unlink(temp_path)
@@ -1753,12 +1981,16 @@ with gr.Blocks(
                         repo_type="space"
                     )
                     space_url = f"https://huggingface.co/spaces/{repo_id}"
-                    return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+                    action_text = "Updated" if is_update else "Deployed"
+                    return gr.update(value=f"✅ {action_text}! [Open your Space here]({space_url})", visible=True)
                 except Exception as e:
-                    if attempt < max_attempts - 1:
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    elif attempt < max_attempts - 1:
                         time.sleep(2)  # Wait before retrying
                     else:
-                        return gr.update(value=f"Error uploading file after {max_attempts} attempts: {e}. The Space was created, but the file could not be uploaded. Please try again in a few seconds from the Hugging Face UI.", visible=True)
+                        return gr.update(value=f"Error uploading file after {max_attempts} attempts: {e}. Please check your permissions and try again.", visible=True)
                 finally:
                     import os
                     os.unlink(temp_path)
@@ -1776,9 +2008,14 @@ with gr.Blocks(
                     repo_type="space"
                 )
                 space_url = f"https://huggingface.co/spaces/{repo_id}"
-                return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+                action_text = "Updated" if is_update else "Deployed"
+                return gr.update(value=f"✅ {action_text}! [Open your Space here]({space_url})", visible=True)
             except Exception as e:
-                return gr.update(value=f"Error uploading file: {e}", visible=True)
+                error_msg = str(e)
+                if "403 Forbidden" in error_msg and "write token" in error_msg:
+                    return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                else:
+                    return gr.update(value=f"Error uploading file: {e}", visible=True)
             finally:
                 import os
                 os.unlink(temp_path)
