@@ -236,8 +236,8 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "Qwen3-235B-A22B-Instruct-2507",
-        "id": "openrouter/qwen3-235b-a22b-07-25:free",
-        "description": "Qwen3-235B-A22B model via OpenRouter API (openrouter.ai)"
+        "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
+        "description": "Qwen3-235B-A22B-Instruct-2507 model for code generation and general tasks"
     }
 ]
 
@@ -309,8 +309,6 @@ def get_inference_client(model_id, provider="auto"):
     """Return an InferenceClient with provider based on model_id and user selection."""
     if model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
-    if model_id == "openrouter/qwen3-235b-a22b-07-25:free":
-        return "openrouter"
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
@@ -1156,73 +1154,6 @@ This will help me create a better design for you."""
 
     # Use dynamic client based on selected model
     client = get_inference_client(_current_model["id"], provider)
-
-    # --- FIX: Handle OpenRouter client before HuggingFace logic ---
-    if client == "openrouter":
-        import os
-        from openai import OpenAI
-        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
-        openrouter_site_url = os.getenv("OPENROUTER_SITE_URL", "https://huggingface.co/spaces/akhaliq/anycoder")
-        openrouter_site_title = os.getenv("OPENROUTER_SITE_TITLE", "AnyCoder")
-        if not openrouter_api_key:
-            error_message = "Error: OPENROUTER_API_KEY environment variable is not set."
-            yield {
-                code_output: error_message,
-                history_output: history_to_chatbot_messages(_history),
-            }
-            return
-        openai_client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=openrouter_api_key,
-        )
-        # Prepare OpenAI message format
-        openai_messages = []
-        for m in messages:
-            if m["role"] == "system":
-                openai_messages.append({"role": "system", "content": m["content"]})
-            elif m["role"] == "user":
-                openai_messages.append({"role": "user", "content": m["content"]})
-            elif m["role"] == "assistant":
-                openai_messages.append({"role": "assistant", "content": m["content"]})
-        openai_messages.append({"role": "user", "content": enhanced_query})
-        try:
-            completion = openai_client.chat.completions.create(
-                model="qwen/qwen3-235b-a22b-07-25:free",
-                messages=openai_messages,
-                extra_headers={
-                    "HTTP-Referer": openrouter_site_url,
-                    "X-Title": openrouter_site_title,
-                },
-                extra_body={},
-                stream=True,
-                max_tokens=10000
-            )
-            content = ""
-            for chunk in completion:
-                if hasattr(chunk, "choices") and chunk.choices and hasattr(chunk.choices[0], "delta") and hasattr(chunk.choices[0].delta, "content") and chunk.choices[0].delta.content is not None:
-                    content += chunk.choices[0].delta.content
-                    clean_code = remove_code_block(content)
-                    yield {
-                        code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
-                        history_output: history_to_chatbot_messages(_history),
-                        sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                    }
-            # After streaming, update history
-            _history.append([query, content])
-            yield {
-                code_output: remove_code_block(content),
-                history: _history,
-                sandbox: send_to_sandbox(remove_code_block(content)),
-                history_output: history_to_chatbot_messages(_history),
-            }
-        except Exception as e:
-            error_message = f"Error (OpenRouter): {str(e)}"
-            yield {
-                code_output: error_message,
-                history_output: history_to_chatbot_messages(_history),
-            }
-        return
-    # --- END FIX ---
 
     if image is not None:
         messages.append(create_multimodal_message(enhanced_query, image))
