@@ -1537,15 +1537,14 @@ with gr.Blocks(
         login_button = gr.LoginButton()
         
         # Add Load Project section
-        with gr.Group():
-            gr.Markdown("**📥 Load Existing Project**")
-            load_project_url = gr.Textbox(
-                label="Hugging Face Space URL",
-                placeholder="https://huggingface.co/spaces/username/project",
-                lines=1
-            )
-            load_project_btn = gr.Button("Import Project", variant="secondary", size="sm")
-            load_project_status = gr.Markdown(visible=False)
+        gr.Markdown("📥 Load Existing Project")
+        load_project_url = gr.Textbox(
+            label="Hugging Face Space URL",
+            placeholder="https://huggingface.co/spaces/username/project",
+            lines=1
+        )
+        load_project_btn = gr.Button("Import Project", variant="secondary", size="sm")
+        load_project_status = gr.Markdown(visible=False)
         
         gr.Markdown("---")
         
