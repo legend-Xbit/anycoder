@@ -192,6 +192,64 @@ Removing the paragraph...
 {REPLACE_END}
 ```"""
 
+# Follow-up system prompt for modifying existing transformers.js applications
+TransformersJSFollowUpSystemPrompt = f"""You are an expert web developer modifying an existing transformers.js application.
+The user wants to apply changes based on their request.
+You MUST output ONLY the changes required using the following SEARCH/REPLACE block format. Do NOT output the entire file.
+Explain the changes briefly *before* the blocks if necessary, but the code changes THEMSELVES MUST be within the blocks.
+
+The transformers.js application consists of three files: index.html, index.js, and style.css.
+When making changes, specify which file you're modifying by starting your search/replace blocks with the file name.
+
+Format Rules:
+1. Start with {SEARCH_START}
+2. Provide the exact lines from the current code that need to be replaced.
+3. Use {DIVIDER} to separate the search block from the replacement.
+4. Provide the new lines that should replace the original lines.
+5. End with {REPLACE_END}
+6. You can use multiple SEARCH/REPLACE blocks if changes are needed in different parts of the file.
+7. To insert code, use an empty SEARCH block (only {SEARCH_START} and {DIVIDER} on their lines) if inserting at the very beginning, otherwise provide the line *before* the insertion point in the SEARCH block and include that line plus the new lines in the REPLACE block.
+8. To delete code, provide the lines to delete in the SEARCH block and leave the REPLACE block empty (only {DIVIDER} and {REPLACE_END} on their lines).
+9. IMPORTANT: The SEARCH block must *exactly* match the current code, including indentation and whitespace.
+
+Example Modifying HTML:
+```
+Changing the title in index.html...
+{SEARCH_START}
+    <title>Old Title</title>
+{DIVIDER}
+    <title>New Title</title>
+{REPLACE_END}
+```
+
+Example Modifying JavaScript:
+```
+Adding a new function to index.js...
+{SEARCH_START}
+// Existing code
+{DIVIDER}
+// Existing code
+
+function newFunction() {{
+    console.log("New function added");
+}}
+{REPLACE_END}
+```
+
+Example Modifying CSS:
+```
+Changing background color in style.css...
+{SEARCH_START}
+body {{
+    background-color: white;
+}}
+{DIVIDER}
+body {{
+    background-color: #f0f0f0;
+}}
+{REPLACE_END}
+```"""
+
 # Available models
 AVAILABLE_MODELS = [
     {
@@ -574,6 +632,83 @@ def apply_search_replace_changes(original_content: str, changes_text: str) -> st
                 print(f"Warning: Search text not found in content: {search_text[:100]}...")
     
     return modified_content
+
+def apply_transformers_js_search_replace_changes(original_formatted_content: str, changes_text: str) -> str:
+    """Apply search/replace changes to transformers.js formatted content (three files)"""
+    if not changes_text.strip():
+        return original_formatted_content
+    
+    # Parse the original formatted content to get the three files
+    files = parse_transformers_js_output(original_formatted_content)
+    
+    # Split the changes text into individual search/replace blocks
+    blocks = []
+    current_block = ""
+    lines = changes_text.split('\n')
+    
+    for line in lines:
+        if line.strip() == SEARCH_START:
+            if current_block.strip():
+                blocks.append(current_block.strip())
+            current_block = line + '\n'
+        elif line.strip() == REPLACE_END:
+            current_block += line + '\n'
+            blocks.append(current_block.strip())
+            current_block = ""
+        else:
+            current_block += line + '\n'
+    
+    if current_block.strip():
+        blocks.append(current_block.strip())
+    
+    # Process each block and apply changes to the appropriate file
+    for block in blocks:
+        if not block.strip():
+            continue
+            
+        # Parse the search/replace block
+        lines = block.split('\n')
+        search_lines = []
+        replace_lines = []
+        in_search = False
+        in_replace = False
+        target_file = None
+        
+        for line in lines:
+            if line.strip() == SEARCH_START:
+                in_search = True
+                in_replace = False
+            elif line.strip() == DIVIDER:
+                in_search = False
+                in_replace = True
+            elif line.strip() == REPLACE_END:
+                in_replace = False
+            elif in_search:
+                search_lines.append(line)
+            elif in_replace:
+                replace_lines.append(line)
+        
+        # Determine which file this change targets based on the search content
+        if search_lines:
+            search_text = '\n'.join(search_lines).strip()
+            replace_text = '\n'.join(replace_lines).strip()
+            
+            # Check which file contains the search text
+            if search_text in files['index.html']:
+                target_file = 'index.html'
+            elif search_text in files['index.js']:
+                target_file = 'index.js'
+            elif search_text in files['style.css']:
+                target_file = 'style.css'
+            
+            # Apply the change to the target file
+            if target_file and search_text in files[target_file]:
+                files[target_file] = files[target_file].replace(search_text, replace_text)
+            else:
+                print(f"Warning: Search text not found in any transformers.js file: {search_text[:100]}...")
+    
+    # Reformat the modified files
+    return format_transformers_js_output(files)
 
 # Updated for faster Tavily search and closer prompt usage
 # Uses 'advanced' search_depth and auto_parameters=True for speed and relevance
@@ -1103,13 +1238,19 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
             'import gradio' in last_assistant_msg or
             'import streamlit' in last_assistant_msg or
             'def ' in last_assistant_msg and 'app' in last_assistant_msg or
-            'IMPORTED PROJECT FROM HUGGING FACE SPACE' in last_assistant_msg):
+            'IMPORTED PROJECT FROM HUGGING FACE SPACE' in last_assistant_msg or
+            '=== index.html ===' in last_assistant_msg or
+            '=== index.js ===' in last_assistant_msg or
+            '=== style.css ===' in last_assistant_msg):
             has_existing_content = True
 
     # Choose system prompt based on context
     if has_existing_content:
         # Use follow-up prompt for modifying existing content
-        system_prompt = FollowUpSystemPrompt
+        if language == "transformers.js":
+            system_prompt = TransformersJSFollowUpSystemPrompt
+        else:
+            system_prompt = FollowUpSystemPrompt
     else:
         # Use language-specific prompt
         if language == "html":
@@ -1182,11 +1323,21 @@ This will help me create a better design for you."""
                 if language == "transformers.js":
                     files = parse_transformers_js_output(content)
                     if files['index.html'] and files['index.js'] and files['style.css']:
+                        # Model returned complete transformers.js output
                         formatted_output = format_transformers_js_output(files)
                         yield {
                             code_output: gr.update(value=formatted_output, language="html"),
                             history_output: history_to_chatbot_messages(_history),
                             sandbox: send_to_sandbox(files['index.html']) if files['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                        }
+                    elif has_existing_content:
+                        # Model is returning search/replace changes for transformers.js - apply them
+                        last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
+                        modified_content = apply_transformers_js_search_replace_changes(last_content, content)
+                        yield {
+                            code_output: gr.update(value=modified_content, language="html"),
+                            history_output: history_to_chatbot_messages(_history),
+                            sandbox: send_to_sandbox(parse_transformers_js_output(modified_content)['index.html']) if parse_transformers_js_output(modified_content)['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                         }
                     else:
                         # Still streaming, show partial content
@@ -1229,12 +1380,24 @@ This will help me create a better design for you."""
             # Handle transformers.js output
             files = parse_transformers_js_output(content)
             if files['index.html'] and files['index.js'] and files['style.css']:
+                # Model returned complete transformers.js output
                 formatted_output = format_transformers_js_output(files)
                 _history.append([query, formatted_output])
                 yield {
                     code_output: formatted_output,
                     history: _history,
                     sandbox: send_to_sandbox(files['index.html']),
+                    history_output: history_to_chatbot_messages(_history),
+                }
+            elif has_existing_content:
+                # Model returned search/replace changes for transformers.js - apply them
+                last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
+                modified_content = apply_transformers_js_search_replace_changes(last_content, content)
+                _history.append([query, modified_content])
+                yield {
+                    code_output: modified_content,
+                    history: _history,
+                    sandbox: send_to_sandbox(parse_transformers_js_output(modified_content)['index.html']),
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
@@ -1583,7 +1746,7 @@ with gr.Blocks(
                 code_output = gr.Code(
                     language="html", 
                     lines=25, 
-                    interactive=False,
+                    interactive=True,
                     label="Generated code"
                 )
             with gr.Tab("Preview"):
