@@ -24,6 +24,7 @@ from huggingface_hub import InferenceClient
 from tavily import TavilyClient
 from huggingface_hub import HfApi
 import tempfile
+from openai import OpenAI
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
@@ -232,6 +233,11 @@ AVAILABLE_MODELS = [
         "name": "GLM-4.1V-9B-Thinking",
         "id": "THUDM/GLM-4.1V-9B-Thinking",
         "description": "GLM-4.1V-9B-Thinking model for multimodal code generation with image support"
+    },
+    {
+        "name": "Qwen3-235B-OpenRouter",
+        "id": "openrouter/qwen3-235b-a22b-07-25:free",
+        "description": "Qwen3-235B-A22B model via OpenRouter API (openrouter.ai)"
     }
 ]
 
@@ -303,7 +309,8 @@ def get_inference_client(model_id, provider="auto"):
     """Return an InferenceClient with provider based on model_id and user selection."""
     if model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
-
+    if model_id == "openrouter/qwen3-235b-a22b-07-25:free":
+        return "openrouter"
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
@@ -1266,6 +1273,72 @@ This will help me create a better design for you."""
             history_output: history_to_chatbot_messages(_history),
         }
 
+    # OpenRouter (OpenAI) logic
+    if client == "openrouter":
+        import os
+        from openai import OpenAI
+        openrouter_api_key = os.getenv("OPENROUTER_API_KEY")
+        openrouter_site_url = os.getenv("OPENROUTER_SITE_URL", "https://huggingface.co/spaces/akhaliq/anycoder")
+        openrouter_site_title = os.getenv("OPENROUTER_SITE_TITLE", "AnyCoder")
+        if not openrouter_api_key:
+            error_message = "Error: OPENROUTER_API_KEY environment variable is not set."
+            yield {
+                code_output: error_message,
+                history_output: history_to_chatbot_messages(_history),
+            }
+            return
+        openai_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=openrouter_api_key,
+        )
+        # Prepare OpenAI message format
+        openai_messages = []
+        for m in messages:
+            if m["role"] == "system":
+                openai_messages.append({"role": "system", "content": m["content"]})
+            elif m["role"] == "user":
+                openai_messages.append({"role": "user", "content": m["content"]})
+            elif m["role"] == "assistant":
+                openai_messages.append({"role": "assistant", "content": m["content"]})
+        openai_messages.append({"role": "user", "content": enhanced_query})
+        try:
+            completion = openai_client.chat.completions.create(
+                model="qwen/qwen3-235b-a22b-07-25:free",
+                messages=openai_messages,
+                extra_headers={
+                    "HTTP-Referer": openrouter_site_url,
+                    "X-Title": openrouter_site_title,
+                },
+                extra_body={},
+                stream=True,
+                max_tokens=10000
+            )
+            content = ""
+            for chunk in completion:
+                if hasattr(chunk, "choices") and chunk.choices and hasattr(chunk.choices[0], "delta") and hasattr(chunk.choices[0].delta, "content") and chunk.choices[0].delta.content is not None:
+                    content += chunk.choices[0].delta.content
+                    clean_code = remove_code_block(content)
+                    yield {
+                        code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
+                        history_output: history_to_chatbot_messages(_history),
+                        sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                    }
+            # After streaming, update history
+            _history.append([query, content])
+            yield {
+                code_output: remove_code_block(content),
+                history: _history,
+                sandbox: send_to_sandbox(remove_code_block(content)),
+                history_output: history_to_chatbot_messages(_history),
+            }
+        except Exception as e:
+            error_message = f"Error (OpenRouter): {str(e)}"
+            yield {
+                code_output: error_message,
+                history_output: history_to_chatbot_messages(_history),
+            }
+        return
+
 # Deploy to Spaces logic
 
 def wrap_html_in_gradio_app(html_code):
@@ -1662,24 +1735,52 @@ with gr.Blocks(
                 return gr.update(value=f"Error duplicating Transformers.js space: {e}. If this is a RepoUrl object error, ensure you are not accessing a .url attribute and use str(duplicated_repo) for the URL.", visible=True)
         # Other SDKs (existing logic)
         if sdk == "static":
+            import time
             file_name = "index.html"
+            # Wait and retry logic after repo creation
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                import tempfile
+                with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
+                    f.write(code)
+                    temp_path = f.name
+                try:
+                    api.upload_file(
+                        path_or_fileobj=temp_path,
+                        path_in_repo=file_name,
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+                    space_url = f"https://huggingface.co/spaces/{repo_id}"
+                    return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+                except Exception as e:
+                    if attempt < max_attempts - 1:
+                        time.sleep(2)  # Wait before retrying
+                    else:
+                        return gr.update(value=f"Error uploading file after {max_attempts} attempts: {e}. The Space was created, but the file could not be uploaded. Please try again in a few seconds from the Hugging Face UI.", visible=True)
+                finally:
+                    import os
+                    os.unlink(temp_path)
         else:
             file_name = "app.py"
-        import tempfile
-        with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
-            f.write(code)
-            temp_path = f.name
-        try:
-            api.upload_file(
-                path_or_fileobj=temp_path,
-                path_in_repo=file_name,
-                repo_id=repo_id,
-                repo_type="space"
-            )
-            space_url = f"https://huggingface.co/spaces/{repo_id}"
-            return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
-        except Exception as e:
-            return gr.update(value=f"Error uploading file: {e}", visible=True)
+            import tempfile
+            with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
+                f.write(code)
+                temp_path = f.name
+            try:
+                api.upload_file(
+                    path_or_fileobj=temp_path,
+                    path_in_repo=file_name,
+                    repo_id=repo_id,
+                    repo_type="space"
+                )
+                space_url = f"https://huggingface.co/spaces/{repo_id}"
+                return gr.update(value=f"✅ Deployed! [Open your Space here]({space_url})", visible=True)
+            except Exception as e:
+                return gr.update(value=f"Error uploading file: {e}", visible=True)
+            finally:
+                import os
+                os.unlink(temp_path)
 
     # Connect the deploy button to the new function
     deploy_btn.click(
