@@ -235,7 +235,7 @@ AVAILABLE_MODELS = [
         "description": "GLM-4.1V-9B-Thinking model for multimodal code generation with image support"
     },
     {
-        "name": "Qwen3-235B-OpenRouter",
+        "name": "Qwen3-235B-A22B-Instruct-2507",
         "id": "openrouter/qwen3-235b-a22b-07-25:free",
         "description": "Qwen3-235B-A22B model via OpenRouter API (openrouter.ai)"
     }
