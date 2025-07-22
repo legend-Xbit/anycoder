@@ -296,6 +296,11 @@ AVAILABLE_MODELS = [
         "name": "Qwen3-235B-A22B-Instruct-2507",
         "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
         "description": "Qwen3-235B-A22B-Instruct-2507 model for code generation and general tasks"
+    },
+    {
+        "name": "Qwen3-Coder-480B-A35B",
+        "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
+        "description": "Qwen3-Coder-480B-A35B-Instruct model for advanced code generation and programming tasks"
     }
 ]
 
@@ -1623,7 +1628,7 @@ with gr.Blocks(
     setting = gr.State({
         "system": HTML_SYSTEM_PROMPT,
     })
-    current_model = gr.State(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2
+    current_model = gr.State(AVAILABLE_MODELS[10])  # Qwen3-Coder-480B-A35B
     open_panel = gr.State(None)
     last_login_state = gr.State(None)
 
@@ -1705,7 +1710,7 @@ with gr.Blocks(
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
-            value=AVAILABLE_MODELS[0]['name'],
+            value=AVAILABLE_MODELS[10]['name'],
             label="Model",
             visible=True
         )
