@@ -91,6 +91,7 @@ python app.py
 
 - Generates code in HTML, Python, JS, and more (selectable via dropdown)
 - Special support for transformers.js apps (outputs index.html, index.js, style.css)
+- Svelte apps
 - For HTML, provides a live preview in a sandboxed iframe
 - For modification requests, uses a search/replace block format to update existing HTML
 
