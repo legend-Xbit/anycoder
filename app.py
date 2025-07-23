@@ -90,6 +90,81 @@ The style.css should contain all the styling for the application.
 
 Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
 
+SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application. You will generate ONLY the custom files that need user-specific content.
+
+IMPORTANT: You MUST output ONLY the custom files in the following format:
+
+```svelte
+<!-- src/App.svelte content here -->
+```
+
+```css
+/* src/app.css content here */
+```
+
+```svelte
+<!-- src/lib/Counter.svelte content here -->
+```
+
+Requirements:
+1. Create a modern, responsive Svelte application
+2. Use TypeScript for better type safety
+3. Create a clean, professional UI with good user experience
+4. Make the application fully responsive for mobile devices
+5. Use modern CSS practices and Svelte best practices
+6. Include proper error handling and loading states
+7. Follow accessibility best practices
+8. Use Svelte's reactive features effectively
+9. Include proper component structure and organization
+
+The files you generate are:
+- src/App.svelte: Main application component (your custom app logic)
+- src/app.css: Global styles (your custom styling)
+- src/lib/Counter.svelte: Example component (your custom components)
+
+The other files (index.html, package.json, vite.config.ts, tsconfig files, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the Svelte template and don't need to be generated.
+
+Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+
+SVELTE_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert Svelte developer creating a modern Svelte application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific Svelte technologies.
+
+You will generate ONLY the custom files that need user-specific content.
+
+IMPORTANT: You MUST output ONLY the custom files in the following format:
+
+```svelte
+<!-- src/App.svelte content here -->
+```
+
+```css
+/* src/app.css content here */
+```
+
+```svelte
+<!-- src/lib/Counter.svelte content here -->
+```
+
+Requirements:
+1. Create a modern, responsive Svelte application
+2. Use TypeScript for better type safety
+3. Create a clean, professional UI with good user experience
+4. Make the application fully responsive for mobile devices
+5. Use modern CSS practices and Svelte best practices
+6. Include proper error handling and loading states
+7. Follow accessibility best practices
+8. Use Svelte's reactive features effectively
+9. Include proper component structure and organization
+10. Use web search to find the latest Svelte patterns, libraries, and best practices
+
+The files you generate are:
+- src/App.svelte: Main application component (your custom app logic)
+- src/app.css: Global styles (your custom styling)
+- src/lib/Counter.svelte: Example component (your custom components)
+
+The other files (index.html, package.json, vite.config.ts, tsconfig files, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the Svelte template and don't need to be generated.
+
+Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+
 TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert web developer creating a transformers.js application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for transformers.js.
 
 You will generate THREE separate files: index.html, index.js, and style.css.
@@ -360,6 +435,10 @@ DEMO_LIST = [
     {
         "title": "Transformers.js App",
         "description": "Create a transformers.js application with AI/ML functionality using the transformers.js library"
+    },
+    {
+        "title": "Svelte App",
+        "description": "Create a modern Svelte application with TypeScript, Vite, and responsive design"
     }
 ]
 
@@ -520,6 +599,39 @@ def format_transformers_js_output(files):
     output.append(files['index.js'])
     output.append("\n=== style.css ===")
     output.append(files['style.css'])
+    return '\n'.join(output)
+
+def parse_svelte_output(text):
+    """Parse Svelte output to extract individual files"""
+    files = {
+        'src/App.svelte': '',
+        'src/app.css': '',
+        'src/lib/Counter.svelte': ''
+    }
+    
+    # Split by code blocks
+    import re
+    code_blocks = re.findall(r'```(?:svelte|css)\n(.*?)```', text, re.DOTALL)
+    
+    # Handle partial generation - assign what we have
+    if len(code_blocks) >= 1:
+        files['src/App.svelte'] = code_blocks[0].strip()
+    if len(code_blocks) >= 2:
+        files['src/app.css'] = code_blocks[1].strip()
+    if len(code_blocks) >= 3:
+        files['src/lib/Counter.svelte'] = code_blocks[2].strip()
+    
+    return files
+
+def format_svelte_output(files):
+    """Format Svelte files into a single display string"""
+    output = []
+    output.append("=== src/App.svelte ===")
+    output.append(files['src/App.svelte'])
+    output.append("\n=== src/app.css ===")
+    output.append(files['src/app.css'])
+    output.append("\n=== src/lib/Counter.svelte ===")
+    output.append(files['src/lib/Counter.svelte'])
     return '\n'.join(output)
 
 def history_render(history: History):
@@ -1246,7 +1358,8 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
             'IMPORTED PROJECT FROM HUGGING FACE SPACE' in last_assistant_msg or
             '=== index.html ===' in last_assistant_msg or
             '=== index.js ===' in last_assistant_msg or
-            '=== style.css ===' in last_assistant_msg):
+            '=== style.css ===' in last_assistant_msg or
+            '=== src/App.svelte ===' in last_assistant_msg):
             has_existing_content = True
 
     # Choose system prompt based on context
@@ -1254,6 +1367,8 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
         # Use follow-up prompt for modifying existing content
         if language == "transformers.js":
             system_prompt = TransformersJSFollowUpSystemPrompt
+        elif language == "svelte":
+            system_prompt = FollowUpSystemPrompt  # Use generic follow-up for Svelte
         else:
             system_prompt = FollowUpSystemPrompt
     else:
@@ -1262,6 +1377,8 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
             system_prompt = HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else HTML_SYSTEM_PROMPT
         elif language == "transformers.js":
             system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH if enable_search else TRANSFORMERS_JS_SYSTEM_PROMPT
+        elif language == "svelte":
+            system_prompt = SVELTE_SYSTEM_PROMPT_WITH_SEARCH if enable_search else SVELTE_SYSTEM_PROMPT
         else:
             system_prompt = GENERIC_SYSTEM_PROMPT_WITH_SEARCH.format(language=language) if enable_search else GENERIC_SYSTEM_PROMPT.format(language=language)
 
@@ -1351,6 +1468,14 @@ This will help me create a better design for you."""
                             history_output: history_to_chatbot_messages(_history),
                             sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Generating transformers.js app...</div>",
                         }
+                elif language == "svelte":
+                    # For Svelte, just show the content as it streams
+                    # We'll parse it properly in the final response
+                    yield {
+                        code_output: gr.update(value=content, language="html"),
+                        history_output: history_to_chatbot_messages(_history),
+                        sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Generating Svelte app...</div>",
+                    }
                 else:
                     clean_code = remove_code_block(content)
                     if has_existing_content:
@@ -1412,6 +1537,39 @@ This will help me create a better design for you."""
                     code_output: content,
                     history: _history,
                     sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Error parsing transformers.js output. Please try again.</div>",
+                    history_output: history_to_chatbot_messages(_history),
+                }
+        elif language == "svelte":
+            # Handle Svelte output
+            files = parse_svelte_output(content)
+            if files['src/App.svelte'] and files['src/app.css']:
+                # Model returned complete Svelte output
+                formatted_output = format_svelte_output(files)
+                _history.append([query, formatted_output])
+                yield {
+                    code_output: formatted_output,
+                    history: _history,
+                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
+                    history_output: history_to_chatbot_messages(_history),
+                }
+            elif has_existing_content:
+                # Model returned search/replace changes for Svelte - apply them
+                last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
+                modified_content = apply_search_replace_changes(last_content, content)
+                _history.append([query, modified_content])
+                yield {
+                    code_output: modified_content,
+                    history: _history,
+                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
+                    history_output: history_to_chatbot_messages(_history),
+                }
+            else:
+                # Fallback if parsing failed - just use the raw content
+                _history.append([query, content])
+                yield {
+                    code_output: content,
+                    history: _history,
+                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
         elif has_existing_content:
@@ -1655,7 +1813,7 @@ with gr.Blocks(
         )
         # Language dropdown for code generation
         language_choices = [
-            "html", "python", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper", "transformers.js"
+            "html", "python", "transformers.js", "svelte", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
         ]
         language_dropdown = gr.Dropdown(
             choices=language_choices,
@@ -1692,7 +1850,8 @@ with gr.Blocks(
             ("Gradio (Python)", "gradio"),
             ("Streamlit (Python)", "streamlit"),
             ("Static (HTML)", "static"),
-            ("Transformers.js", "transformers.js")
+            ("Transformers.js", "transformers.js"),
+            ("Svelte", "svelte")
         ]
         sdk_dropdown = gr.Dropdown(
             choices=[x[0] for x in sdk_choices],
@@ -1804,6 +1963,8 @@ with gr.Blocks(
     def update_sdk_based_on_language(language):
         if language == "transformers.js":
             return gr.update(value="Transformers.js")
+        elif language == "svelte":
+            return gr.update(value="Svelte")
         elif language == "html":
             return gr.update(value="Static (HTML)")
         else:
@@ -1822,6 +1983,9 @@ with gr.Blocks(
                 return send_to_sandbox(files['index.html'])
             else:
                 return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
+        elif language == "svelte":
+            # For Svelte, we can't preview the compiled app, so show a message
+            return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code and deploy it to see the result.</div>"
         else:
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
 
@@ -1905,7 +2069,8 @@ with gr.Blocks(
             "Gradio (Python)": "gradio",
             "Streamlit (Python)": "docker",  # Use 'docker' for Streamlit Spaces
             "Static (HTML)": "static",
-            "Transformers.js": "static"  # Transformers.js uses static SDK
+            "Transformers.js": "static",  # Transformers.js uses static SDK
+            "Svelte": "static"  # Svelte uses static SDK
         }
         sdk = sdk_map.get(sdk_name, "gradio")
         
@@ -2060,6 +2225,106 @@ with gr.Blocks(
                     
             except Exception as e:
                 return gr.update(value=f"Error duplicating Transformers.js space: {e}. If this is a RepoUrl object error, ensure you are not accessing a .url attribute and use str(duplicated_repo) for the URL.", visible=True)
+        # Svelte logic
+        elif sdk_name == "Svelte" and not is_update:
+            try:
+                # Use duplicate_space to create a Svelte template space
+                from huggingface_hub import duplicate_space
+                
+                # Duplicate the Svelte template space
+                duplicated_repo = duplicate_space(
+                    from_id="static-templates/svelte",
+                    to_id=space_name.strip(),
+                    token=token.token,
+                    exist_ok=True
+                )
+                print("Duplicated Svelte repo result:", duplicated_repo, type(duplicated_repo))
+                # Show the duplicated space URL immediately for user feedback
+                gr.update(value=f"✅ Space duplicated! [Open your new Svelte Space here]({str(duplicated_repo)})", visible=True)
+                # Parse the Svelte output to get the custom files
+                files = parse_svelte_output(code)
+                
+                if not files['src/App.svelte']:
+                    return gr.update(value="Error: Could not parse Svelte output. Please regenerate the code.", visible=True)
+                
+                # Upload only the custom Svelte files to the duplicated space
+                import tempfile
+                
+                # Upload src/App.svelte (required)
+                with tempfile.NamedTemporaryFile("w", suffix=".svelte", delete=False) as f:
+                    f.write(files['src/App.svelte'])
+                    temp_path = f.name
+                
+                try:
+                    api.upload_file(
+                        path_or_fileobj=temp_path,
+                        path_in_repo="src/App.svelte",
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+                except Exception as e:
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    else:
+                        return gr.update(value=f"Error uploading src/App.svelte: {e}", visible=True)
+                finally:
+                    import os
+                    os.unlink(temp_path)
+                
+                # Upload src/app.css (optional)
+                if files['src/app.css']:
+                    with tempfile.NamedTemporaryFile("w", suffix=".css", delete=False) as f:
+                        f.write(files['src/app.css'])
+                        temp_path = f.name
+                    
+                    try:
+                        api.upload_file(
+                            path_or_fileobj=temp_path,
+                            path_in_repo="src/app.css",
+                            repo_id=repo_id,
+                            repo_type="space"
+                        )
+                    except Exception as e:
+                        error_msg = str(e)
+                        if "403 Forbidden" in error_msg and "write token" in error_msg:
+                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                        else:
+                            return gr.update(value=f"Error uploading src/app.css: {e}", visible=True)
+                    finally:
+                        import os
+                        os.unlink(temp_path)
+                
+                # Upload src/lib/Counter.svelte (optional)
+                if files['src/lib/Counter.svelte']:
+                    with tempfile.NamedTemporaryFile("w", suffix=".svelte", delete=False) as f:
+                        f.write(files['src/lib/Counter.svelte'])
+                        temp_path = f.name
+                    
+                    try:
+                        api.upload_file(
+                            path_or_fileobj=temp_path,
+                            path_in_repo="src/lib/Counter.svelte",
+                            repo_id=repo_id,
+                            repo_type="space"
+                        )
+                    except Exception as e:
+                        error_msg = str(e)
+                        if "403 Forbidden" in error_msg and "write token" in error_msg:
+                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                        else:
+                            return gr.update(value=f"Error uploading src/lib/Counter.svelte: {e}", visible=True)
+                    finally:
+                        import os
+                        os.unlink(temp_path)
+                
+                # Success - all files uploaded
+                space_url = f"https://huggingface.co/spaces/{repo_id}"
+                action_text = "Updated" if is_update else "Deployed"
+                return gr.update(value=f"✅ {action_text}! [Open your Svelte Space here]({space_url})", visible=True)
+                    
+            except Exception as e:
+                return gr.update(value=f"Error duplicating Svelte space: {e}. If this is a RepoUrl object error, ensure you are not accessing a .url attribute and use str(duplicated_repo) for the URL.", visible=True)
         # Other SDKs (existing logic)
         if sdk == "static":
             import time
