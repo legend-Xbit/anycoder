@@ -2076,8 +2076,8 @@ with gr.Blocks(
         
         # Create API client with user's token for proper authentication
         api = HfApi(token=token.token)
-        # Only create the repo for new spaces (not updates) and non-Transformers.js and non-Streamlit SDKs
-        if not is_update and sdk != "docker" and sdk_name != "Transformers.js":
+        # Only create the repo for new spaces (not updates) and non-Transformers.js, non-Streamlit, and non-Svelte SDKs
+        if not is_update and sdk != "docker" and sdk_name not in ["Transformers.js", "Svelte"]:
             try:
                 api.create_repo(
                     repo_id=repo_id,  # e.g. username/space_name
@@ -2143,8 +2143,6 @@ with gr.Blocks(
                     exist_ok=True
                 )
                 print("Duplicated repo result:", duplicated_repo, type(duplicated_repo))
-                # Show the duplicated space URL immediately for user feedback
-                gr.update(value=f"✅ Space duplicated! [Open your new Space here]({str(duplicated_repo)})", visible=True)
                 # Parse the transformers.js output to get the three files
                 files = parse_transformers_js_output(code)
                 
@@ -2224,7 +2222,11 @@ with gr.Blocks(
                     os.unlink(temp_path)
                     
             except Exception as e:
-                return gr.update(value=f"Error duplicating Transformers.js space: {e}. If this is a RepoUrl object error, ensure you are not accessing a .url attribute and use str(duplicated_repo) for the URL.", visible=True)
+                # Handle potential RepoUrl object errors
+                error_msg = str(e)
+                if "'url'" in error_msg or "RepoUrl" in error_msg:
+                    return gr.update(value=f"Error duplicating Transformers.js space: RepoUrl handling error. Please try again. Details: {error_msg}", visible=True)
+                return gr.update(value=f"Error duplicating Transformers.js space: {error_msg}", visible=True)
         # Svelte logic
         elif sdk_name == "Svelte" and not is_update:
             try:
@@ -2239,17 +2241,22 @@ with gr.Blocks(
                     exist_ok=True
                 )
                 print("Duplicated Svelte repo result:", duplicated_repo, type(duplicated_repo))
+                
                 # Extract the actual repo ID from the duplicated space
                 # The duplicated_repo is a RepoUrl object, convert to string and extract the repo ID
-                duplicated_repo_str = str(duplicated_repo)
-                # Extract username and repo name from the URL
-                if "/spaces/" in duplicated_repo_str:
-                    parts = duplicated_repo_str.split("/spaces/")[-1].split("/")
-                    if len(parts) >= 2:
-                        actual_repo_id = f"{parts[0]}/{parts[1]}"
+                try:
+                    duplicated_repo_str = str(duplicated_repo)
+                    # Extract username and repo name from the URL
+                    if "/spaces/" in duplicated_repo_str:
+                        parts = duplicated_repo_str.split("/spaces/")[-1].split("/")
+                        if len(parts) >= 2:
+                            actual_repo_id = f"{parts[0]}/{parts[1]}"
+                        else:
+                            actual_repo_id = repo_id  # Fallback to original
                     else:
                         actual_repo_id = repo_id  # Fallback to original
-                else:
+                except Exception as e:
+                    print(f"Error extracting repo ID from duplicated_repo: {e}")
                     actual_repo_id = repo_id  # Fallback to original
                 print("Actual repo ID for Svelte uploads:", actual_repo_id)
                 
@@ -2336,7 +2343,11 @@ with gr.Blocks(
                 return gr.update(value=f"✅ {action_text}! [Open your Svelte Space here]({space_url})", visible=True)
                     
             except Exception as e:
-                return gr.update(value=f"Error duplicating Svelte space: {e}. If this is a RepoUrl object error, ensure you are not accessing a .url attribute and use str(duplicated_repo) for the URL.", visible=True)
+                # Handle potential RepoUrl object errors
+                error_msg = str(e)
+                if "'url'" in error_msg or "RepoUrl" in error_msg:
+                    return gr.update(value=f"Error duplicating Svelte space: RepoUrl handling error. Please try again. Details: {error_msg}", visible=True)
+                return gr.update(value=f"Error duplicating Svelte space: {error_msg}", visible=True)
         # Other SDKs (existing logic)
         if sdk == "static":
             import time
