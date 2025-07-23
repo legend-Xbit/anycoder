@@ -609,17 +609,36 @@ def parse_svelte_output(text):
         'src/lib/Counter.svelte': ''
     }
     
-    # Split by code blocks
     import re
-    code_blocks = re.findall(r'```(?:svelte|css)\n(.*?)```', text, re.DOTALL)
     
-    # Handle partial generation - assign what we have
-    if len(code_blocks) >= 1:
-        files['src/App.svelte'] = code_blocks[0].strip()
-    if len(code_blocks) >= 2:
-        files['src/app.css'] = code_blocks[1].strip()
-    if len(code_blocks) >= 3:
-        files['src/lib/Counter.svelte'] = code_blocks[2].strip()
+    # First try to extract using code block patterns
+    svelte_pattern = r'```svelte\s*\n([\s\S]+?)\n```'
+    css_pattern = r'```css\s*\n([\s\S]+?)\n```'
+    
+    # Extract first svelte block for App.svelte
+    svelte_matches = re.findall(svelte_pattern, text, re.IGNORECASE)
+    css_match = re.search(css_pattern, text, re.IGNORECASE)
+    
+    if len(svelte_matches) >= 1:
+        files['src/App.svelte'] = svelte_matches[0].strip()
+    if css_match:
+        files['src/app.css'] = css_match.group(1).strip()
+    if len(svelte_matches) >= 2:
+        files['src/lib/Counter.svelte'] = svelte_matches[1].strip()
+    
+    # Fallback: support === filename === format if any file is missing
+    if not (files['src/App.svelte'] and files['src/app.css']):
+        # Use regex to extract sections
+        app_svelte_fallback = re.search(r'===\s*src/App\.svelte\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        app_css_fallback = re.search(r'===\s*src/app\.css\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        counter_svelte_fallback = re.search(r'===\s*src/lib/Counter\.svelte\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        
+        if app_svelte_fallback:
+            files['src/App.svelte'] = app_svelte_fallback.group(1).strip()
+        if app_css_fallback:
+            files['src/app.css'] = app_css_fallback.group(1).strip()
+        if counter_svelte_fallback:
+            files['src/lib/Counter.svelte'] = counter_svelte_fallback.group(1).strip()
     
     return files
 
