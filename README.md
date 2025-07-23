@@ -4,14 +4,13 @@ emoji: 🏢
 colorFrom: indigo
 colorTo: indigo
 sdk: gradio
-sdk_version: 5.38.0
+sdk_version: 5.38.1
 app_file: app.py
 pinned: false
 disable_embedding: true
 hf_oauth: true
 hf_oauth_scopes:
-  - manage-repos  # Needed to create/upload/delete Spaces on behalf of the user
-# Note: 'openid' and 'profile' are always included by default and should not be listed here.
+- manage-repos
 ---
 
 # AnyCoder - AI Code Generator
