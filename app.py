@@ -90,9 +90,9 @@ The style.css should contain all the styling for the application.
 
 Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
 
-SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application. You will generate ONLY the custom files that need user-specific content.
+SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application. You will generate ONLY the custom files that need user-specific content for the user's requested application.
 
-IMPORTANT: You MUST output ONLY the custom files in the following format:
+IMPORTANT: You MUST output files in the following format. Generate ONLY the files needed for the user's specific request:
 
 ```svelte
 <!-- src/App.svelte content here -->
@@ -102,12 +102,13 @@ IMPORTANT: You MUST output ONLY the custom files in the following format:
 /* src/app.css content here */
 ```
 
+If you need additional components for the user's specific app, add them like:
 ```svelte
-<!-- src/lib/Counter.svelte content here -->
+<!-- src/lib/ComponentName.svelte content here -->
 ```
 
 Requirements:
-1. Create a modern, responsive Svelte application
+1. Create a modern, responsive Svelte application based on the user's specific request
 2. Use TypeScript for better type safety
 3. Create a clean, professional UI with good user experience
 4. Make the application fully responsive for mobile devices
@@ -116,15 +117,16 @@ Requirements:
 7. Follow accessibility best practices
 8. Use Svelte's reactive features effectively
 9. Include proper component structure and organization
+10. Generate ONLY components that are actually needed for the user's requested application
 
-The files you generate are:
-- src/App.svelte: Main application component (your custom app logic)
-- src/app.css: Global styles (your custom styling)
-- src/lib/Counter.svelte: Example component (your custom components)
+Files you should generate:
+- src/App.svelte: Main application component (ALWAYS required)
+- src/app.css: Global styles (ALWAYS required)
+- src/lib/[ComponentName].svelte: Additional components (ONLY if needed for the user's specific app)
 
 The other files (index.html, package.json, vite.config.ts, tsconfig files, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the Svelte template and don't need to be generated.
 
-Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+Always output only the two code blocks as shown above, and do not include any explanations or extra text."""
 
 SVELTE_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert Svelte developer creating a modern Svelte application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific Svelte technologies.
 
@@ -137,11 +139,7 @@ IMPORTANT: You MUST output ONLY the custom files in the following format:
 ```
 
 ```css
-/* src/app.css content here */
-```
-
-```svelte
-<!-- src/lib/Counter.svelte content here -->
+/* src/app.css content here -->
 ```
 
 Requirements:
@@ -159,11 +157,10 @@ Requirements:
 The files you generate are:
 - src/App.svelte: Main application component (your custom app logic)
 - src/app.css: Global styles (your custom styling)
-- src/lib/Counter.svelte: Example component (your custom components)
 
 The other files (index.html, package.json, vite.config.ts, tsconfig files, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the Svelte template and don't need to be generated.
 
-Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+Always output only the two code blocks as shown above, and do not include any explanations or extra text."""
 
 TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert web developer creating a transformers.js application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for transformers.js.
 
@@ -605,8 +602,7 @@ def parse_svelte_output(text):
     """Parse Svelte output to extract individual files"""
     files = {
         'src/App.svelte': '',
-        'src/app.css': '',
-        'src/lib/Counter.svelte': ''
+        'src/app.css': ''
     }
     
     import re
@@ -615,30 +611,25 @@ def parse_svelte_output(text):
     svelte_pattern = r'```svelte\s*\n([\s\S]+?)\n```'
     css_pattern = r'```css\s*\n([\s\S]+?)\n```'
     
-    # Extract first svelte block for App.svelte
-    svelte_matches = re.findall(svelte_pattern, text, re.IGNORECASE)
+    # Extract svelte block for App.svelte
+    svelte_match = re.search(svelte_pattern, text, re.IGNORECASE)
     css_match = re.search(css_pattern, text, re.IGNORECASE)
     
-    if len(svelte_matches) >= 1:
-        files['src/App.svelte'] = svelte_matches[0].strip()
+    if svelte_match:
+        files['src/App.svelte'] = svelte_match.group(1).strip()
     if css_match:
         files['src/app.css'] = css_match.group(1).strip()
-    if len(svelte_matches) >= 2:
-        files['src/lib/Counter.svelte'] = svelte_matches[1].strip()
     
     # Fallback: support === filename === format if any file is missing
     if not (files['src/App.svelte'] and files['src/app.css']):
         # Use regex to extract sections
         app_svelte_fallback = re.search(r'===\s*src/App\.svelte\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
         app_css_fallback = re.search(r'===\s*src/app\.css\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
-        counter_svelte_fallback = re.search(r'===\s*src/lib/Counter\.svelte\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
         
         if app_svelte_fallback:
             files['src/App.svelte'] = app_svelte_fallback.group(1).strip()
         if app_css_fallback:
             files['src/app.css'] = app_css_fallback.group(1).strip()
-        if counter_svelte_fallback:
-            files['src/lib/Counter.svelte'] = counter_svelte_fallback.group(1).strip()
     
     return files
 
@@ -649,8 +640,6 @@ def format_svelte_output(files):
     output.append(files['src/App.svelte'])
     output.append("\n=== src/app.css ===")
     output.append(files['src/app.css'])
-    output.append("\n=== src/lib/Counter.svelte ===")
-    output.append(files['src/lib/Counter.svelte'])
     return '\n'.join(output)
 
 def history_render(history: History):
@@ -2329,29 +2318,6 @@ with gr.Blocks(
                             return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {actual_repo_id} and your token has the correct permissions.", visible=True)
                         else:
                             return gr.update(value=f"Error uploading src/app.css: {e}", visible=True)
-                    finally:
-                        import os
-                        os.unlink(temp_path)
-                
-                # Upload src/lib/Counter.svelte (optional)
-                if files['src/lib/Counter.svelte']:
-                    with tempfile.NamedTemporaryFile("w", suffix=".svelte", delete=False) as f:
-                        f.write(files['src/lib/Counter.svelte'])
-                        temp_path = f.name
-                    
-                    try:
-                        api.upload_file(
-                            path_or_fileobj=temp_path,
-                            path_in_repo="src/lib/Counter.svelte",
-                            repo_id=actual_repo_id,
-                            repo_type="space"
-                        )
-                    except Exception as e:
-                        error_msg = str(e)
-                        if "403 Forbidden" in error_msg and "write token" in error_msg:
-                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {actual_repo_id} and your token has the correct permissions.", visible=True)
-                        else:
-                            return gr.update(value=f"Error uploading src/lib/Counter.svelte: {e}", visible=True)
                     finally:
                         import os
                         os.unlink(temp_path)
