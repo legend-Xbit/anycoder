@@ -2239,8 +2239,11 @@ with gr.Blocks(
                     exist_ok=True
                 )
                 print("Duplicated Svelte repo result:", duplicated_repo, type(duplicated_repo))
-                # Show the duplicated space URL immediately for user feedback
-                gr.update(value=f"✅ Space duplicated! [Open your new Svelte Space here]({str(duplicated_repo)})", visible=True)
+                # Extract the actual repo ID from the duplicated space
+                actual_repo_id = str(duplicated_repo).split('/')[-1]  # Get the repo name from the URL
+                actual_repo_id = f"{profile.username}/{actual_repo_id}"  # Add username prefix
+                print("Actual repo ID for Svelte uploads:", actual_repo_id)
+                
                 # Parse the Svelte output to get the custom files
                 files = parse_svelte_output(code)
                 
@@ -2259,7 +2262,7 @@ with gr.Blocks(
                     api.upload_file(
                         path_or_fileobj=temp_path,
                         path_in_repo="src/App.svelte",
-                        repo_id=repo_id,
+                        repo_id=actual_repo_id,
                         repo_type="space"
                     )
                 except Exception as e:
@@ -2282,7 +2285,7 @@ with gr.Blocks(
                         api.upload_file(
                             path_or_fileobj=temp_path,
                             path_in_repo="src/app.css",
-                            repo_id=repo_id,
+                            repo_id=actual_repo_id,
                             repo_type="space"
                         )
                     except Exception as e:
@@ -2305,7 +2308,7 @@ with gr.Blocks(
                         api.upload_file(
                             path_or_fileobj=temp_path,
                             path_in_repo="src/lib/Counter.svelte",
-                            repo_id=repo_id,
+                            repo_id=actual_repo_id,
                             repo_type="space"
                         )
                     except Exception as e:
@@ -2319,7 +2322,7 @@ with gr.Blocks(
                         os.unlink(temp_path)
                 
                 # Success - all files uploaded
-                space_url = f"https://huggingface.co/spaces/{repo_id}"
+                space_url = f"https://huggingface.co/spaces/{actual_repo_id}"
                 action_text = "Updated" if is_update else "Deployed"
                 return gr.update(value=f"✅ {action_text}! [Open your Svelte Space here]({space_url})", visible=True)
                     
