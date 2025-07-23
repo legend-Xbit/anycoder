@@ -2234,14 +2234,23 @@ with gr.Blocks(
                 # Duplicate the Svelte template space
                 duplicated_repo = duplicate_space(
                     from_id="static-templates/svelte",
-                    to_id=space_name.strip(),
+                    to_id=repo_id,  # Use the full repo_id (username/space_name)
                     token=token.token,
                     exist_ok=True
                 )
                 print("Duplicated Svelte repo result:", duplicated_repo, type(duplicated_repo))
                 # Extract the actual repo ID from the duplicated space
-                actual_repo_id = str(duplicated_repo).split('/')[-1]  # Get the repo name from the URL
-                actual_repo_id = f"{profile.username}/{actual_repo_id}"  # Add username prefix
+                # The duplicated_repo is a RepoUrl object, convert to string and extract the repo ID
+                duplicated_repo_str = str(duplicated_repo)
+                # Extract username and repo name from the URL
+                if "/spaces/" in duplicated_repo_str:
+                    parts = duplicated_repo_str.split("/spaces/")[-1].split("/")
+                    if len(parts) >= 2:
+                        actual_repo_id = f"{parts[0]}/{parts[1]}"
+                    else:
+                        actual_repo_id = repo_id  # Fallback to original
+                else:
+                    actual_repo_id = repo_id  # Fallback to original
                 print("Actual repo ID for Svelte uploads:", actual_repo_id)
                 
                 # Parse the Svelte output to get the custom files
@@ -2264,11 +2273,11 @@ with gr.Blocks(
                         path_in_repo="src/App.svelte",
                         repo_id=actual_repo_id,
                         repo_type="space"
-                    )
+                                        )
                 except Exception as e:
                     error_msg = str(e)
                     if "403 Forbidden" in error_msg and "write token" in error_msg:
-                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {actual_repo_id} and your token has the correct permissions.", visible=True)
                     else:
                         return gr.update(value=f"Error uploading src/App.svelte: {e}", visible=True)
                 finally:
@@ -2291,7 +2300,7 @@ with gr.Blocks(
                     except Exception as e:
                         error_msg = str(e)
                         if "403 Forbidden" in error_msg and "write token" in error_msg:
-                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {actual_repo_id} and your token has the correct permissions.", visible=True)
                         else:
                             return gr.update(value=f"Error uploading src/app.css: {e}", visible=True)
                     finally:
@@ -2314,7 +2323,7 @@ with gr.Blocks(
                     except Exception as e:
                         error_msg = str(e)
                         if "403 Forbidden" in error_msg and "write token" in error_msg:
-                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {actual_repo_id} and your token has the correct permissions.", visible=True)
                         else:
                             return gr.update(value=f"Error uploading src/lib/Counter.svelte: {e}", visible=True)
                     finally:
