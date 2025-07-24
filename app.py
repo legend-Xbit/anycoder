@@ -1794,7 +1794,7 @@ with gr.Blocks(
     setting = gr.State({
         "system": HTML_SYSTEM_PROMPT,
     })
-    current_model = gr.State(AVAILABLE_MODELS[9])  # Qwen3-Coder-480B-A35B
+    current_model = gr.State(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2
     open_panel = gr.State(None)
     last_login_state = gr.State(None)
 
@@ -1877,7 +1877,7 @@ with gr.Blocks(
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
-            value=AVAILABLE_MODELS[9]['name'],
+            value=AVAILABLE_MODELS[0]['name'],
             label="Model",
             visible=True
         )
