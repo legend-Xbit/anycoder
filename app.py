@@ -373,6 +373,11 @@ AVAILABLE_MODELS = [
         "name": "Qwen3-Coder-480B-A35B",
         "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
         "description": "Qwen3-Coder-480B-A35B-Instruct model for advanced code generation and programming tasks"
+    },
+    {
+        "name": "Qwen3-32B",
+        "id": "Qwen/Qwen3-32B",
+        "description": "Qwen3-32B model for code generation and general tasks"
     }
 ]
 
@@ -448,6 +453,10 @@ def get_inference_client(model_id, provider="auto"):
     """Return an InferenceClient with provider based on model_id and user selection."""
     if model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
+    elif model_id == "Qwen/Qwen3-235B-A22B":
+        provider = "cerebras"
+    elif model_id == "Qwen/Qwen3-32B":
+        provider = "cerebras"
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
