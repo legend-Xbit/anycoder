@@ -1451,7 +1451,7 @@ This will help me create a better design for you."""
             model=_current_model["id"],
             messages=messages,
             stream=True,
-            max_tokens=10000
+            max_tokens=20000
         )
         content = ""
         for chunk in completion:
