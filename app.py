@@ -378,6 +378,11 @@ AVAILABLE_MODELS = [
         "name": "Qwen3-32B",
         "id": "Qwen/Qwen3-32B",
         "description": "Qwen3-32B model for code generation and general tasks"
+    },
+    {
+        "name": "Qwen3-235B-A22B-Thinking",
+        "id": "qwen3-235b-a22b-thinking-2507",
+        "description": "Qwen3-235B-A22B-Thinking model with advanced reasoning capabilities via Dashscope"
     }
 ]
 
@@ -451,6 +456,17 @@ if not HF_TOKEN:
 
 def get_inference_client(model_id, provider="auto"):
     """Return an InferenceClient with provider based on model_id and user selection."""
+    # Special case for Dashscope Qwen thinking model
+    if model_id == "qwen3-235b-a22b-thinking-2507":
+        dashscope_api_key = os.getenv("DASHSCOPE_API_KEY")
+        if not dashscope_api_key:
+            raise RuntimeError("DASHSCOPE_API_KEY environment variable is not set. Please set it to your Dashscope API key.")
+        return OpenAI(
+            api_key=dashscope_api_key,
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
+        )
+    
+    # Handle other models with HuggingFace InferenceClient
     if model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
     elif model_id == "Qwen/Qwen3-235B-A22B":
