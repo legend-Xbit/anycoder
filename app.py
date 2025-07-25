@@ -1456,12 +1456,19 @@ This will help me create a better design for you."""
     else:
         messages.append({'role': 'user', 'content': enhanced_query})
     try:
-        completion = client.chat.completions.create(
-            model=_current_model["id"],
-            messages=messages,
-            stream=True,
-            max_tokens=10000
-        )
+        # Configure completion parameters based on model type
+        completion_params = {
+            "model": _current_model["id"],
+            "messages": messages,
+            "stream": True,
+            "max_tokens": 10000
+        }
+        
+        # Add stream_options for Dashscope models for better streaming performance
+        if _current_model["id"] == "qwen3-235b-a22b-thinking-2507":
+            completion_params["stream_options"] = {"include_usage": True}
+        
+        completion = client.chat.completions.create(**completion_params)
         content = ""
         for chunk in completion:
             # Only process if chunk.choices is non-empty
