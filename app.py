@@ -381,8 +381,8 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "Qwen3-235B-A22B-Thinking",
-        "id": "qwen3-235b-a22b-thinking-2507",
-        "description": "Qwen3-235B-A22B-Thinking model with advanced reasoning capabilities via Dashscope"
+        "id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
+        "description": "Qwen3-235B-A22B-Thinking model with advanced reasoning capabilities"
     }
 ]
 
@@ -456,23 +456,14 @@ if not HF_TOKEN:
 
 def get_inference_client(model_id, provider="auto"):
     """Return an InferenceClient with provider based on model_id and user selection."""
-    # Special case for Dashscope Qwen thinking model
-    if model_id == "qwen3-235b-a22b-thinking-2507":
-        dashscope_api_key = os.getenv("DASHSCOPE_API_KEY")
-        if not dashscope_api_key:
-            raise RuntimeError("DASHSCOPE_API_KEY environment variable is not set. Please set it to your Dashscope API key.")
-        return OpenAI(
-            api_key=dashscope_api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
-        )
-    
-    # Handle other models with HuggingFace InferenceClient
     if model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
     elif model_id == "Qwen/Qwen3-235B-A22B":
         provider = "cerebras"
     elif model_id == "Qwen/Qwen3-32B":
         provider = "cerebras"
+    elif model_id == "Qwen/Qwen3-235B-A22B-Thinking-2507":
+        provider = "auto"  # Let HuggingFace handle provider selection
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
@@ -1456,19 +1447,12 @@ This will help me create a better design for you."""
     else:
         messages.append({'role': 'user', 'content': enhanced_query})
     try:
-        # Configure completion parameters based on model type
-        completion_params = {
-            "model": _current_model["id"],
-            "messages": messages,
-            "stream": True,
-            "max_tokens": 10000
-        }
-        
-        # Add stream_options for Dashscope models for better streaming performance
-        if _current_model["id"] == "qwen3-235b-a22b-thinking-2507":
-            completion_params["stream_options"] = {"include_usage": True}
-        
-        completion = client.chat.completions.create(**completion_params)
+        completion = client.chat.completions.create(
+            model=_current_model["id"],
+            messages=messages,
+            stream=True,
+            max_tokens=10000
+        )
         content = ""
         for chunk in completion:
             # Only process if chunk.choices is non-empty
