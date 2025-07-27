@@ -1451,7 +1451,7 @@ This will help me create a better design for you."""
             model=_current_model["id"],
             messages=messages,
             stream=True,
-            max_tokens=20000
+            max_tokens=16384
         )
         content = ""
         for chunk in completion:
@@ -2147,20 +2147,22 @@ with gr.Blocks(
             except Exception as e:
                 return gr.update(value=f"Error creating Space: {e}", visible=True)
         # Streamlit/docker logic
-        if sdk == "docker" and not is_update:
+        if sdk == "docker":
             try:
-                # Use duplicate_space to create a Streamlit template space
-                from huggingface_hub import duplicate_space
+                # For new spaces, duplicate the template first
+                if not is_update:
+                    # Use duplicate_space to create a Streamlit template space
+                    from huggingface_hub import duplicate_space
+                    
+                    # Duplicate the streamlit template space
+                    duplicated_repo = duplicate_space(
+                        from_id="streamlit/streamlit-template-space",
+                        to_id=space_name.strip(),
+                        token=token.token,
+                        exist_ok=True
+                    )
                 
-                # Duplicate the streamlit template space
-                duplicated_repo = duplicate_space(
-                    from_id="streamlit/streamlit-template-space",
-                    to_id=space_name.strip(),
-                    token=token.token,
-                    exist_ok=True
-                )
-                
-                # Upload the user's code to the duplicated space
+                # Upload the user's code to src/streamlit_app.py (for both new and existing spaces)
                 import tempfile
                 with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
                     f.write(code)
@@ -2187,7 +2189,8 @@ with gr.Blocks(
                     os.unlink(temp_path)
                     
             except Exception as e:
-                return gr.update(value=f"Error duplicating Streamlit space: {e}", visible=True)
+                error_prefix = "Error duplicating Streamlit space" if not is_update else "Error updating Streamlit space"
+                return gr.update(value=f"{error_prefix}: {e}", visible=True)
         # Transformers.js logic
         elif sdk_name == "Transformers.js" and not is_update:
             try:
