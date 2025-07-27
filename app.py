@@ -1715,25 +1715,53 @@ def fetch_hf_space_content(username: str, project_name: str) -> str:
         sdk = space_info.sdk
         main_file = None
         
+        # Define file patterns to try based on SDK
         if sdk == "static":
-            main_file = "index.html"
+            file_patterns = ["index.html"]
         elif sdk == "gradio":
-            main_file = "app.py"
+            file_patterns = ["app.py", "main.py", "gradio_app.py"]
         elif sdk == "streamlit":
-            main_file = "streamlit_app.py"
+            file_patterns = ["streamlit_app.py", "src/streamlit_app.py", "app.py", "src/app.py", "main.py", "src/main.py", "Home.py", "src/Home.py", "🏠_Home.py", "src/🏠_Home.py", "1_🏠_Home.py", "src/1_🏠_Home.py"]
         else:
-            # Try common files
-            for file in ["app.py", "index.html", "streamlit_app.py", "main.py"]:
-                try:
-                    content = api.hf_hub_download(
-                        repo_id=f"{username}/{project_name}",
-                        filename=file,
-                        repo_type="space"
-                    )
-                    main_file = file
-                    break
-                except:
-                    continue
+            # Try common files for unknown SDKs
+            file_patterns = ["app.py", "src/app.py", "index.html", "streamlit_app.py", "src/streamlit_app.py", "main.py", "src/main.py", "Home.py", "src/Home.py"]
+        
+        # Try to find and download the main file
+        for file in file_patterns:
+            try:
+                content = api.hf_hub_download(
+                    repo_id=f"{username}/{project_name}",
+                    filename=file,
+                    repo_type="space"
+                )
+                main_file = file
+                break
+            except:
+                continue
+        
+        # If still no main file found, try to list repository files and find Python files
+        if not main_file and sdk in ["streamlit", "gradio"]:
+            try:
+                from huggingface_hub import list_repo_files
+                files = list_repo_files(repo_id=f"{username}/{project_name}", repo_type="space")
+                
+                # Look for Python files that might be the main file (root and src/ directory)
+                python_files = [f for f in files if f.endswith('.py') and not f.startswith('.') and 
+                              (('/' not in f) or f.startswith('src/'))]
+                
+                for py_file in python_files:
+                    try:
+                        content = api.hf_hub_download(
+                            repo_id=f"{username}/{project_name}",
+                            filename=py_file,
+                            repo_type="space"
+                        )
+                        main_file = py_file
+                        break
+                    except:
+                        continue
+            except:
+                pass
         
         if main_file:
             content = api.hf_hub_download(
@@ -1755,7 +1783,14 @@ Main File: {main_file}
 
 {file_content}"""
         else:
-            return f"Error: Could not find main file in space {username}/{project_name}"
+            # Try to get more information about available files for debugging
+            try:
+                from huggingface_hub import list_repo_files
+                files = list_repo_files(repo_id=f"{username}/{project_name}", repo_type="space")
+                available_files = [f for f in files if not f.startswith('.') and not f.endswith('.md')]
+                return f"Error: Could not find main file in space {username}/{project_name}.\n\nSDK: {sdk}\nAvailable files: {', '.join(available_files[:10])}{'...' if len(available_files) > 10 else ''}\n\nTried looking for: {', '.join(file_patterns)}"
+            except:
+                return f"Error: Could not find main file in space {username}/{project_name}. Expected files for {sdk} SDK: {', '.join(file_patterns) if 'file_patterns' in locals() else 'standard files'}"
             
     except Exception as e:
         return f"Error fetching space content: {str(e)}"
