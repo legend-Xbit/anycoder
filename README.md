@@ -15,7 +15,7 @@ hf_oauth_scopes:
 
 # AnyCoder - AI Code Generator
 
-AnyCoder is an AI-powered code generator that helps you create applications by describing them in plain English. It supports multiple AI models, multimodal input, website redesign, and one-click deployment to Hugging Face Spaces. The UI is built with pure Gradio theming for a minimal, modern experience.
+AnyCoder is an AI-powered code generator that helps you create applications by describing them in plain English. It supports multiple AI models, multimodal input, website redesign, and one-click deployment to Hugging Face Spaces. The UI is built with Gradio theming for a minimal, modern experience.
 
 ## Features
 
