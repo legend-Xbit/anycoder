@@ -478,6 +478,8 @@ def get_inference_client(model_id, provider="auto"):
         provider = "groq"
     elif model_id == "Qwen/Qwen3-235B-A22B":
         provider = "cerebras"
+    elif model_id == "Qwen/Qwen3-235B-A22B-Instruct-2507":
+        provider = "cerebras"
     elif model_id == "Qwen/Qwen3-32B":
         provider = "cerebras"
     elif model_id == "Qwen/Qwen3-235B-A22B-Thinking-2507":
