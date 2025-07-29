@@ -2301,7 +2301,7 @@ with gr.Blocks(
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
-            value=AVAILABLE_MODELS[0]['name'],
+            value="Qwen3-Coder-480B-A35B",
             label="Model",
             visible=True
         )
