@@ -19,7 +19,7 @@ AnyCoder is an AI-powered code generator that helps you create applications by d
 
 ## Features
 
-- **Multi-Model Support**: Choose from Moonshot Kimi-K2, DeepSeek V3, DeepSeek R1, ERNIE-4.5-VL, MiniMax M1, Qwen3-235B-A22B, SmolLM3-3B, and GLM-4.1V-9B-Thinking
+- **Multi-Model Support**: Choose from Moonshot Kimi-K2, DeepSeek V3, DeepSeek R1, ERNIE-4.5-VL, MiniMax M1, Qwen3-235B-A22B, Qwen3-30B-A3B-Instruct-2507, Qwen3-30B-A3B-Thinking-2507, SmolLM3-3B, and GLM-4.1V-9B-Thinking
 - **Flexible Input**: Describe your app in text, upload a UI design image (for multimodal models), provide a reference file (PDF, TXT, MD, CSV, DOCX, or image), or enter a website URL for redesign
 - **Web Search Integration**: Enable real-time web search (Tavily, with advanced search depth) to enhance code generation with up-to-date information and best practices
 - **Code Generation**: Generate code in HTML, Python, JS, and more. Special support for transformers.js apps (outputs index.html, index.js, style.css)
@@ -44,6 +44,7 @@ pip install -r requirements.txt
 ```bash
 export HF_TOKEN="your_huggingface_token"
 export TAVILY_API_KEY="your_tavily_api_key"  # Optional, for web search feature
+export DASHSCOPE_API_KEY="your_dashscope_api_key"  # Required for Qwen3-30B models via DashScope
 ```
 
 ## Usage
@@ -72,6 +73,8 @@ python app.py
 - ERNIE-4.5-VL (multimodal)
 - MiniMax M1
 - Qwen3-235B-A22B
+- Qwen3-30B-A3B-Instruct-2507 (via DashScope)
+- Qwen3-30B-A3B-Thinking-2507 (via DashScope)
 - SmolLM3-3B
 - GLM-4.1V-9B-Thinking (multimodal)
 
