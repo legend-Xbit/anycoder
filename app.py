@@ -410,6 +410,11 @@ AVAILABLE_MODELS = [
         "name": "Horizon Alpha",
         "id": "openrouter/horizon-alpha",
         "description": "OpenRouter Horizon Alpha model for advanced code generation and multimodal tasks"
+    },
+    {
+        "name": "StepFun Step-3",
+        "id": "step-3",
+        "description": "StepFun Step-3 model - AI chat assistant by 阶跃星辰 with multilingual capabilities"
     }
 ]
 
@@ -510,6 +515,12 @@ def get_inference_client(model_id, provider="auto"):
                 "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "https://huggingface.co/spaces/akhaliq/anycoder"),
                 "X-Title": os.getenv("OPENROUTER_SITE_NAME", "AnyCoder")
             }
+        )
+    elif model_id == "step-3":
+        # Use StepFun API client for Step-3 model
+        return OpenAI(
+            api_key=os.getenv("STEP_API_KEY"),
+            base_url="https://api.stepfun.com/v1"
         )
     elif model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
