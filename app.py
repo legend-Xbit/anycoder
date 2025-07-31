@@ -402,6 +402,11 @@ AVAILABLE_MODELS = [
         "description": "Qwen3-30B-A3B-Thinking model with advanced reasoning via Alibaba Cloud DashScope API"
     },
     {
+        "name": "Qwen3-Coder-30B-A3B-Instruct",
+        "id": "qwen3-coder-30b-a3b-instruct",
+        "description": "Qwen3-Coder-30B-A3B-Instruct model for advanced code generation via Alibaba Cloud DashScope API"
+    },
+    {
         "name": "Horizon Alpha",
         "id": "openrouter/horizon-alpha",
         "description": "OpenRouter Horizon Alpha model for advanced code generation and multimodal tasks"
@@ -486,6 +491,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "qwen3-30b-a3b-thinking-2507":
         # Use DashScope OpenAI client for Thinking model
+        return OpenAI(
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+    elif model_id == "qwen3-coder-30b-a3b-instruct":
+        # Use DashScope OpenAI client for Coder model
         return OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
