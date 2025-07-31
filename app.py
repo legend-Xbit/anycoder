@@ -2095,22 +2095,34 @@ def generate_requirements_txt_with_llm(import_statements):
         
         imports_text = '\n'.join(import_statements)
         
-        prompt = f"""Based on the following Python import statements, generate a requirements.txt file with the necessary PyPI packages:
+        prompt = f"""Based on the following Python import statements, generate a comprehensive requirements.txt file with all necessary and commonly used related packages:
 
 {imports_text}
 
 Instructions:
-- Only include external packages that need to be installed via pip
+- Include the direct packages needed for the imports
+- Include commonly used companion packages and dependencies for better functionality
+- Use correct PyPI package names (e.g., cv2 -> opencv-python, PIL -> Pillow, sklearn -> scikit-learn)
+- Examples of comprehensive dependencies:
+  * transformers often needs: accelerate, torch, tokenizers, datasets
+  * gradio often needs: requests, Pillow for image handling
+  * pandas often needs: numpy, openpyxl for Excel files
+  * matplotlib often needs: numpy, pillow for image saving
+  * sklearn often needs: numpy, scipy, joblib
+  * streamlit often needs: pandas, numpy, requests
+  * opencv-python often needs: numpy, pillow
+  * fastapi often needs: uvicorn, pydantic
+  * torch often needs: torchvision, torchaudio (if doing computer vision/audio)
+- Include packages for common file formats if relevant (openpyxl, python-docx, PyPDF2)
 - Do not include Python built-in modules
-- Use the correct PyPI package names (e.g., cv2 -> opencv-python, PIL -> Pillow, sklearn -> scikit-learn)
-- Do not specify versions unless absolutely necessary for compatibility
+- Do not specify versions unless there are known compatibility issues
 - One package per line
 - If no external packages are needed, return "# No additional dependencies required"
 
-Requirements.txt:"""
+Generate a comprehensive requirements.txt that ensures the application will work smoothly:"""
 
         messages = [
-            {"role": "system", "content": "You are a Python packaging expert. Generate accurate requirements.txt files based on import statements."},
+            {"role": "system", "content": "You are a Python packaging expert specializing in creating comprehensive, production-ready requirements.txt files. Your goal is to ensure applications work smoothly by including not just direct dependencies but also commonly needed companion packages, popular extensions, and supporting libraries that developers typically need together."},
             {"role": "user", "content": prompt}
         ]
         
