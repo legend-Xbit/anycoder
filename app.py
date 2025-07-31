@@ -531,7 +531,7 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "Qwen/Qwen3-32B":
         provider = "cerebras"
     elif model_id == "Qwen/Qwen3-235B-A22B-Thinking-2507":
-        provider = "auto"  # Let HuggingFace handle provider selection
+        provider = "cerebras"
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
