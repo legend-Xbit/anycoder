@@ -2030,10 +2030,161 @@ This will help me create a better design for you."""
 
 # Deploy to Spaces logic
 
+def extract_import_statements(code):
+    """Extract import statements from generated code."""
+    import ast
+    import re
+    
+    import_statements = []
+    
+    # Built-in Python modules to exclude
+    builtin_modules = {
+        'os', 'sys', 'json', 'time', 'datetime', 'random', 'math', 're', 'collections',
+        'itertools', 'functools', 'pathlib', 'urllib', 'http', 'email', 'html', 'xml',
+        'csv', 'tempfile', 'shutil', 'subprocess', 'threading', 'multiprocessing',
+        'asyncio', 'logging', 'typing', 'base64', 'hashlib', 'secrets', 'uuid',
+        'copy', 'pickle', 'io', 'contextlib', 'warnings', 'sqlite3', 'gzip', 'zipfile',
+        'tarfile', 'socket', 'ssl', 'platform', 'getpass', 'pwd', 'grp', 'stat',
+        'glob', 'fnmatch', 'linecache', 'traceback', 'inspect', 'keyword', 'token',
+        'tokenize', 'ast', 'code', 'codeop', 'dis', 'py_compile', 'compileall',
+        'importlib', 'pkgutil', 'modulefinder', 'runpy', 'site', 'sysconfig'
+    }
+    
+    try:
+        # Try to parse as Python AST
+        tree = ast.parse(code)
+        
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    module_name = alias.name.split('.')[0]
+                    if module_name not in builtin_modules and not module_name.startswith('_'):
+                        import_statements.append(f"import {alias.name}")
+            
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    module_name = node.module.split('.')[0]
+                    if module_name not in builtin_modules and not module_name.startswith('_'):
+                        names = [alias.name for alias in node.names]
+                        import_statements.append(f"from {node.module} import {', '.join(names)}")
+    
+    except SyntaxError:
+        # Fallback: use regex to find import statements
+        for line in code.split('\n'):
+            line = line.strip()
+            if line.startswith('import ') or line.startswith('from '):
+                # Check if it's not a builtin module
+                if line.startswith('import '):
+                    module_name = line.split()[1].split('.')[0]
+                elif line.startswith('from '):
+                    module_name = line.split()[1].split('.')[0]
+                
+                if module_name not in builtin_modules and not module_name.startswith('_'):
+                    import_statements.append(line)
+    
+    return list(set(import_statements))  # Remove duplicates
+
+def generate_requirements_txt_with_llm(import_statements):
+    """Generate requirements.txt content using LLM based on import statements."""
+    if not import_statements:
+        return "# No additional dependencies required\n"
+    
+    # Use a lightweight model for this task
+    try:
+        client = get_inference_client("Qwen/Qwen3-Coder-480B-A35B", "auto")
+        
+        imports_text = '\n'.join(import_statements)
+        
+        prompt = f"""Based on the following Python import statements, generate a requirements.txt file with the necessary PyPI packages:
+
+{imports_text}
+
+Instructions:
+- Only include external packages that need to be installed via pip
+- Do not include Python built-in modules
+- Use the correct PyPI package names (e.g., cv2 -> opencv-python, PIL -> Pillow, sklearn -> scikit-learn)
+- Do not specify versions unless absolutely necessary for compatibility
+- One package per line
+- If no external packages are needed, return "# No additional dependencies required"
+
+Requirements.txt:"""
+
+        messages = [
+            {"role": "system", "content": "You are a Python packaging expert. Generate accurate requirements.txt files based on import statements."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        response = client.chat.completions.create(
+            model="Qwen/Qwen3-Coder-480B-A35B",
+            messages=messages,
+            max_tokens=1024,
+            temperature=0.1
+        )
+        
+        requirements_content = response.choices[0].message.content.strip()
+        
+        # Clean up the response in case it includes extra formatting
+        if '```' in requirements_content:
+            # Extract content between code blocks
+            lines = requirements_content.split('\n')
+            in_code_block = False
+            clean_lines = []
+            for line in lines:
+                if line.strip().startswith('```'):
+                    in_code_block = not in_code_block
+                    continue
+                if in_code_block:
+                    clean_lines.append(line)
+            requirements_content = '\n'.join(clean_lines).strip()
+        
+        # Ensure it ends with a newline
+        if requirements_content and not requirements_content.endswith('\n'):
+            requirements_content += '\n'
+            
+        return requirements_content if requirements_content else "# No additional dependencies required\n"
+        
+    except Exception as e:
+        # Fallback: simple extraction with basic mapping
+        dependencies = set()
+        special_cases = {
+            'cv2': 'opencv-python',
+            'PIL': 'Pillow', 
+            'sklearn': 'scikit-learn',
+            'skimage': 'scikit-image',
+            'bs4': 'beautifulsoup4'
+        }
+        
+        for stmt in import_statements:
+            if stmt.startswith('import '):
+                module_name = stmt.split()[1].split('.')[0]
+                package_name = special_cases.get(module_name, module_name)
+                dependencies.add(package_name)
+            elif stmt.startswith('from '):
+                module_name = stmt.split()[1].split('.')[0]
+                package_name = special_cases.get(module_name, module_name)
+                dependencies.add(package_name)
+        
+        if dependencies:
+            return '\n'.join(sorted(dependencies)) + '\n'
+        else:
+            return "# No additional dependencies required\n"
+
 def wrap_html_in_gradio_app(html_code):
     # Escape triple quotes for safe embedding
     safe_html = html_code.replace('"""', r'\"\"\"')
+    
+    # Extract import statements and generate requirements.txt with LLM
+    import_statements = extract_import_statements(html_code)
+    requirements_comment = ""
+    if import_statements:
+        requirements_content = generate_requirements_txt_with_llm(import_statements)
+        requirements_comment = (
+            "# Generated requirements.txt content (create this file manually if needed):\n"
+            + '\n'.join(f"# {line}" for line in requirements_content.strip().split('\n')) + '\n\n'
+        )
+    
     return (
+        f'{requirements_comment}'
         'import gradio as gr\n\n'
         'def show_html():\n'
         f'    return """{safe_html}"""\n\n'
@@ -2559,8 +2710,36 @@ with gr.Blocks(
                         exist_ok=True
                     )
                 
-                # Upload the user's code to src/streamlit_app.py (for both new and existing spaces)
+                # Generate and upload requirements.txt for Streamlit apps
+                import_statements = extract_import_statements(code)
+                requirements_content = generate_requirements_txt_with_llm(import_statements)
+                
                 import tempfile
+                
+                # Upload requirements.txt first
+                try:
+                    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
+                        f.write(requirements_content)
+                        requirements_temp_path = f.name
+                    
+                    api.upload_file(
+                        path_or_fileobj=requirements_temp_path,
+                        path_in_repo="requirements.txt",
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+                except Exception as e:
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error uploading requirements.txt: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    else:
+                        return gr.update(value=f"Error uploading requirements.txt: {e}", visible=True)
+                finally:
+                    import os
+                    if 'requirements_temp_path' in locals():
+                        os.unlink(requirements_temp_path)
+                
+                # Upload the user's code to src/streamlit_app.py (for both new and existing spaces)
                 with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
                     f.write(code)
                     temp_path = f.name
@@ -2817,8 +2996,37 @@ with gr.Blocks(
                     import os
                     os.unlink(temp_path)
         else:
-            file_name = "app.py"
+            # Generate and upload requirements.txt for Gradio apps
+            import_statements = extract_import_statements(code)
+            requirements_content = generate_requirements_txt_with_llm(import_statements)
+            
             import tempfile
+            
+            # Upload requirements.txt first
+            try:
+                with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
+                    f.write(requirements_content)
+                    requirements_temp_path = f.name
+                
+                api.upload_file(
+                    path_or_fileobj=requirements_temp_path,
+                    path_in_repo="requirements.txt",
+                    repo_id=repo_id,
+                    repo_type="space"
+                )
+            except Exception as e:
+                error_msg = str(e)
+                if "403 Forbidden" in error_msg and "write token" in error_msg:
+                    return gr.update(value=f"Error uploading requirements.txt: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                else:
+                    return gr.update(value=f"Error uploading requirements.txt: {e}", visible=True)
+            finally:
+                import os
+                if 'requirements_temp_path' in locals():
+                    os.unlink(requirements_temp_path)
+            
+            # Now upload the main app.py file
+            file_name = "app.py"
             with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
                 f.write(code)
                 temp_path = f.name
