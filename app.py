@@ -400,6 +400,11 @@ AVAILABLE_MODELS = [
         "name": "Qwen3-30B-A3B-Thinking-2507",
         "id": "qwen3-30b-a3b-thinking-2507",
         "description": "Qwen3-30B-A3B-Thinking model with advanced reasoning via Alibaba Cloud DashScope API"
+    },
+    {
+        "name": "Horizon Alpha",
+        "id": "openrouter/horizon-alpha",
+        "description": "OpenRouter Horizon Alpha model for advanced code generation and multimodal tasks"
     }
 ]
 
@@ -484,6 +489,16 @@ def get_inference_client(model_id, provider="auto"):
         return OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+    elif model_id == "openrouter/horizon-alpha":
+        # Use OpenRouter client for Horizon Alpha model
+        return OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+            default_headers={
+                "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "https://huggingface.co/spaces/akhaliq/anycoder"),
+                "X-Title": os.getenv("OPENROUTER_SITE_NAME", "AnyCoder")
+            }
         )
     elif model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
