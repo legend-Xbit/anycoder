@@ -228,10 +228,22 @@ GENERIC_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert {language} developer. Y
 Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output."""
 
 # Follow-up system prompt for modifying existing HTML files
-FollowUpSystemPrompt = f"""You are an expert web developer modifying an existing HTML file.
+FollowUpSystemPrompt = f"""You are an expert web developer modifying an existing project.
 The user wants to apply changes based on their request.
 You MUST output ONLY the changes required using the following SEARCH/REPLACE block format. Do NOT output the entire file.
 Explain the changes briefly *before* the blocks if necessary, but the code changes THEMSELVES MUST be within the blocks.
+
+IMPORTANT: When the user reports an ERROR MESSAGE, analyze it carefully to determine which file needs fixing:
+- ImportError/ModuleNotFoundError → Fix requirements.txt by adding missing packages
+- Syntax errors in Python code → Fix app.py or the main Python file
+- HTML/CSS/JavaScript errors → Fix the respective HTML/CSS/JS files
+- Configuration errors → Fix config files, Docker files, etc.
+
+For Python applications (Gradio/Streamlit), the project structure typically includes:
+- app.py (main application file)
+- requirements.txt (dependencies)
+- Other supporting files as needed
+
 Format Rules:
 1. Start with {SEARCH_START}
 2. Provide the exact lines from the current code that need to be replaced.
@@ -242,6 +254,8 @@ Format Rules:
 7. To insert code, use an empty SEARCH block (only {SEARCH_START} and {DIVIDER} on their lines) if inserting at the very beginning, otherwise provide the line *before* the insertion point in the SEARCH block and include that line plus the new lines in the REPLACE block.
 8. To delete code, provide the lines to delete in the SEARCH block and leave the REPLACE block empty (only {DIVIDER} and {REPLACE_END} on their lines).
 9. IMPORTANT: The SEARCH block must *exactly* match the current code, including indentation and whitespace.
+10. For multi-file projects, specify which file you're modifying by starting with the filename before the search/replace block.
+
 Example Modifying Code:
 ```
 Some explanation...
@@ -257,6 +271,21 @@ Some explanation...
   </body>
 {REPLACE_END}
 ```
+
+Example Fixing Dependencies (requirements.txt):
+```
+Adding missing dependency to fix ImportError...
+=== requirements.txt ===
+{SEARCH_START}
+gradio
+streamlit
+{DIVIDER}
+gradio
+streamlit
+mistral-common
+{REPLACE_END}
+```
+
 Example Deleting Code:
 ```
 Removing the paragraph...
@@ -271,6 +300,12 @@ TransformersJSFollowUpSystemPrompt = f"""You are an expert web developer modifyi
 The user wants to apply changes based on their request.
 You MUST output ONLY the changes required using the following SEARCH/REPLACE block format. Do NOT output the entire file.
 Explain the changes briefly *before* the blocks if necessary, but the code changes THEMSELVES MUST be within the blocks.
+
+IMPORTANT: When the user reports an ERROR MESSAGE, analyze it carefully to determine which file needs fixing:
+- JavaScript errors/module loading issues → Fix index.js
+- HTML rendering/DOM issues → Fix index.html
+- Styling/visual issues → Fix style.css
+- CDN/library loading errors → Fix script tags in index.html
 
 The transformers.js application consists of three files: index.html, index.js, and style.css.
 When making changes, specify which file you're modifying by starting your search/replace blocks with the file name.
@@ -289,6 +324,7 @@ Format Rules:
 Example Modifying HTML:
 ```
 Changing the title in index.html...
+=== index.html ===
 {SEARCH_START}
     <title>Old Title</title>
 {DIVIDER}
@@ -299,6 +335,7 @@ Changing the title in index.html...
 Example Modifying JavaScript:
 ```
 Adding a new function to index.js...
+=== index.js ===
 {SEARCH_START}
 // Existing code
 {DIVIDER}
@@ -313,6 +350,7 @@ function newFunction() {{
 Example Modifying CSS:
 ```
 Changing background color in style.css...
+=== style.css ===
 {SEARCH_START}
 body {{
     background-color: white;
@@ -321,6 +359,17 @@ body {{
 body {{
     background-color: #f0f0f0;
 }}
+{REPLACE_END}
+```
+
+Example Fixing Library Loading Error:
+```
+Fixing transformers.js CDN loading error...
+=== index.html ===
+{SEARCH_START}
+<script type="module" src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.6.0"></script>
+{DIVIDER}
+<script type="module" src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2"></script>
 {REPLACE_END}
 ```"""
 
