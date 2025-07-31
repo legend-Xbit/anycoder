@@ -2116,6 +2116,67 @@ This will help me create a better design for you."""
 
 # Deploy to Spaces logic
 
+def add_anycoder_tag_to_readme(api, repo_id):
+    """Download existing README, add anycoder tag, and upload back."""
+    try:
+        import tempfile
+        import re
+        
+        # Download the existing README
+        readme_path = api.hf_hub_download(
+            repo_id=repo_id,
+            filename="README.md",
+            repo_type="space"
+        )
+        
+        # Read the existing README content
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Parse frontmatter and content
+        if content.startswith('---'):
+            # Split frontmatter and body
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                frontmatter = parts[1].strip()
+                body = parts[2] if len(parts) > 2 else ""
+                
+                # Check if tags already exist
+                if 'tags:' in frontmatter:
+                    # Add anycoder to existing tags if not present
+                    if '- anycoder' not in frontmatter:
+                        frontmatter = re.sub(r'(tags:\s*\n(?:\s*-\s*[^\n]+\n)*)', r'\1- anycoder\n', frontmatter)
+                else:
+                    # Add tags section with anycoder
+                    frontmatter += '\ntags:\n- anycoder'
+                
+                # Reconstruct the README
+                new_content = f"---\n{frontmatter}\n---{body}"
+            else:
+                # Malformed frontmatter, just add tags at the end of frontmatter
+                new_content = content.replace('---', '---\ntags:\n- anycoder\n---', 1)
+        else:
+            # No frontmatter, add it at the beginning
+            new_content = f"---\ntags:\n- anycoder\n---\n\n{content}"
+        
+        # Upload the modified README
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding='utf-8') as f:
+            f.write(new_content)
+            temp_path = f.name
+        
+        api.upload_file(
+            path_or_fileobj=temp_path,
+            path_in_repo="README.md",
+            repo_id=repo_id,
+            repo_type="space"
+        )
+        
+        import os
+        os.unlink(temp_path)
+        
+    except Exception as e:
+        print(f"Warning: Could not modify README.md to add anycoder tag: {e}")
+
 def extract_import_statements(code):
     """Extract import statements from generated code."""
     import ast
@@ -2837,6 +2898,9 @@ with gr.Blocks(
                     if 'requirements_temp_path' in locals():
                         os.unlink(requirements_temp_path)
                 
+                # Add anycoder tag to existing README
+                add_anycoder_tag_to_readme(api, repo_id)
+                
                 # Upload the user's code to src/streamlit_app.py (for both new and existing spaces)
                 with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
                     f.write(code)
@@ -2944,9 +3008,6 @@ with gr.Blocks(
                         repo_id=repo_id,
                         repo_type="space"
                     )
-                    space_url = f"https://huggingface.co/spaces/{repo_id}"
-                    action_text = "Updated" if is_update else "Deployed"
-                    return gr.update(value=f"✅ {action_text}! [Open your Transformers.js Space here]({space_url})", visible=True)
                 except Exception as e:
                     error_msg = str(e)
                     if "403 Forbidden" in error_msg and "write token" in error_msg:
@@ -2956,6 +3017,13 @@ with gr.Blocks(
                 finally:
                     import os
                     os.unlink(temp_path)
+                
+                # Add anycoder tag to existing README
+                add_anycoder_tag_to_readme(api, repo_id)
+                
+                space_url = f"https://huggingface.co/spaces/{repo_id}"
+                action_text = "Updated" if is_update else "Deployed"
+                return gr.update(value=f"✅ {action_text}! [Open your Transformers.js Space here]({space_url})", visible=True)
                     
             except Exception as e:
                 # Handle potential RepoUrl object errors
@@ -3050,6 +3118,9 @@ with gr.Blocks(
                         import os
                         os.unlink(temp_path)
                 
+                # Add anycoder tag to existing README
+                add_anycoder_tag_to_readme(api, actual_repo_id)
+                
                 # Success - all files uploaded
                 space_url = f"https://huggingface.co/spaces/{actual_repo_id}"
                 action_text = "Updated" if is_update else "Deployed"
@@ -3065,6 +3136,10 @@ with gr.Blocks(
         if sdk == "static":
             import time
             file_name = "index.html"
+            
+            # Add anycoder tag to existing README (after repo creation)
+            add_anycoder_tag_to_readme(api, repo_id)
+            
             # Wait and retry logic after repo creation
             max_attempts = 3
             for attempt in range(max_attempts):
@@ -3122,6 +3197,9 @@ with gr.Blocks(
                 import os
                 if 'requirements_temp_path' in locals():
                     os.unlink(requirements_temp_path)
+            
+            # Add anycoder tag to existing README
+            add_anycoder_tag_to_readme(api, repo_id)
             
             # Now upload the main app.py file
             file_name = "app.py"
