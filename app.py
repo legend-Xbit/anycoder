@@ -427,7 +427,7 @@ AVAILABLE_MODELS = [
         "description": "Qwen3-235B-A22B-Instruct-2507 model for code generation and general tasks"
     },
     {
-        "name": "Qwen3-Coder-480B-A35B",
+        "name": "Qwen3-Coder-480B-A35B-Instruct",
         "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
         "description": "Qwen3-Coder-480B-A35B-Instruct model for advanced code generation and programming tasks"
     },
@@ -589,6 +589,8 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "Qwen/Qwen3-32B":
         provider = "cerebras"
     elif model_id == "Qwen/Qwen3-235B-A22B-Thinking-2507":
+        provider = "cerebras"
+    elif model_id == "Qwen/Qwen3-Coder-480B-A35B-Instruct":
         provider = "cerebras"
     return InferenceClient(
         provider=provider,
@@ -2271,7 +2273,7 @@ def generate_requirements_txt_with_llm(import_statements):
     
     # Use a lightweight model for this task
     try:
-        client = get_inference_client("Qwen/Qwen3-Coder-480B-A35B", "auto")
+        client = get_inference_client("Qwen/Qwen3-Coder-480B-A35B-Instruct", "auto")
         
         imports_text = '\n'.join(import_statements)
         
@@ -2307,7 +2309,7 @@ Generate a comprehensive requirements.txt that ensures the application will work
         ]
         
         response = client.chat.completions.create(
-            model="Qwen/Qwen3-Coder-480B-A35B",
+            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
             messages=messages,
             max_tokens=1024,
             temperature=0.1
@@ -2585,7 +2587,7 @@ with gr.Blocks(
     setting = gr.State({
         "system": HTML_SYSTEM_PROMPT,
     })
-    current_model = gr.State(AVAILABLE_MODELS[0])  # Moonshot Kimi-K2
+    current_model = gr.State(AVAILABLE_MODELS[10])  # Qwen3-Coder-480B-A35B-Instruct
     open_panel = gr.State(None)
     last_login_state = gr.State(None)
 
@@ -2668,7 +2670,7 @@ with gr.Blocks(
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
-            value="Qwen3-Coder-480B-A35B",
+            value="Qwen3-Coder-480B-A35B-Instruct",
             label="Model",
             visible=True
         )
