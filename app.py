@@ -27,6 +27,7 @@ from tavily import TavilyClient
 from huggingface_hub import HfApi
 import tempfile
 from openai import OpenAI
+from mistralai import Mistral
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
@@ -464,6 +465,11 @@ AVAILABLE_MODELS = [
         "name": "StepFun Step-3",
         "id": "step-3",
         "description": "StepFun Step-3 model - AI chat assistant by 阶跃星辰 with multilingual capabilities"
+    },
+    {
+        "name": "Codestral 2508",
+        "id": "codestral-2508",
+        "description": "Mistral Codestral model - specialized for code generation and programming tasks"
     }
 ]
 
@@ -571,6 +577,9 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("STEP_API_KEY"),
             base_url="https://api.stepfun.com/v1"
         )
+    elif model_id == "codestral-2508":
+        # Use Mistral client for Codestral model
+        return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
     elif model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
     elif model_id == "Qwen/Qwen3-235B-A22B":
@@ -1930,22 +1939,46 @@ This will help me create a better design for you."""
     else:
         messages.append({'role': 'user', 'content': enhanced_query})
     try:
-        completion = client.chat.completions.create(
-            model=_current_model["id"],
-            messages=messages,
-            stream=True,
-            max_tokens=16384
-        )
+        # Handle Mistral API method difference
+        if _current_model["id"] == "codestral-2508":
+            completion = client.chat.stream(
+                model=_current_model["id"],
+                messages=messages,
+                max_tokens=16384
+            )
+        else:
+            completion = client.chat.completions.create(
+                model=_current_model["id"],
+                messages=messages,
+                stream=True,
+                max_tokens=16384
+            )
         content = ""
         for chunk in completion:
-            # Only process if chunk.choices is non-empty
-            if (
-                hasattr(chunk, "choices") and chunk.choices and 
-                hasattr(chunk.choices[0], "delta") and 
-                hasattr(chunk.choices[0].delta, "content") and 
-                chunk.choices[0].delta.content is not None
-            ):
-                content += chunk.choices[0].delta.content
+            # Handle different response formats for Mistral vs others
+            chunk_content = None
+            if _current_model["id"] == "codestral-2508":
+                # Mistral format: chunk.data.choices[0].delta.content
+                if (
+                    hasattr(chunk, "data") and chunk.data and
+                    hasattr(chunk.data, "choices") and chunk.data.choices and 
+                    hasattr(chunk.data.choices[0], "delta") and 
+                    hasattr(chunk.data.choices[0].delta, "content") and 
+                    chunk.data.choices[0].delta.content is not None
+                ):
+                    chunk_content = chunk.data.choices[0].delta.content
+            else:
+                # OpenAI format: chunk.choices[0].delta.content
+                if (
+                    hasattr(chunk, "choices") and chunk.choices and 
+                    hasattr(chunk.choices[0], "delta") and 
+                    hasattr(chunk.choices[0].delta, "content") and 
+                    chunk.choices[0].delta.content is not None
+                ):
+                    chunk_content = chunk.choices[0].delta.content
+            
+            if chunk_content:
+                content += chunk_content
                 search_status = " (with web search)" if enable_search and tavily_client else ""
                 
                 # Handle transformers.js output differently
