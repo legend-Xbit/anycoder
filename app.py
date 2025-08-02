@@ -3055,7 +3055,7 @@ with gr.Blocks(
         # Transformers.js logic
         elif sdk_name == "Transformers.js":
             try:
-                # Only duplicate template space for new spaces, not updates
+                # For new spaces, duplicate the template. For updates, just verify access.
                 if not is_update:
                     # Use duplicate_space to create a transformers.js template space
                     from huggingface_hub import duplicate_space
@@ -3068,83 +3068,79 @@ with gr.Blocks(
                         exist_ok=True
                     )
                     print("Duplicated repo result:", duplicated_repo, type(duplicated_repo))
+                else:
+                    # For updates, verify we can access the existing space
+                    try:
+                        space_info = api.space_info(repo_id)
+                        if not space_info:
+                            return gr.update(value=f"Error: Could not access space {repo_id} for update.", visible=True)
+                    except Exception as e:
+                        return gr.update(value=f"Error: Cannot update space {repo_id}. {str(e)}", visible=True)
                 # Parse the transformers.js output to get the three files
                 files = parse_transformers_js_output(code)
                 
                 if not files['index.html'] or not files['index.js'] or not files['style.css']:
                     return gr.update(value="Error: Could not parse transformers.js output. Please regenerate the code.", visible=True)
                 
-                # Upload the three files to the duplicated space
+                # Upload the three files to the space (with retry logic for reliability)
                 import tempfile
+                import time
                 
-                # Upload index.html
-                with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False) as f:
-                    f.write(files['index.html'])
-                    temp_path = f.name
+                # Define files to upload
+                files_to_upload = [
+                    ("index.html", files['index.html']),
+                    ("index.js", files['index.js']),
+                    ("style.css", files['style.css'])
+                ]
                 
-                try:
-                    api.upload_file(
-                        path_or_fileobj=temp_path,
-                        path_in_repo="index.html",
-                        repo_id=repo_id,
-                        repo_type="space"
-                    )
-                except Exception as e:
-                    error_msg = str(e)
-                    if "403 Forbidden" in error_msg and "write token" in error_msg:
-                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
-                    else:
-                        return gr.update(value=f"Error uploading index.html: {e}", visible=True)
-                finally:
-                    import os
-                    os.unlink(temp_path)
+                # Upload each file with retry logic (similar to static HTML pattern)
+                max_attempts = 3
+                for file_name, file_content in files_to_upload:
+                    success = False
+                    last_error = None
+                    
+                    for attempt in range(max_attempts):
+                        try:
+                            with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
+                                f.write(file_content)
+                                temp_path = f.name
+                            
+                            api.upload_file(
+                                path_or_fileobj=temp_path,
+                                path_in_repo=file_name,
+                                repo_id=repo_id,
+                                repo_type="space"
+                            )
+                            success = True
+                            break
+                            
+                        except Exception as e:
+                            last_error = e
+                            error_msg = str(e)
+                            if "403 Forbidden" in error_msg and "write token" in error_msg:
+                                # Permission errors won't be fixed by retrying
+                                return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                            
+                            if attempt < max_attempts - 1:  # Not the last attempt
+                                time.sleep(2)  # Wait before retrying
+                        finally:
+                            import os
+                            if 'temp_path' in locals():
+                                os.unlink(temp_path)
+                    
+                    if not success:
+                        return gr.update(value=f"Error uploading {file_name}: {last_error}", visible=True)
                 
-                # Upload index.js
-                with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
-                    f.write(files['index.js'])
-                    temp_path = f.name
-                
-                try:
-                    api.upload_file(
-                        path_or_fileobj=temp_path,
-                        path_in_repo="index.js",
-                        repo_id=repo_id,
-                        repo_type="space"
-                    )
-                except Exception as e:
-                    error_msg = str(e)
-                    if "403 Forbidden" in error_msg and "write token" in error_msg:
-                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
-                    else:
-                        return gr.update(value=f"Error uploading index.js: {e}", visible=True)
-                finally:
-                    import os
-                    os.unlink(temp_path)
-                
-                # Upload style.css
-                with tempfile.NamedTemporaryFile("w", suffix=".css", delete=False) as f:
-                    f.write(files['style.css'])
-                    temp_path = f.name
-                
-                try:
-                    api.upload_file(
-                        path_or_fileobj=temp_path,
-                        path_in_repo="style.css",
-                        repo_id=repo_id,
-                        repo_type="space"
-                    )
-                except Exception as e:
-                    error_msg = str(e)
-                    if "403 Forbidden" in error_msg and "write token" in error_msg:
-                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
-                    else:
-                        return gr.update(value=f"Error uploading style.css: {e}", visible=True)
-                finally:
-                    import os
-                    os.unlink(temp_path)
-                
-                # Add anycoder tag to existing README
+                # Add anycoder tag to existing README (for both new and update)
                 add_anycoder_tag_to_readme(api, repo_id)
+                
+                # For updates, trigger a space restart to ensure changes take effect
+                if is_update:
+                    try:
+                        api.restart_space(repo_id=repo_id)
+                    except Exception as restart_error:
+                        # Don't fail the deployment if restart fails, just log it
+                        print(f"Note: Could not restart space after update: {restart_error}")
                 
                 space_url = f"https://huggingface.co/spaces/{repo_id}"
                 action_text = "Updated" if is_update else "Deployed"
