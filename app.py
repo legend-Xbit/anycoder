@@ -2856,6 +2856,27 @@ with gr.Blocks(
             return gr.update(value="🔄 Update Space")
         else:
             return gr.update(value="🚀 Deploy App")
+    
+    def preserve_space_info_for_followup(history):
+        """Check if this is a followup on an imported project and preserve space info"""
+        if not history or len(history) == 0:
+            return [gr.update(), gr.update()]
+        
+        # Look for imported project pattern in history
+        for user_msg, assistant_msg in history:
+            if assistant_msg and 'IMPORTED PROJECT FROM HUGGING FACE SPACE' in assistant_msg:
+                # Extract space name from the imported project info
+                import re
+                space_match = re.search(r'Space:\s*([^\s\n]+)', assistant_msg)
+                if space_match:
+                    space_name = space_match.group(1)
+                    return [
+                        gr.update(value=space_name, visible=True),  # Update space name
+                        gr.update(value="🔄 Update Space", visible=True)  # Update button text
+                    ]
+        
+        # No imported project found, return no changes
+        return [gr.update(), gr.update()]
 
     # Load project button event
     load_project_btn.click(
@@ -2872,6 +2893,10 @@ with gr.Blocks(
         show_deploy_components,
         None,
         [space_name_input, sdk_dropdown, deploy_btn]
+    ).then(
+        preserve_space_info_for_followup,
+        inputs=[history],
+        outputs=[space_name_input, deploy_btn]
     )
     # Update preview when code or language changes
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
@@ -3128,18 +3153,27 @@ with gr.Blocks(
             except Exception as e:
                 # Handle potential RepoUrl object errors
                 error_msg = str(e)
-                if "'url'" in error_msg or "RepoUrl" in error_msg and not is_update:
-                    # Extract the URL from RepoUrl object if possible
+                if "'url'" in error_msg or "RepoUrl" in error_msg:
+                    # For RepoUrl object issues, check if the space was actually created successfully
                     try:
-                        if 'duplicated_repo' in locals() and hasattr(duplicated_repo, 'url'):
-                            repo_url = duplicated_repo.url
-                        elif 'duplicated_repo' in locals() and hasattr(duplicated_repo, '_url'):
-                            repo_url = duplicated_repo._url
+                        # Check if space exists by trying to access it
+                        space_url = f"https://huggingface.co/spaces/{repo_id}"
+                        test_api = HfApi(token=token.token)
+                        space_exists = test_api.space_info(repo_id)
+                        
+                        if space_exists and not is_update:
+                            # Space was created successfully despite the RepoUrl error
+                            return gr.update(value=f"✅ Deployed! Space was created successfully despite a technical error. [Open your Transformers.js Space here]({space_url})", visible=True)
+                        elif space_exists and is_update:
+                            # Space was updated successfully despite the RepoUrl error  
+                            return gr.update(value=f"✅ Updated! Space was updated successfully despite a technical error. [Open your Transformers.js Space here]({space_url})", visible=True)
                         else:
-                            repo_url = f"https://huggingface.co/spaces/{repo_id}"
-                        return gr.update(value=f"Error: Could not properly handle space creation response. Space may have been created successfully. Check: {repo_url}", visible=True)
+                            # Space doesn't exist, real error
+                            return gr.update(value=f"Error: Could not create/update space. Please try again manually at https://huggingface.co/new-space", visible=True)
                     except:
-                        return gr.update(value=f"Error duplicating Transformers.js space: RepoUrl handling error. Please try again manually at https://huggingface.co/new-space", visible=True)
+                        # Fallback to informative error with link
+                        repo_url = f"https://huggingface.co/spaces/{repo_id}"
+                        return gr.update(value=f"Error: Could not properly handle space creation response. Space may have been created successfully. Check: {repo_url}", visible=True)
                 
                 # General error handling for both creation and updates
                 action_verb = "updating" if is_update else "duplicating"
