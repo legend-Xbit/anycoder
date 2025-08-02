@@ -711,38 +711,77 @@ def parse_transformers_js_output(text):
         'style.css': ''
     }
     
-    # Patterns to match the three code blocks
-    html_pattern = r'```html\s*\n([\s\S]+?)\n```'
-    js_pattern = r'```javascript\s*\n([\s\S]+?)\n```'
-    css_pattern = r'```css\s*\n([\s\S]+?)\n```'
+    # Multiple patterns to match the three code blocks with different variations
+    html_patterns = [
+        r'```html\s*\n([\s\S]+?)\n```',
+        r'```htm\s*\n([\s\S]+?)\n```',
+        r'```\s*(?:index\.html|html)\s*\n([\s\S]+?)\n```'
+    ]
+    
+    js_patterns = [
+        r'```javascript\s*\n([\s\S]+?)\n```',
+        r'```js\s*\n([\s\S]+?)\n```',
+        r'```\s*(?:index\.js|javascript)\s*\n([\s\S]+?)\n```'
+    ]
+    
+    css_patterns = [
+        r'```css\s*\n([\s\S]+?)\n```',
+        r'```\s*(?:style\.css|css)\s*\n([\s\S]+?)\n```'
+    ]
     
     # Extract HTML content
-    html_match = re.search(html_pattern, text, re.IGNORECASE)
-    if html_match:
-        files['index.html'] = html_match.group(1).strip()
+    for pattern in html_patterns:
+        html_match = re.search(pattern, text, re.IGNORECASE)
+        if html_match:
+            files['index.html'] = html_match.group(1).strip()
+            break
     
     # Extract JavaScript content
-    js_match = re.search(js_pattern, text, re.IGNORECASE)
-    if js_match:
-        files['index.js'] = js_match.group(1).strip()
+    for pattern in js_patterns:
+        js_match = re.search(pattern, text, re.IGNORECASE)
+        if js_match:
+            files['index.js'] = js_match.group(1).strip()
+            break
     
     # Extract CSS content
-    css_match = re.search(css_pattern, text, re.IGNORECASE)
-    if css_match:
-        files['style.css'] = css_match.group(1).strip()
+    for pattern in css_patterns:
+        css_match = re.search(pattern, text, re.IGNORECASE)
+        if css_match:
+            files['style.css'] = css_match.group(1).strip()
+            break
     
     # Fallback: support === index.html === format if any file is missing
     if not (files['index.html'] and files['index.js'] and files['style.css']):
         # Use regex to extract sections
-        html_fallback = re.search(r'===\s*index\.html\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
-        js_fallback = re.search(r'===\s*index\.js\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
-        css_fallback = re.search(r'===\s*style\.css\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        html_fallback = re.search(r'===\s*index\.html\s*===\s*\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        js_fallback = re.search(r'===\s*index\.js\s*===\s*\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        css_fallback = re.search(r'===\s*style\.css\s*===\s*\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
+        
         if html_fallback:
             files['index.html'] = html_fallback.group(1).strip()
         if js_fallback:
             files['index.js'] = js_fallback.group(1).strip()
         if css_fallback:
             files['style.css'] = css_fallback.group(1).strip()
+    
+    # Additional fallback: extract from numbered sections or file headers
+    if not (files['index.html'] and files['index.js'] and files['style.css']):
+        # Try patterns like "1. index.html:" or "**index.html**"
+        patterns = [
+            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)index\.html(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'index.html'),
+            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)index\.js(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'index.js'),
+            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)style\.css(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'style.css')
+        ]
+        
+        for pattern, file_key in patterns:
+            if not files[file_key]:
+                match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    # Clean up the content by removing any code block markers
+                    content = match.group(1).strip()
+                    content = re.sub(r'^```\w*\s*\n', '', content)
+                    content = re.sub(r'\n```\s*$', '', content)
+                    files[file_key] = content.strip()
     
     return files
 
@@ -2810,6 +2849,13 @@ with gr.Blocks(
 
     def hide_deploy_components(*args):
         return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False)]
+    
+    def update_deploy_button_text(space_name):
+        """Update deploy button text based on whether it's a new space or update"""
+        if "/" in space_name.strip():
+            return gr.update(value="🔄 Update Space")
+        else:
+            return gr.update(value="🚀 Deploy App")
 
     # Load project button event
     load_project_btn.click(
@@ -2830,6 +2876,8 @@ with gr.Blocks(
     # Update preview when code or language changes
     code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
+    # Update deploy button text when space name changes
+    space_name_input.change(update_deploy_button_text, inputs=[space_name_input], outputs=[deploy_btn])
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
     clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn])
     # Reset space name and button text when clearing
@@ -2980,19 +3028,21 @@ with gr.Blocks(
                 error_prefix = "Error duplicating Streamlit space" if not is_update else "Error updating Streamlit space"
                 return gr.update(value=f"{error_prefix}: {e}", visible=True)
         # Transformers.js logic
-        elif sdk_name == "Transformers.js" and not is_update:
+        elif sdk_name == "Transformers.js":
             try:
-                # Use duplicate_space to create a transformers.js template space
-                from huggingface_hub import duplicate_space
-                
-                # Duplicate the transformers.js template space
-                duplicated_repo = duplicate_space(
-                    from_id="static-templates/transformers.js",
-                    to_id=space_name.strip(),
-                    token=token.token,
-                    exist_ok=True
-                )
-                print("Duplicated repo result:", duplicated_repo, type(duplicated_repo))
+                # Only duplicate template space for new spaces, not updates
+                if not is_update:
+                    # Use duplicate_space to create a transformers.js template space
+                    from huggingface_hub import duplicate_space
+                    
+                    # Duplicate the transformers.js template space
+                    duplicated_repo = duplicate_space(
+                        from_id="static-templates/transformers.js",
+                        to_id=space_name.strip(),
+                        token=token.token,
+                        exist_ok=True
+                    )
+                    print("Duplicated repo result:", duplicated_repo, type(duplicated_repo))
                 # Parse the transformers.js output to get the three files
                 files = parse_transformers_js_output(code)
                 
@@ -3078,9 +3128,22 @@ with gr.Blocks(
             except Exception as e:
                 # Handle potential RepoUrl object errors
                 error_msg = str(e)
-                if "'url'" in error_msg or "RepoUrl" in error_msg:
-                    return gr.update(value=f"Error duplicating Transformers.js space: RepoUrl handling error. Please try again. Details: {error_msg}", visible=True)
-                return gr.update(value=f"Error duplicating Transformers.js space: {error_msg}", visible=True)
+                if "'url'" in error_msg or "RepoUrl" in error_msg and not is_update:
+                    # Extract the URL from RepoUrl object if possible
+                    try:
+                        if 'duplicated_repo' in locals() and hasattr(duplicated_repo, 'url'):
+                            repo_url = duplicated_repo.url
+                        elif 'duplicated_repo' in locals() and hasattr(duplicated_repo, '_url'):
+                            repo_url = duplicated_repo._url
+                        else:
+                            repo_url = f"https://huggingface.co/spaces/{repo_id}"
+                        return gr.update(value=f"Error: Could not properly handle space creation response. Space may have been created successfully. Check: {repo_url}", visible=True)
+                    except:
+                        return gr.update(value=f"Error duplicating Transformers.js space: RepoUrl handling error. Please try again manually at https://huggingface.co/new-space", visible=True)
+                
+                # General error handling for both creation and updates
+                action_verb = "updating" if is_update else "duplicating"
+                return gr.update(value=f"Error {action_verb} Transformers.js space: {error_msg}", visible=True)
         # Svelte logic
         elif sdk_name == "Svelte" and not is_update:
             try:
