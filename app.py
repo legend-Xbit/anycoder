@@ -2461,7 +2461,7 @@ THEME_CONFIGS = {
             text_size="sm",
             spacing_size="sm",
             radius_size="none",
-            font=["Orbitron", "Courier New", "monospace"]
+            font="Orbitron"
         ).set(
             body_background_fill="#0a0a0f",
             body_background_fill_dark="#0a0a0f",
@@ -2553,7 +2553,7 @@ THEME_CONFIGS = {
             text_size="sm",
             spacing_size="sm",
             radius_size="sm",
-            font=["Consolas", "Monaco", "Courier New", "monospace"]
+            font="Consolas"
         ).set(
             # VS Code exact colors
             body_background_fill="#1e1e1e",           # VS Code editor background
