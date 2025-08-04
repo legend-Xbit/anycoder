@@ -413,7 +413,7 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "GLM-4.5",
-        "id": "GLM-4.5",
+        "id": "zai-org/GLM-4.5",
         "description": "GLM-4.5 model with thinking capabilities for advanced code generation"
     },
     {
@@ -1541,223 +1541,7 @@ The HTML code above contains the complete original website structure with all im
         return f"Error extracting website content: {str(e)}"
 
 
-# GLM-4.5 Model Implementation
 stop_generation = False
-
-def stream_from_vllm(messages, thinking_enabled=True, temperature=1.0):
-    global stop_generation
-    
-    # Get GLM API configuration from environment variables
-    glm_api_key = os.getenv('OPENAI_API_KEY')
-    glm_base_url = os.getenv('GLM_BASE_URL', 'https://open.bigmodel.cn/api/paas/v4/')
-    
-    if not glm_api_key:
-        # Return configuration error if no API key
-        error_msg = """
-GLM-4.5 API Key Not Configured
-
-To use GLM-4.5, please:
-1. Get your API key from: https://open.bigmodel.cn/
-2. Set environment variable: OPENAI_API_KEY=your_api_key_here
-3. Optionally set GLM_BASE_URL if using different endpoint
-
-Example HTML code generation with Gradio:
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample App</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; }
-        .container { max-width: 600px; margin: 0 auto; }
-        h1 { color: #333; }
-        .button { 
-            background: #007acc; 
-            color: white; 
-            padding: 10px 20px; 
-            border: none; 
-            border-radius: 5px; 
-            cursor: pointer; 
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>GLM-4.5 Configuration Required</h1>
-        <p>Please configure your GLM-4.5 API key to use this model.</p>
-        <button class="button" onclick="alert('Configure OPENAI_API_KEY environment variable')">Get Started</button>
-    </div>
-</body>
-</html>
-```
-"""
-        yield type('Delta', (), {'content': error_msg, 'reasoning_content': None})()
-        return
-    
-    # Configure OpenAI client for GLM-4.5
-    try:
-        client = OpenAI(
-            base_url=glm_base_url,
-            api_key=glm_api_key,
-        )
-        
-        response = client.chat.completions.create(
-            model="GLM-4.5",
-            messages=messages,
-            temperature=temperature,
-            stream=True,
-            max_tokens=65536,
-            extra_body={
-                "thinking": {
-                    "type": "enabled" if thinking_enabled else "disabled",
-                }
-            }
-        )
-        
-        for chunk in response:
-            if stop_generation:
-                break
-            if chunk.choices and chunk.choices[0].delta:
-                yield chunk.choices[0].delta
-                
-    except Exception as e:
-        # Fallback: if GLM-4.5 API fails, yield error with sample code
-        error_msg = f"""Error connecting to GLM-4.5: {str(e)}
-
-Please check:
-1. OPENAI_API_KEY environment variable is set correctly
-2. API key is valid and has credits
-3. Network connection is working
-4. GLM_BASE_URL is correct (current: {glm_base_url})
-
-Here's a sample HTML code to test the UI:
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GLM-4.5 Error - Sample Output</title>
-    <style>
-        body {{ 
-            font-family: Arial, sans-serif; 
-            margin: 40px; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }}
-        .container {{ 
-            max-width: 600px; 
-            margin: 0 auto; 
-            background: rgba(255,255,255,0.1);
-            padding: 30px;
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-        }}
-        h1 {{ color: #fff; text-align: center; }}
-        .error {{ background: rgba(255,0,0,0.2); padding: 15px; border-radius: 8px; margin: 20px 0; }}
-        .button {{ 
-            background: rgba(255,255,255,0.2); 
-            color: white; 
-            padding: 12px 24px; 
-            border: 1px solid rgba(255,255,255,0.3); 
-            border-radius: 8px; 
-            cursor: pointer; 
-            display: block;
-            margin: 20px auto;
-        }}
-        .button:hover {{ background: rgba(255,255,255,0.3); }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🤖 GLM-4.5 Configuration Error</h1>
-        <div class="error">
-            <strong>Error:</strong> {str(e)}
-        </div>
-        <p>This is a sample HTML output to demonstrate the UI while you configure GLM-4.5.</p>
-        <button class="button" onclick="window.open('https://open.bigmodel.cn/', '_blank')">Configure GLM-4.5 API</button>
-    </div>
-    <script>
-        console.log('GLM-4.5 API Error: {str(e)}');
-    </script>
-</body>
-</html>
-```"""
-        print(f"GLM-4.5 API Error: {e}")
-        yield type('Delta', (), {'content': error_msg, 'reasoning_content': None})()
-
-
-class GLM45Model:
-    def __init__(self):
-        self.accumulated_content = ""
-        self.accumulated_reasoning = ""
-
-    def reset_state(self):
-        self.accumulated_content = ""
-        self.accumulated_reasoning = ""
-
-    def _render_response(self, reasoning_content, regular_content, skip_think=False):
-        html_parts = []
-
-        if reasoning_content and not skip_think:
-            reasoning_escaped = html.escape(reasoning_content).replace("\n", "<br>")
-            think_html = (
-                    "<details open><summary style='cursor:pointer;font-weight:bold;color:#007acc;'>Thinking</summary>"
-                    "<div style='color:#555555;line-height:1.6;padding:15px;border-left:4px solid #007acc;margin:10px 0;background-color:#f0f7ff;border-radius:4px;'>"
-                    + reasoning_escaped +
-                    "</div></details>"
-            )
-            html_parts.append(think_html)
-
-        if regular_content:
-            content_escaped = html.escape(regular_content).replace("\n", "<br>")
-            content_html = f"<div style='margin:0.5em 0; white-space: pre-wrap; line-height:1.6;'>{content_escaped}</div>"
-            html_parts.append(content_html)
-
-        return "".join(html_parts)
-
-    def _build_messages(self, raw_hist, sys_prompt):
-        msgs = []
-        if sys_prompt.strip():
-            msgs.append({"role": "system", "content": sys_prompt.strip()})
-
-        for h in raw_hist:
-            if h["role"] == "user":
-                msgs.append({"role": "user", "content": h["content"]})
-            else:
-                msg = {"role": "assistant", "content": h.get("content", "")}
-                if h.get("reasoning_content"):
-                    msg["reasoning_content"] = h.get("reasoning_content")
-                msgs.append(msg)
-        return msgs
-
-    def stream_generate(self, raw_hist, sys_prompt, thinking_enabled=True, temperature=1.0):
-        global stop_generation
-        stop_generation = False
-        msgs = self._build_messages(raw_hist, sys_prompt)
-        self.reset_state()
-
-        try:
-            for delta in stream_from_vllm(msgs, thinking_enabled, temperature):
-                if stop_generation:
-                    break
-
-                if hasattr(delta, 'content') and delta.content:
-                    self.accumulated_content += delta.content
-
-                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                    self.accumulated_reasoning += delta.reasoning_content
-
-                yield self._render_response(self.accumulated_reasoning, self.accumulated_content, not thinking_enabled)
-
-        except Exception as e:
-            yield self._render_response("", f"Error: {str(e)}")
-
-
-# Global GLM-4.5 instance
-glm45 = GLM45Model()
 
 
 def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto"):
@@ -1841,97 +1625,47 @@ This will help me create a better design for you."""
     # Enhance query with search if enabled
     enhanced_query = enhance_query_with_search(query, enable_search)
 
-    # Check if this is GLM-4.5 model and handle differently
-    if _current_model["id"] == "GLM-4.5":
-        # For GLM-4.5, use the specialized implementation with simpler streaming
+    # Check if this is GLM-4.5 model and handle with simple HuggingFace InferenceClient
+    if _current_model["id"] == "zai-org/GLM-4.5":
         if image is not None:
             messages.append(create_multimodal_message(enhanced_query, image))
         else:
             messages.append({'role': 'user', 'content': enhanced_query})
         
-        content = ""
-        reasoning_content = ""
-        
         try:
-            # Use GLM-4.5 streaming directly
-            for delta in stream_from_vllm(messages, True, 1.0):
-                if stop_generation:
-                    break
-                
-                if hasattr(delta, 'content') and delta.content:
-                    content += delta.content
-                
-                if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
-                    reasoning_content += delta.reasoning_content
-                
-                # Show streaming content (extract just the code part)
-                clean_code = remove_code_block(content)
-                search_status = " (with web search)" if enable_search and tavily_client else ""
-                
-                # Handle different language outputs for GLM-4.5 during streaming
-                if language == "transformers.js":
-                    files = parse_transformers_js_output(clean_code)
-                    if files['index.html'] and files['index.js'] and files['style.css']:
-                        formatted_output = format_transformers_js_output(files)
-                        yield {
-                            code_output: gr.update(value=formatted_output, language="html"),
-                            history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_to_sandbox(files['index.html']) if files['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                        }
-                    else:
-                        yield {
-                            code_output: gr.update(value=clean_code, language="html"),
-                            history_output: history_to_chatbot_messages(_history),
-                            sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Generating transformers.js app...</div>",
-                        }
-                elif language == "svelte":
-                    yield {
-                        code_output: gr.update(value=clean_code, language="html"),
-                        history_output: history_to_chatbot_messages(_history),
-                        sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Generating Svelte app...</div>",
-                    }
-                else:
-                    if has_existing_content:
-                        if clean_code.strip().startswith("<!DOCTYPE html>") or clean_code.strip().startswith("<html"):
-                            yield {
-                                code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
-                                history_output: history_to_chatbot_messages(_history),
-                                sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                            }
-                        else:
-                            last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
-                            modified_content = apply_search_replace_changes(last_content, clean_code)
-                            clean_content = remove_code_block(modified_content)
-                            yield {
-                                code_output: gr.update(value=clean_content, language=get_gradio_language(language)),
-                                history_output: history_to_chatbot_messages(_history),
-                                sandbox: send_to_sandbox(clean_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                            }
-                    else:
-                        yield {
-                            code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
-                            history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                        }
-        
-        except Exception as e:
-            content = f"Error: {str(e)}"
-            print(f"GLM-4.5 Error: {e}")
-        
-        # Final processing for GLM-4.5
-        clean_code = remove_code_block(content)
-        
-        # Store content with thinking information if available
-        if reasoning_content:
-            full_response = f"**Thinking:**\n{reasoning_content}\n\n**Code:**\n{content}"
-        else:
-            full_response = content
+            client = InferenceClient(
+                provider="auto",
+                api_key=os.environ["HF_TOKEN"],
+                bill_to="huggingface",
+            )
             
+            stream = client.chat.completions.create(
+                model="zai-org/GLM-4.5",
+                messages=messages,
+                stream=True,
+            )
+            
+            content = ""
+            for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    content += chunk.choices[0].delta.content
+                    clean_code = remove_code_block(content)
+                    yield {
+                        code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
+                        history_output: history_to_chatbot_messages(_history),
+                        sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                    }
+            
+        except Exception as e:
+            content = f"Error with GLM-4.5: {str(e)}\n\nPlease make sure HF_TOKEN environment variable is set."
+        
+        clean_code = remove_code_block(content)
+        _history.append([query, content])
+        
         if language == "transformers.js":
             files = parse_transformers_js_output(clean_code)
             if files['index.html'] and files['index.js'] and files['style.css']:
                 formatted_output = format_transformers_js_output(files)
-                _history.append([query, full_response])
                 yield {
                     code_output: formatted_output,
                     history: _history,
@@ -1939,7 +1673,6 @@ This will help me create a better design for you."""
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
-                _history.append([query, full_response])
                 yield {
                     code_output: clean_code,
                     history: _history,
@@ -1950,7 +1683,6 @@ This will help me create a better design for you."""
             files = parse_svelte_output(clean_code)
             if files['src/App.svelte'] and files['src/app.css']:
                 formatted_output = format_svelte_output(files)
-                _history.append([query, full_response])
                 yield {
                     code_output: formatted_output,
                     history: _history,
@@ -1958,7 +1690,6 @@ This will help me create a better design for you."""
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
-                _history.append([query, full_response])
                 yield {
                     code_output: clean_code,
                     history: _history,
@@ -1970,7 +1701,6 @@ This will help me create a better design for you."""
                 last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
                 modified_content = apply_search_replace_changes(last_content, clean_code)
                 clean_content = remove_code_block(modified_content)
-                _history.append([query, full_response])
                 yield {
                     code_output: clean_content,
                     history: _history,
@@ -1978,7 +1708,6 @@ This will help me create a better design for you."""
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
-                _history.append([query, full_response])
                 yield {
                     code_output: clean_code,
                     history: _history,
