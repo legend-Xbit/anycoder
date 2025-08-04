@@ -2773,8 +2773,12 @@ with gr.Blocks(
                 )
             with gr.Tab("Preview"):
                 sandbox = gr.HTML(label="Live preview")
-            with gr.Tab("History"):
-                history_output = gr.Chatbot(show_label=False, height=400, type="messages")
+            # History tab hidden per user request
+            # with gr.Tab("History"):
+            #     history_output = gr.Chatbot(show_label=False, height=400, type="messages")
+        
+        # Keep history_output as hidden component to maintain functionality
+        history_output = gr.Chatbot(show_label=False, height=400, type="messages", visible=False)
 
     # Load project function
     def handle_load_project(url):
