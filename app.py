@@ -2352,19 +2352,281 @@ def load_project_from_url(url: str) -> Tuple[str, str]:
     
     return f"✅ Successfully imported project from {username}/{project_name}", code_content
 
-# Main application
+# Gradio Theme Configurations with proper theme objects
+def get_saved_theme():
+    """Get the saved theme preference from file"""
+    try:
+        if os.path.exists('.theme_preference'):
+            with open('.theme_preference', 'r') as f:
+                return f.read().strip()
+    except:
+        pass
+    return "Developer"
+
+def save_theme_preference(theme_name):
+    """Save theme preference to file"""
+    try:
+        with open('.theme_preference', 'w') as f:
+            f.write(theme_name)
+    except:
+        pass
+
+THEME_CONFIGS = {
+    "Default": {
+        "theme": gr.themes.Default(),
+        "description": "Gradio's standard theme with clean orange accents"
+    },
+    "Base": {
+        "theme": gr.themes.Base(
+            primary_hue="blue",
+            secondary_hue="slate",
+            neutral_hue="slate",
+            text_size="sm",
+            spacing_size="sm",
+            radius_size="md"
+        ),
+        "description": "Minimal foundation theme with blue accents"
+    },
+    "Soft": {
+        "theme": gr.themes.Soft(
+            primary_hue="emerald",
+            secondary_hue="emerald",
+            neutral_hue="slate",
+            text_size="sm",
+            spacing_size="md",
+            radius_size="lg"
+        ),
+        "description": "Gentle rounded theme with soft emerald colors"
+    },
+    "Monochrome": {
+        "theme": gr.themes.Monochrome(
+            primary_hue="slate",
+            secondary_hue="slate",
+            neutral_hue="slate",
+            text_size="sm",
+            spacing_size="sm",
+            radius_size="sm"
+        ),
+        "description": "Elegant black and white design"
+    },
+    "Glass": {
+        "theme": gr.themes.Glass(
+            primary_hue="blue",
+            secondary_hue="blue",
+            neutral_hue="slate",
+            text_size="sm",
+            spacing_size="md",
+            radius_size="lg"
+        ),
+        "description": "Modern glassmorphism with blur effects"
+    },
+    "Dark Ocean": {
+        "theme": gr.themes.Base(
+            primary_hue="blue",
+            secondary_hue="slate", 
+            neutral_hue="slate",
+            text_size="sm",
+            spacing_size="sm",
+            radius_size="md"
+        ).set(
+            body_background_fill="#0f172a",
+            body_background_fill_dark="#0f172a",
+            background_fill_primary="#3b82f6",
+            background_fill_secondary="#1e293b",
+            border_color_primary="#334155",
+            block_background_fill="#1e293b",
+            block_border_color="#334155",
+            body_text_color="#f1f5f9",
+            body_text_color_dark="#f1f5f9",
+            block_label_text_color="#f1f5f9",
+            block_label_text_color_dark="#f1f5f9",
+            block_title_text_color="#f1f5f9",
+            block_title_text_color_dark="#f1f5f9",
+            input_background_fill="#0f172a",
+            input_background_fill_dark="#0f172a",
+            input_border_color="#334155",
+            input_border_color_dark="#334155",
+            button_primary_background_fill="#3b82f6",
+            button_primary_border_color="#3b82f6",
+            button_secondary_background_fill="#334155",
+            button_secondary_border_color="#475569"
+        ),
+        "description": "Deep blue dark theme perfect for coding"
+    },
+    "Cyberpunk": {
+        "theme": gr.themes.Base(
+            primary_hue="fuchsia",
+            secondary_hue="cyan",
+            neutral_hue="slate",
+            text_size="sm",
+            spacing_size="sm",
+            radius_size="none",
+            font=["Orbitron", "Courier New", "monospace"]
+        ).set(
+            body_background_fill="#0a0a0f",
+            body_background_fill_dark="#0a0a0f",
+            background_fill_primary="#ff10f0",
+            background_fill_secondary="#1a1a2e",
+            border_color_primary="#00f5ff",
+            block_background_fill="#1a1a2e",
+            block_border_color="#00f5ff",
+            body_text_color="#00f5ff",
+            body_text_color_dark="#00f5ff",
+            block_label_text_color="#ff10f0",
+            block_label_text_color_dark="#ff10f0",
+            block_title_text_color="#ff10f0",
+            block_title_text_color_dark="#ff10f0",
+            input_background_fill="#0a0a0f",
+            input_background_fill_dark="#0a0a0f",
+            input_border_color="#00f5ff",
+            input_border_color_dark="#00f5ff",
+            button_primary_background_fill="#ff10f0",
+            button_primary_border_color="#ff10f0",
+            button_secondary_background_fill="#1a1a2e",
+            button_secondary_border_color="#00f5ff"
+        ),
+        "description": "Futuristic neon cyber aesthetics"
+    },
+    "Forest": {
+        "theme": gr.themes.Soft(
+            primary_hue="emerald",
+            secondary_hue="green",
+            neutral_hue="emerald",
+            text_size="sm",
+            spacing_size="md",
+            radius_size="lg"
+        ).set(
+            body_background_fill="#f0fdf4",
+            body_background_fill_dark="#064e3b",
+            background_fill_primary="#059669",
+            background_fill_secondary="#ecfdf5",
+            border_color_primary="#bbf7d0",
+            block_background_fill="#ffffff",
+            block_border_color="#d1fae5",
+            body_text_color="#064e3b",
+            body_text_color_dark="#f0fdf4",
+            block_label_text_color="#064e3b",
+            block_label_text_color_dark="#f0fdf4",
+            block_title_text_color="#059669",
+            block_title_text_color_dark="#10b981"
+        ),
+        "description": "Nature-inspired green earth tones"
+    },
+    "High Contrast": {
+        "theme": gr.themes.Base(
+            primary_hue="yellow",
+            secondary_hue="slate",
+            neutral_hue="slate",
+            text_size="lg",
+            spacing_size="lg",
+            radius_size="sm"
+        ).set(
+            body_background_fill="#ffffff",
+            body_background_fill_dark="#ffffff",
+            background_fill_primary="#000000",
+            background_fill_secondary="#ffffff",
+            border_color_primary="#000000",
+            block_background_fill="#ffffff",
+            block_border_color="#000000",
+            body_text_color="#000000",
+            body_text_color_dark="#000000",
+            block_label_text_color="#000000",
+            block_label_text_color_dark="#000000",
+            block_title_text_color="#000000",
+            block_title_text_color_dark="#000000",
+            input_background_fill="#ffffff",
+            input_background_fill_dark="#ffffff",
+            input_border_color="#000000",
+            input_border_color_dark="#000000",
+            button_primary_background_fill="#ffff00",
+            button_primary_border_color="#000000",
+            button_secondary_background_fill="#ffffff",
+            button_secondary_border_color="#000000"
+        ),
+        "description": "Accessibility-focused high visibility"
+    },
+    "Developer": {
+        "theme": gr.themes.Base(
+            primary_hue="blue",
+            secondary_hue="slate",
+            neutral_hue="slate",
+            text_size="sm",
+            spacing_size="sm",
+            radius_size="sm",
+            font=["Consolas", "Monaco", "Courier New", "monospace"]
+        ).set(
+            # VS Code exact colors
+            body_background_fill="#1e1e1e",           # VS Code editor background
+            body_background_fill_dark="#1e1e1e",
+            background_fill_primary="#007acc",        # VS Code blue accent
+            background_fill_secondary="#252526",      # VS Code sidebar background
+            border_color_primary="#3e3e42",          # VS Code border color
+            block_background_fill="#252526",         # VS Code panel background
+            block_border_color="#3e3e42",           # VS Code subtle borders
+            body_text_color="#cccccc",               # VS Code default text
+            body_text_color_dark="#cccccc",
+            block_label_text_color="#cccccc",
+            block_label_text_color_dark="#cccccc",
+            block_title_text_color="#ffffff",        # VS Code active text
+            block_title_text_color_dark="#ffffff",
+            input_background_fill="#2d2d30",         # VS Code input background
+            input_background_fill_dark="#2d2d30",
+            input_border_color="#3e3e42",           # VS Code input border
+            input_border_color_dark="#3e3e42",
+            input_border_color_focus="#007acc",      # VS Code focus border
+            input_border_color_focus_dark="#007acc",
+            button_primary_background_fill="#007acc", # VS Code button blue
+            button_primary_border_color="#007acc",
+            button_primary_background_fill_hover="#0e639c", # VS Code button hover
+            button_secondary_background_fill="#2d2d30",
+            button_secondary_border_color="#3e3e42",
+            button_secondary_text_color="#cccccc"
+        ),
+        "description": "Authentic VS Code dark theme with exact color matching"
+    }
+}
+
+# Additional theme information for developers
+THEME_FEATURES = {
+    "Default": ["Orange accents", "Clean layout", "Standard Gradio look"],
+    "Base": ["Blue accents", "Minimal styling", "Clean foundation"],
+    "Soft": ["Rounded corners", "Emerald colors", "Comfortable viewing"],
+    "Monochrome": ["Black & white", "High elegance", "Timeless design"],
+    "Glass": ["Glassmorphism", "Blur effects", "Translucent elements"],
+    "Dark Ocean": ["Deep blue palette", "Dark theme", "Easy on eyes"],
+    "Cyberpunk": ["Neon cyan/magenta", "Futuristic fonts", "Cyber vibes"],
+    "Forest": ["Nature inspired", "Green tones", "Organic rounded"],
+    "High Contrast": ["Black/white/yellow", "High visibility", "Accessibility"],
+    "Developer": ["Authentic VS Code colors", "Consolas/Monaco fonts", "Exact theme matching"]
+}
+
+# Load saved theme and apply it
+current_theme_name = get_saved_theme()
+current_theme = THEME_CONFIGS[current_theme_name]["theme"]
+
+# Main application with proper Gradio theming
 with gr.Blocks(
-    theme=gr.themes.Base(
-        primary_hue="blue",
-        secondary_hue="gray",
-        neutral_hue="gray",
-        font=gr.themes.GoogleFont("Inter"),
-        font_mono=gr.themes.GoogleFont("JetBrains Mono"),
-        text_size=gr.themes.sizes.text_md,
-        spacing_size=gr.themes.sizes.spacing_md,
-        radius_size=gr.themes.sizes.radius_md
-    ),
-    title="AnyCoder - AI Code Generator"
+    title="AnyCoder - AI Code Generator",
+    theme=current_theme,
+    css="""
+        .theme-info { font-size: 0.9em; opacity: 0.8; }
+        .theme-description { padding: 8px 0; }
+        .theme-status { 
+            padding: 10px; 
+            border-radius: 8px; 
+            background: rgba(34, 197, 94, 0.1); 
+            border: 1px solid rgba(34, 197, 94, 0.2); 
+            margin: 8px 0; 
+        }
+        .restart-needed {
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            margin: 8px 0;
+            text-align: center;
+        }
+    """
 ) as demo:
     history = gr.State([])
     setting = gr.State({
@@ -2376,6 +2638,18 @@ with gr.Blocks(
 
     with gr.Sidebar():
         login_button = gr.LoginButton()
+        
+        # Theme Selector (hidden for end users, developers can modify code)
+        with gr.Column(visible=False):
+            theme_dropdown = gr.Dropdown(
+                choices=list(THEME_CONFIGS.keys()),
+                value=current_theme_name,
+                label="Select Theme",
+                info="Choose your preferred visual style"
+            )
+            theme_description = gr.Markdown("")
+            apply_theme_btn = gr.Button("Apply Theme", variant="primary", size="sm")
+            theme_status = gr.Markdown("")
         
         # Add Load Project section
         gr.Markdown("📥 Load Existing Project")
@@ -2638,6 +2912,55 @@ with gr.Blocks(
     clear_btn.click(
         lambda: [gr.update(value=""), gr.update(value="🚀 Deploy App")],
         outputs=[space_name_input, deploy_btn]
+    )
+
+    # Theme switching handlers
+    def handle_theme_change(theme_name):
+        """Handle theme selection change and update description"""
+        if theme_name in THEME_CONFIGS:
+            description = THEME_CONFIGS[theme_name]["description"]
+            features = THEME_FEATURES.get(theme_name, [])
+            feature_text = f"**Features:** {', '.join(features)}" if features else ""
+            full_description = f"*{description}*\n\n{feature_text}"
+            
+            return gr.update(value=full_description)
+        return gr.update()
+
+    def apply_theme_change(theme_name):
+        """Save theme preference and show restart instruction"""
+        if theme_name in THEME_CONFIGS:
+            save_theme_preference(theme_name)
+            
+            restart_message = f"""
+🎨 **Theme saved:** {theme_name}
+
+⚠️ **Restart required** to fully apply the new theme.
+
+**Why restart is needed:** Gradio themes are set during application startup and cannot be changed dynamically at runtime. This ensures all components are properly styled with consistent theming.
+
+**To apply your new theme:**
+1. Stop the application (Ctrl+C)
+2. Restart it with the same command
+3. Your theme will be automatically loaded
+
+*Your theme preference has been saved and will persist across restarts.*
+            """
+            
+            return gr.update(value=restart_message, visible=True, elem_classes=["restart-needed"])
+        return gr.update()
+
+    # Theme dropdown change event  
+    theme_dropdown.change(
+        handle_theme_change,
+        inputs=[theme_dropdown],
+        outputs=[theme_description]
+    )
+    
+    # Apply theme button click event
+    apply_theme_btn.click(
+        apply_theme_change,
+        inputs=[theme_dropdown],
+        outputs=[theme_status]
     )
 
     # Deploy to Spaces logic
