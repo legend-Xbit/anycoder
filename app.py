@@ -606,19 +606,9 @@ def get_inference_client(model_id, provider="auto"):
         # Use Mistral client for Codestral model
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
     elif model_id == "openai/gpt-oss-120b":
-        # Use Hugging Face InferenceClient for GPT-OSS-120B model
-        return InferenceClient(
-            provider="groq",
-            api_key=HF_TOKEN,
-            bill_to="huggingface"
-        )
+        provider = "groq"
     elif model_id == "openai/gpt-oss-20b":
-        # Use Hugging Face InferenceClient for GPT-OSS-20B model
-        return InferenceClient(
-            provider="groq",
-            api_key=HF_TOKEN,
-            bill_to="huggingface"
-        )
+        provider = "groq"
     elif model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
     elif model_id == "Qwen/Qwen3-235B-A22B":
