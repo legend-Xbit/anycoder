@@ -608,14 +608,14 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "openai/gpt-oss-120b":
         # Use Hugging Face InferenceClient for GPT-OSS-120B model
         return InferenceClient(
-            provider="auto",
+            provider="groq",
             api_key=HF_TOKEN,
             bill_to="huggingface"
         )
     elif model_id == "openai/gpt-oss-20b":
         # Use Hugging Face InferenceClient for GPT-OSS-20B model
         return InferenceClient(
-            provider="auto",
+            provider="groq",
             api_key=HF_TOKEN,
             bill_to="huggingface"
         )
