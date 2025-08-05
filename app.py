@@ -872,6 +872,191 @@ def process_image_for_model(image):
     img_str = base64.b64encode(buffer.getvalue()).decode()
     return f"data:image/png;base64,{img_str}"
 
+def generate_image_with_qwen(prompt: str, image_index: int = 0) -> str:
+    """Generate image using Qwen image model via Hugging Face InferenceClient with optimized data URL"""
+    try:
+        # Check if HF_TOKEN is available
+        if not os.getenv('HF_TOKEN'):
+            return "Error: HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token."
+        
+        # Create InferenceClient for Qwen image generation
+        client = InferenceClient(
+            provider="auto",
+            api_key=os.getenv('HF_TOKEN'),
+            bill_to="huggingface",
+        )
+        
+        # Generate image using Qwen/Qwen-Image model
+        image = client.text_to_image(
+            prompt,
+            model="Qwen/Qwen-Image",
+        )
+        
+        # Resize image to reduce size while maintaining quality
+        max_size = 512
+        if image.width > max_size or image.height > max_size:
+            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        
+        # Convert PIL Image to optimized base64 for HTML embedding
+        import io
+        import base64
+        
+        buffer = io.BytesIO()
+        # Save as JPEG with compression for smaller file size
+        image.convert('RGB').save(buffer, format='JPEG', quality=85, optimize=True)
+        img_str = base64.b64encode(buffer.getvalue()).decode()
+        
+        # Return HTML img tag with optimized data URL
+        return f'<img src="data:image/jpeg;base64,{img_str}" alt="{prompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" loading="lazy" />'
+        
+    except Exception as e:
+        print(f"Image generation error: {str(e)}")
+        return f"Error generating image: {str(e)}"
+
+def extract_image_prompts_from_text(text: str, num_images_needed: int = 1) -> list:
+    """Extract image generation prompts from the full text based on number of images needed"""
+    # Use the entire text as the base prompt for image generation
+    # Clean up the text and create variations for the required number of images
+    
+    # Clean the text
+    cleaned_text = text.strip()
+    if not cleaned_text:
+        return []
+    
+    # Create variations of the prompt for the required number of images
+    prompts = []
+    
+    # Generate exactly the number of images needed
+    for i in range(num_images_needed):
+        if i == 0:
+            # First image: Use the full prompt as-is
+            prompts.append(cleaned_text)
+        elif i == 1:
+            # Second image: Add "visual representation" to make it more image-focused
+            prompts.append(f"Visual representation of {cleaned_text}")
+        elif i == 2:
+            # Third image: Add "illustration" to create a different style
+            prompts.append(f"Illustration of {cleaned_text}")
+        else:
+            # For additional images, use different variations
+            variations = [
+                f"Digital art of {cleaned_text}",
+                f"Modern design of {cleaned_text}",
+                f"Professional illustration of {cleaned_text}",
+                f"Clean design of {cleaned_text}",
+                f"Beautiful visualization of {cleaned_text}",
+                f"Stylish representation of {cleaned_text}",
+                f"Contemporary design of {cleaned_text}",
+                f"Elegant illustration of {cleaned_text}"
+            ]
+            variation_index = (i - 3) % len(variations)
+            prompts.append(variations[variation_index])
+    
+    return prompts
+
+def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
+    """Create search/replace blocks to replace placeholder images with generated Qwen images"""
+    if not user_prompt:
+        return ""
+    
+    # Find existing image placeholders in the HTML first
+    import re
+    
+    # Common patterns for placeholder images
+    placeholder_patterns = [
+        r'<img[^>]*src=["\'](?:placeholder|dummy|sample|example)[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://via\.placeholder\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://picsum\.photos[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://dummyimage\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*alt=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*class=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*id=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']data:image[^"\']*["\'][^>]*>',  # Base64 images
+        r'<img[^>]*src=["\']#["\'][^>]*>',  # Empty src
+        r'<img[^>]*src=["\']about:blank["\'][^>]*>',  # About blank
+    ]
+    
+    # Find all placeholder images
+    placeholder_images = []
+    for pattern in placeholder_patterns:
+        matches = re.findall(pattern, html_content, re.IGNORECASE)
+        placeholder_images.extend(matches)
+    
+    # If no placeholder images found, look for any img tags
+    if not placeholder_images:
+        img_pattern = r'<img[^>]*>'
+        placeholder_images = re.findall(img_pattern, html_content)
+    
+    # Also look for div elements that might be image placeholders
+    div_placeholder_patterns = [
+        r'<div[^>]*class=["\'][^"\']*(?:image|img|photo|picture)[^"\']*["\'][^>]*>.*?</div>',
+        r'<div[^>]*id=["\'][^"\']*(?:image|img|photo|picture)[^"\']*["\'][^>]*>.*?</div>',
+    ]
+    
+    for pattern in div_placeholder_patterns:
+        matches = re.findall(pattern, html_content, re.IGNORECASE | re.DOTALL)
+        placeholder_images.extend(matches)
+    
+    # Count how many images we need to generate
+    num_images_needed = len(placeholder_images)
+    
+    if num_images_needed == 0:
+        return ""
+    
+    # Generate image prompts based on the number of images found
+    image_prompts = extract_image_prompts_from_text(user_prompt, num_images_needed)
+    
+    # Generate images for each prompt
+    generated_images = []
+    for i, prompt in enumerate(image_prompts):
+        image_html = generate_image_with_qwen(prompt, i)
+        if not image_html.startswith("Error"):
+            generated_images.append((i, image_html))
+    
+    if not generated_images:
+        return ""
+    
+    # Create search/replace blocks
+    replacement_blocks = []
+    
+    for i, (prompt_index, generated_image) in enumerate(generated_images):
+        if i < len(placeholder_images):
+            # Replace existing placeholder
+            placeholder = placeholder_images[i]
+            # Clean up the placeholder for better matching
+            placeholder_clean = re.sub(r'\s+', ' ', placeholder.strip())
+            
+            # Try multiple variations of the placeholder for better matching
+            placeholder_variations = [
+                placeholder_clean,
+                placeholder_clean.replace('"', "'"),
+                placeholder_clean.replace("'", '"'),
+                re.sub(r'\s+', ' ', placeholder_clean),
+                placeholder_clean.replace('  ', ' '),
+            ]
+            
+            # Create a replacement block for each variation
+            for variation in placeholder_variations:
+                replacement_blocks.append(f"""{SEARCH_START}
+{variation}
+{DIVIDER}
+{generated_image}
+{REPLACE_END}""")
+        else:
+            # Add new image if we have more generated images than placeholders
+            # Find a good insertion point (after body tag or main content)
+            if '<body' in html_content:
+                body_end = html_content.find('>', html_content.find('<body')) + 1
+                insertion_point = html_content[:body_end] + '\n    '
+                replacement_blocks.append(f"""{SEARCH_START}
+{insertion_point}
+{DIVIDER}
+{insertion_point}
+    {generated_image}
+{REPLACE_END}""")
+    
+    return '\n\n'.join(replacement_blocks)
+
 def create_multimodal_message(text, image=None):
     """Create a multimodal message with text and optional image"""
     if image is None:
@@ -1544,7 +1729,7 @@ The HTML code above contains the complete original website structure with all im
 stop_generation = False
 
 
-def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto"):
+def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False):
     if query is None:
         query = ''
     if _history is None:
@@ -1660,11 +1845,29 @@ This will help me create a better design for you."""
             content = f"Error with GLM-4.5: {str(e)}\n\nPlease make sure HF_TOKEN environment variable is set."
         
         clean_code = remove_code_block(content)
-        _history.append([query, content])
+        
+        # Apply image generation if enabled and this is HTML content
+        final_content = content
+        if enable_image_generation and language == "html" and (clean_code.strip().startswith('<!DOCTYPE html>') or clean_code.strip().startswith('<html')):
+            # Create search/replace blocks for image replacement based on images found in code
+            image_replacement_blocks = create_image_replacement_blocks(content, query)
+            if image_replacement_blocks:
+                # Apply the image replacements using existing search/replace logic
+                final_content = apply_search_replace_changes(content, image_replacement_blocks)
+        
+        _history.append([query, final_content])
         
         if language == "transformers.js":
             files = parse_transformers_js_output(clean_code)
             if files['index.html'] and files['index.js'] and files['style.css']:
+                # Apply image generation if enabled
+                if enable_image_generation:
+                    # Create search/replace blocks for image replacement based on images found in code
+                    image_replacement_blocks = create_image_replacement_blocks(files['index.html'], query)
+                    if image_replacement_blocks:
+                        # Apply the image replacements using existing search/replace logic
+                        files['index.html'] = apply_search_replace_changes(files['index.html'], image_replacement_blocks)
+                
                 formatted_output = format_transformers_js_output(files)
                 yield {
                     code_output: formatted_output,
@@ -1682,6 +1885,107 @@ This will help me create a better design for you."""
         elif language == "svelte":
             files = parse_svelte_output(clean_code)
             if files['src/App.svelte'] and files['src/app.css']:
+                # Apply image generation if enabled (add image generation logic to Svelte)
+                if enable_image_generation:
+                    # For Svelte, we'll add a script section that generates images dynamically
+                    # This is more appropriate for Svelte than trying to inject static images
+                    image_generation_script = """
+<script>
+    import { onMount } from 'svelte';
+    
+    let generatedImages = [];
+    
+    onMount(async () => {
+        // Generate images using Qwen API based on the user prompt
+        const userPrompt = """ + repr(query) + """;
+        
+        // Create variations for multiple images
+        const imagePrompts = [
+            userPrompt,
+            `Visual representation of ${userPrompt}`,
+            `Illustration of ${userPrompt}`
+        ];
+        
+        for (const prompt of imagePrompts) {
+            try {
+                // This would need to be implemented with actual API calls
+                // For now, we'll create placeholder elements
+                generatedImages = [...generatedImages, {
+                    prompt: prompt,
+                    src: `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="#f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#666">Generated: ${prompt}</text></svg>')}`,
+                    alt: prompt
+                }];
+            } catch (error) {
+                console.error('Error generating image:', error);
+            }
+        }
+    });
+</script>
+
+<!-- Generated Images Section -->
+{#if generatedImages.length > 0}
+    <div class="generated-images">
+        <h3>Generated Images</h3>
+        <div class="image-grid">
+            {#each generatedImages as image}
+                <img src={image.src} alt={image.alt} style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" />
+            {/each}
+        </div>
+    </div>
+{/if}"""
+                    
+                    # Add the image generation script to App.svelte
+                    if '<script>' in files['src/App.svelte']:
+                        # Find the end of the script section and add after it
+                        script_end = files['src/App.svelte'].find('</script>') + 8
+                        files['src/App.svelte'] = files['src/App.svelte'][:script_end] + '\n' + image_generation_script + files['src/App.svelte'][script_end:]
+                    else:
+                        # Add script section at the beginning
+                        files['src/App.svelte'] = image_generation_script + '\n\n' + files['src/App.svelte']
+                    
+                    # Add CSS for generated images
+                    image_css = """
+/* Generated Images Styling */
+.generated-images {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.generated-images h3 {
+    margin: 0 0 15px 0;
+    color: #495057;
+    font-size: 1.2em;
+}
+
+.image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    align-items: start;
+}
+
+.image-grid img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.image-grid img:hover {
+    transform: scale(1.02);
+}
+"""
+                    
+                    # Add CSS to app.css
+                    if files['src/app.css']:
+                        files['src/app.css'] += '\n' + image_css
+                    else:
+                        files['src/app.css'] = image_css
+                
                 formatted_output = format_svelte_output(files)
                 yield {
                     code_output: formatted_output,
@@ -1701,6 +2005,15 @@ This will help me create a better design for you."""
                 last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
                 modified_content = apply_search_replace_changes(last_content, clean_code)
                 clean_content = remove_code_block(modified_content)
+                
+                # Apply image generation if enabled and this is HTML content
+                if enable_image_generation and language == "html" and (clean_content.strip().startswith('<!DOCTYPE html>') or clean_content.strip().startswith('<html')):
+                    # Create search/replace blocks for image replacement based on images found in code
+                    image_replacement_blocks = create_image_replacement_blocks(clean_content, query)
+                    if image_replacement_blocks:
+                        # Apply the image replacements using existing search/replace logic
+                        clean_content = apply_search_replace_changes(clean_content, image_replacement_blocks)
+                
                 yield {
                     code_output: clean_content,
                     history: _history,
@@ -1708,10 +2021,19 @@ This will help me create a better design for you."""
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
+                # Apply image generation if enabled and this is HTML content
+                final_content = clean_code
+                if enable_image_generation and language == "html" and (final_content.strip().startswith('<!DOCTYPE html>') or final_content.strip().startswith('<html')):
+                    # Create search/replace blocks for image replacement based on images found in code
+                    image_replacement_blocks = create_image_replacement_blocks(final_content, query)
+                    if image_replacement_blocks:
+                        # Apply the image replacements using existing search/replace logic
+                        final_content = apply_search_replace_changes(final_content, image_replacement_blocks)
+                
                 yield {
-                    code_output: clean_code,
+                    code_output: final_content,
                     history: _history,
-                    sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                    sandbox: send_to_sandbox(final_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
         return
@@ -1908,6 +2230,15 @@ This will help me create a better design for you."""
                 last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
                 modified_content = apply_search_replace_changes(last_content, final_code)
                 clean_content = remove_code_block(modified_content)
+            
+            # Apply image generation if enabled and this is HTML content
+            if enable_image_generation and language == "html" and (clean_content.strip().startswith('<!DOCTYPE html>') or clean_content.strip().startswith('<html')):
+                # Create search/replace blocks for image replacement based on images found in code
+                image_replacement_blocks = create_image_replacement_blocks(clean_content, query)
+                if image_replacement_blocks:
+                    # Apply the image replacements using existing search/replace logic
+                    clean_content = apply_search_replace_changes(clean_content, image_replacement_blocks)
+            
             # Update history with the cleaned content
             _history.append([query, clean_content])
             yield {
@@ -1918,11 +2249,21 @@ This will help me create a better design for you."""
             }
         else:
             # Regular generation - use the content as is
-            _history.append([query, content])
+            final_content = remove_code_block(content)
+            
+            # Apply image generation if enabled and this is HTML content
+            if enable_image_generation and language == "html" and (final_content.strip().startswith('<!DOCTYPE html>') or final_content.strip().startswith('<html')):
+                # Create search/replace blocks for image replacement based on images found in code
+                image_replacement_blocks = create_image_replacement_blocks(final_content, query)
+                if image_replacement_blocks:
+                    # Apply the image replacements using existing search/replace logic
+                    final_content = apply_search_replace_changes(final_content, image_replacement_blocks)
+            
+            _history.append([query, final_content])
             yield {
-                code_output: remove_code_block(content),
+                code_output: final_content,
                 history: _history,
-                sandbox: send_to_sandbox(remove_code_block(content)),
+                sandbox: send_to_sandbox(final_content),
                 history_output: history_to_chatbot_messages(_history),
             }
     except Exception as e:
@@ -2725,6 +3066,13 @@ with gr.Blocks(
             value=False,
             visible=True
         )
+        # Image generation toggle
+        image_generation_toggle = gr.Checkbox(
+            label="🎨 Generate Images",
+            value=False,
+            visible=True,
+            info="Include generated images in your outputs using Qwen image model"
+        )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
             value="Qwen3-Coder-480B-A35B-Instruct",
@@ -2894,7 +3242,7 @@ with gr.Blocks(
 
     btn.click(
         generation_code,
-        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state],
+        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         show_deploy_components,
@@ -3435,4 +3783,8 @@ with gr.Blocks(
     # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.
 
 if __name__ == "__main__":
-    demo.queue(api_open=False, default_concurrency_limit=20).launch(show_api=False, ssr_mode=True, mcp_server=False)
+    demo.queue(api_open=False, default_concurrency_limit=20).launch(
+        show_api=False, 
+        ssr_mode=True, 
+        mcp_server=False
+    )
