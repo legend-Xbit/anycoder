@@ -475,6 +475,16 @@ AVAILABLE_MODELS = [
         "name": "Codestral 2508",
         "id": "codestral-2508",
         "description": "Mistral Codestral model - specialized for code generation and programming tasks"
+    },
+    {
+        "name": "GPT-OSS-120B",
+        "id": "openai/gpt-oss-120b",
+        "description": "OpenAI GPT-OSS-120B model for advanced code generation and general tasks"
+    },
+    {
+        "name": "GPT-OSS-20B",
+        "id": "openai/gpt-oss-20b",
+        "description": "OpenAI GPT-OSS-20B model for code generation and general tasks"
     }
 ]
 
@@ -595,6 +605,20 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "codestral-2508":
         # Use Mistral client for Codestral model
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
+    elif model_id == "openai/gpt-oss-120b":
+        # Use Hugging Face InferenceClient for GPT-OSS-120B model
+        return InferenceClient(
+            provider="auto",
+            api_key=HF_TOKEN,
+            bill_to="huggingface"
+        )
+    elif model_id == "openai/gpt-oss-20b":
+        # Use Hugging Face InferenceClient for GPT-OSS-20B model
+        return InferenceClient(
+            provider="auto",
+            api_key=HF_TOKEN,
+            bill_to="huggingface"
+        )
     elif model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
     elif model_id == "Qwen/Qwen3-235B-A22B":
