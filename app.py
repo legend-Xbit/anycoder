@@ -456,16 +456,7 @@ AVAILABLE_MODELS = [
         "id": "qwen3-coder-30b-a3b-instruct",
         "description": "Qwen3-Coder-30B-A3B-Instruct model for advanced code generation via Alibaba Cloud DashScope API"
     },
-    {
-        "name": "Horizon Alpha",
-        "id": "openrouter/horizon-alpha",
-        "description": "OpenRouter Horizon Alpha model for advanced code generation and multimodal tasks"
-    },
-    {
-        "name": "Horizon Beta",
-        "id": "openrouter/horizon-beta",
-        "description": "OpenRouter Horizon Beta model for advanced code generation and multimodal tasks with vision support"
-    },
+
     {
         "name": "StepFun Step-3",
         "id": "step-3",
@@ -576,26 +567,8 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
-    elif model_id == "openrouter/horizon-alpha":
-        # Use OpenRouter client for Horizon Alpha model
-        return OpenAI(
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
-            default_headers={
-                "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "https://huggingface.co/spaces/akhaliq/anycoder"),
-                "X-Title": os.getenv("OPENROUTER_SITE_NAME", "AnyCoder")
-            }
-        )
-    elif model_id == "openrouter/horizon-beta":
-        # Use OpenRouter client for Horizon Beta model
-        return OpenAI(
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
-            default_headers={
-                "HTTP-Referer": os.getenv("OPENROUTER_SITE_URL", "https://huggingface.co/spaces/akhaliq/anycoder"),
-                "X-Title": os.getenv("OPENROUTER_SITE_NAME", "AnyCoder")
-            }
-        )
+
+
     elif model_id == "step-3":
         # Use StepFun API client for Step-3 model
         return OpenAI(
