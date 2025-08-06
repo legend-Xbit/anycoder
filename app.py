@@ -437,6 +437,16 @@ AVAILABLE_MODELS = [
         "description": "Qwen3-32B model for code generation and general tasks"
     },
     {
+        "name": "Qwen3-4B-Instruct-2507",
+        "id": "Qwen/Qwen3-4B-Instruct-2507",
+        "description": "Qwen3-4B-Instruct-2507 model for code generation and general tasks"
+    },
+    {
+        "name": "Qwen3-4B-Thinking-2507",
+        "id": "Qwen/Qwen3-4B-Thinking-2507",
+        "description": "Qwen3-4B-Thinking-2507 model with advanced reasoning capabilities for code generation and general tasks"
+    },
+    {
         "name": "Qwen3-235B-A22B-Thinking",
         "id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
         "description": "Qwen3-235B-A22B-Thinking model with advanced reasoning capabilities"

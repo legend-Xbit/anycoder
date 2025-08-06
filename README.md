@@ -73,6 +73,8 @@ python app.py
 - ERNIE-4.5-VL (multimodal)
 - MiniMax M1
 - Qwen3-235B-A22B
+- Qwen3-4B-Instruct-2507
+- Qwen3-4B-Thinking-2507
 - Qwen3-30B-A3B-Instruct-2507 (via DashScope)
 - Qwen3-30B-A3B-Thinking-2507 (via DashScope)
 - SmolLM3-3B
