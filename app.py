@@ -579,7 +579,7 @@ def get_inference_client(model_id, provider="auto"):
         # Use Mistral client for Codestral model
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
     elif model_id == "openai/gpt-oss-120b":
-        provider = "groq"
+        provider = "cerebras"
     elif model_id == "openai/gpt-oss-20b":
         provider = "groq"
     elif model_id == "moonshotai/Kimi-K2-Instruct":
