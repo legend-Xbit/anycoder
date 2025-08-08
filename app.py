@@ -1131,6 +1131,80 @@ def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
     
     return '\n\n'.join(replacement_blocks)
 
+def create_image_replacement_blocks_text_to_image_single(html_content: str, prompt: str) -> str:
+    """Create search/replace blocks that generate and insert ONLY ONE text-to-image result.
+
+    Replaces the first detected placeholder; if none found, inserts one image near the top of <body>.
+    """
+    if not prompt or not prompt.strip():
+        return ""
+
+    import re
+
+    # Detect placeholders similarly to the multi-image version
+    placeholder_patterns = [
+        r'<img[^>]*src=["\'](?:placeholder|dummy|sample|example)[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://via\.placeholder\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://picsum\.photos[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://dummyimage\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*alt=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*class=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*id=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']data:image[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']#["\'][^>]*>',
+        r'<img[^>]*src=["\']about:blank["\'][^>]*>',
+    ]
+
+    placeholder_images = []
+    for pattern in placeholder_patterns:
+        matches = re.findall(pattern, html_content, re.IGNORECASE)
+        if matches:
+            placeholder_images.extend(matches)
+
+    # Fallback to any <img> if no placeholders
+    if not placeholder_images:
+        img_pattern = r'<img[^>]*>'
+        placeholder_images = re.findall(img_pattern, html_content)
+
+    # Generate a single image
+    image_html = generate_image_with_qwen(prompt, 0)
+    if image_html.startswith("Error"):
+        return ""
+
+    # Replace first placeholder if present
+    if placeholder_images:
+        placeholder = placeholder_images[0]
+        placeholder_clean = re.sub(r'\s+', ' ', placeholder.strip())
+        placeholder_variations = [
+            placeholder_clean,
+            placeholder_clean.replace('"', "'"),
+            placeholder_clean.replace("'", '"'),
+            re.sub(r'\s+', ' ', placeholder_clean),
+            placeholder_clean.replace('  ', ' '),
+        ]
+        blocks = []
+        for variation in placeholder_variations:
+            blocks.append(f"""{SEARCH_START}
+{variation}
+{DIVIDER}
+{image_html}
+{REPLACE_END}""")
+        return '\n\n'.join(blocks)
+
+    # Otherwise insert after <body>
+    if '<body' in html_content:
+        body_end = html_content.find('>', html_content.find('<body')) + 1
+        insertion_point = html_content[:body_end] + '\n    '
+        return f"""{SEARCH_START}
+{insertion_point}
+{DIVIDER}
+{insertion_point}
+    {image_html}
+{REPLACE_END}"""
+
+    # If no <body>, just append
+    return f"{SEARCH_START}\n\n{DIVIDER}\n{image_html}\n{REPLACE_END}"
+
 def create_image_replacement_blocks_from_input_image(html_content: str, user_prompt: str, input_image_data, max_images: int = 1) -> str:
     """Create search/replace blocks using image-to-image generation with a provided input image.
 
@@ -1239,7 +1313,8 @@ def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_t
 
         if enable_text_to_image and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             t2i_prompt = (text_to_image_prompt or user_prompt or "").strip()
-            blocks = create_image_replacement_blocks(result, t2i_prompt)
+            # Single-image flow for text-to-image
+            blocks = create_image_replacement_blocks_text_to_image_single(result, t2i_prompt)
             if blocks:
                 result = apply_search_replace_changes(result, blocks)
     except Exception:
