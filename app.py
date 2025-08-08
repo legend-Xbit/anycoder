@@ -917,6 +917,76 @@ def generate_image_with_qwen(prompt: str, image_index: int = 0) -> str:
         print(f"Image generation error: {str(e)}")
         return f"Error generating image: {str(e)}"
 
+def generate_image_to_image(input_image_data, prompt: str) -> str:
+    """Generate an image using image-to-image with FLUX.1-Kontext-dev via Hugging Face InferenceClient.
+
+    Returns an HTML <img> tag with optimized base64 JPEG data, similar to text-to-image output.
+    """
+    try:
+        # Check token
+        if not os.getenv('HF_TOKEN'):
+            return "Error: HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token."
+
+        # Prepare client
+        client = InferenceClient(
+            provider="auto",
+            api_key=os.getenv('HF_TOKEN'),
+            bill_to="huggingface",
+        )
+
+        # Normalize input image to bytes
+        import io
+        from PIL import Image
+        try:
+            import numpy as np
+        except Exception:
+            np = None
+
+        if hasattr(input_image_data, 'read'):
+            # File-like object
+            raw = input_image_data.read()
+            pil_image = Image.open(io.BytesIO(raw))
+        elif hasattr(input_image_data, 'mode') and hasattr(input_image_data, 'size'):
+            # PIL Image
+            pil_image = input_image_data
+        elif np is not None and isinstance(input_image_data, np.ndarray):
+            pil_image = Image.fromarray(input_image_data)
+        elif isinstance(input_image_data, (bytes, bytearray)):
+            pil_image = Image.open(io.BytesIO(input_image_data))
+        else:
+            # Fallback: try to convert via bytes
+            pil_image = Image.open(io.BytesIO(bytes(input_image_data)))
+
+        # Ensure RGB
+        if pil_image.mode != 'RGB':
+            pil_image = pil_image.convert('RGB')
+
+        buf = io.BytesIO()
+        pil_image.save(buf, format='PNG')
+        input_bytes = buf.getvalue()
+
+        # Call image-to-image
+        image = client.image_to_image(
+            input_bytes,
+            prompt=prompt,
+            model="black-forest-labs/FLUX.1-Kontext-dev",
+        )
+
+        # Resize/optimize
+        max_size = 512
+        if image.width > max_size or image.height > max_size:
+            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+
+        out_buf = io.BytesIO()
+        image.convert('RGB').save(out_buf, format='JPEG', quality=85, optimize=True)
+
+        import base64
+        img_str = base64.b64encode(out_buf.getvalue()).decode()
+        return f"<img src=\"data:image/jpeg;base64,{img_str}\" alt=\"{prompt}\" style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\" loading=\"lazy\" />"
+    except Exception as e:
+        print(f"Image-to-image generation error: {str(e)}")
+        return f"Error generating image (image-to-image): {str(e)}"
+
 def extract_image_prompts_from_text(text: str, num_images_needed: int = 1) -> list:
     """Extract image generation prompts from the full text based on number of images needed"""
     # Use the entire text as the base prompt for image generation
@@ -1061,25 +1131,132 @@ def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
     
     return '\n\n'.join(replacement_blocks)
 
+def create_image_replacement_blocks_from_input_image(html_content: str, user_prompt: str, input_image_data, max_images: int = 1) -> str:
+    """Create search/replace blocks using image-to-image generation with a provided input image.
+
+    Mirrors placeholder detection from create_image_replacement_blocks but uses generate_image_to_image.
+    """
+    if not user_prompt:
+        return ""
+
+    import re
+
+    placeholder_patterns = [
+        r'<img[^>]*src=["\'](?:placeholder|dummy|sample|example)[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://via\.placeholder\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://picsum\.photos[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://dummyimage\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*alt=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*class=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*id=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']data:image[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']#["\'][^>]*>',
+        r'<img[^>]*src=["\']about:blank["\'][^>]*>',
+    ]
+
+    placeholder_images = []
+    for pattern in placeholder_patterns:
+        matches = re.findall(pattern, html_content, re.IGNORECASE)
+        placeholder_images.extend(matches)
+
+    if not placeholder_images:
+        img_pattern = r'<img[^>]*>'
+        placeholder_images = re.findall(img_pattern, html_content)
+
+    div_placeholder_patterns = [
+        r'<div[^>]*class=["\'][^"\']*(?:image|img|photo|picture)[^"\']*["\'][^>]*>.*?</div>',
+        r'<div[^>]*id=["\'][^"\']*(?:image|img|photo|picture)[^"\']*["\'][^>]*>.*?</div>',
+    ]
+    for pattern in div_placeholder_patterns:
+        matches = re.findall(pattern, html_content, re.IGNORECASE | re.DOTALL)
+        placeholder_images.extend(matches)
+
+    num_images_needed = len(placeholder_images)
+    num_to_replace = min(num_images_needed, max(0, int(max_images)))
+    if num_images_needed == 0:
+        # No placeholders; generate one image to append (only if at least one upload is present)
+        if num_to_replace <= 0:
+            return ""
+        prompts = extract_image_prompts_from_text(user_prompt, 1)
+        if not prompts:
+            return ""
+        image_html = generate_image_to_image(input_image_data, prompts[0])
+        if image_html.startswith("Error"):
+            return ""
+        return f"{SEARCH_START}\n\n{DIVIDER}\n<div class=\"generated-images\">{image_html}</div>\n{REPLACE_END}"
+
+    if num_to_replace <= 0:
+        return ""
+    image_prompts = extract_image_prompts_from_text(user_prompt, num_to_replace)
+
+    generated_images = []
+    for i, prompt in enumerate(image_prompts):
+        image_html = generate_image_to_image(input_image_data, prompt)
+        if not image_html.startswith("Error"):
+            generated_images.append((i, image_html))
+
+    if not generated_images:
+        return ""
+
+    replacement_blocks = []
+    for i, (prompt_index, generated_image) in enumerate(generated_images):
+        if i < num_to_replace and i < len(placeholder_images):
+            placeholder = placeholder_images[i]
+            placeholder_clean = re.sub(r'\s+', ' ', placeholder.strip())
+            placeholder_variations = [
+                placeholder_clean,
+                placeholder_clean.replace('"', "'"),
+                placeholder_clean.replace("'", '"'),
+                re.sub(r'\s+', ' ', placeholder_clean),
+                placeholder_clean.replace('  ', ' '),
+            ]
+            for variation in placeholder_variations:
+                replacement_blocks.append(f"""{SEARCH_START}
+{variation}
+{DIVIDER}
+{generated_image}
+{REPLACE_END}""")
+        # Do not insert additional images beyond the uploaded count
+
+    return '\n\n'.join(replacement_blocks)
+
+def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None) -> str:
+    """Apply text-to-image and/or image-to-image replacements to HTML content.
+
+    If both toggles are enabled, text-to-image replacements run first, then image-to-image.
+    """
+    result = html_content
+    try:
+        # If an input image is provided and image-to-image is enabled, we only replace one image
+        # and skip text-to-image to satisfy the requirement to replace exactly the number of uploaded images.
+        if enable_image_to_image and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
+            # Prefer the dedicated image-to-image prompt if provided
+            i2i_prompt = (image_to_image_prompt or user_prompt or "").strip()
+            blocks2 = create_image_replacement_blocks_from_input_image(result, i2i_prompt, input_image_data, max_images=1)
+            if blocks2:
+                result = apply_search_replace_changes(result, blocks2)
+            return result
+
+        if enable_text_to_image and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
+            t2i_prompt = (text_to_image_prompt or user_prompt or "").strip()
+            blocks = create_image_replacement_blocks(result, t2i_prompt)
+            if blocks:
+                result = apply_search_replace_changes(result, blocks)
+    except Exception:
+        return html_content
+    return result
+
 def create_multimodal_message(text, image=None):
-    """Create a multimodal message with text and optional image"""
+    """Create a chat message. For broad provider compatibility, always return content as a string.
+
+    Some providers (e.g., Hugging Face router endpoints like Cerebras) expect `content` to be a string,
+    not a list of typed parts. To avoid 422 validation errors, we inline a brief note when an image is provided.
+    """
     if image is None:
         return {"role": "user", "content": text}
-    
-    content = [
-        {
-            "type": "text",
-            "text": text
-        },
-        {
-            "type": "image_url",
-            "image_url": {
-                "url": process_image_for_model(image)
-            }
-        }
-    ]
-    
-    return {"role": "user", "content": content}
+    # Keep providers happy: avoid structured multimodal payloads; add a short note instead
+    # If needed, this can be enhanced per-model with proper multimodal schemas.
+    return {"role": "user", "content": f"{text}\n\n[An image was provided as reference.]"}
 
 def apply_search_replace_changes(original_content: str, changes_text: str) -> str:
     """Apply search/replace changes to content (HTML, Python, etc.)"""
@@ -1733,7 +1910,7 @@ The HTML code above contains the complete original website structure with all im
 stop_generation = False
 
 
-def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False):
+def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None):
     if query is None:
         query = ''
     if _history is None:
@@ -1850,14 +2027,15 @@ This will help me create a better design for you."""
         
         clean_code = remove_code_block(content)
         
-        # Apply image generation if enabled and this is HTML content
-        final_content = content
-        if enable_image_generation and language == "html" and (clean_code.strip().startswith('<!DOCTYPE html>') or clean_code.strip().startswith('<html')):
-            # Create search/replace blocks for image replacement based on images found in code
-            image_replacement_blocks = create_image_replacement_blocks(content, query)
-            if image_replacement_blocks:
-                # Apply the image replacements using existing search/replace logic
-                final_content = apply_search_replace_changes(content, image_replacement_blocks)
+        # Apply image generation (text→image and/or image→image)
+        final_content = apply_generated_images_to_html(
+            content,
+            query,
+            enable_text_to_image=enable_image_generation,
+            enable_image_to_image=enable_image_to_image,
+            input_image_data=image,
+            image_to_image_prompt=image_to_image_prompt,
+        )
         
         _history.append([query, final_content])
         
@@ -2010,13 +2188,15 @@ This will help me create a better design for you."""
                 modified_content = apply_search_replace_changes(last_content, clean_code)
                 clean_content = remove_code_block(modified_content)
                 
-                # Apply image generation if enabled and this is HTML content
-                if enable_image_generation and language == "html" and (clean_content.strip().startswith('<!DOCTYPE html>') or clean_content.strip().startswith('<html')):
-                    # Create search/replace blocks for image replacement based on images found in code
-                    image_replacement_blocks = create_image_replacement_blocks(clean_content, query)
-                    if image_replacement_blocks:
-                        # Apply the image replacements using existing search/replace logic
-                        clean_content = apply_search_replace_changes(clean_content, image_replacement_blocks)
+                # Apply image generation (text→image and/or image→image)
+                clean_content = apply_generated_images_to_html(
+                    clean_content,
+                    query,
+                    enable_text_to_image=enable_image_generation,
+                    enable_image_to_image=enable_image_to_image,
+                    input_image_data=image,
+                    image_to_image_prompt=image_to_image_prompt,
+                )
                 
                 yield {
                     code_output: clean_content,
@@ -2025,14 +2205,16 @@ This will help me create a better design for you."""
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
-                # Apply image generation if enabled and this is HTML content
-                final_content = clean_code
-                if enable_image_generation and language == "html" and (final_content.strip().startswith('<!DOCTYPE html>') or final_content.strip().startswith('<html')):
-                    # Create search/replace blocks for image replacement based on images found in code
-                    image_replacement_blocks = create_image_replacement_blocks(final_content, query)
-                    if image_replacement_blocks:
-                        # Apply the image replacements using existing search/replace logic
-                        final_content = apply_search_replace_changes(final_content, image_replacement_blocks)
+                # Apply image generation (text→image and/or image→image)
+                final_content = apply_generated_images_to_html(
+                    clean_code,
+                    query,
+                    enable_text_to_image=enable_image_generation,
+                    enable_image_to_image=enable_image_to_image,
+                    input_image_data=image,
+                    image_to_image_prompt=image_to_image_prompt,
+                    text_to_image_prompt=text_to_image_prompt,
+                )
                 
                 yield {
                     code_output: final_content,
@@ -2245,13 +2427,16 @@ This will help me create a better design for you."""
                 modified_content = apply_search_replace_changes(last_content, final_code)
                 clean_content = remove_code_block(modified_content)
             
-            # Apply image generation if enabled and this is HTML content
-            if enable_image_generation and language == "html" and (clean_content.strip().startswith('<!DOCTYPE html>') or clean_content.strip().startswith('<html')):
-                # Create search/replace blocks for image replacement based on images found in code
-                image_replacement_blocks = create_image_replacement_blocks(clean_content, query)
-                if image_replacement_blocks:
-                    # Apply the image replacements using existing search/replace logic
-                    clean_content = apply_search_replace_changes(clean_content, image_replacement_blocks)
+            # Apply image generation (text→image and/or image→image)
+            clean_content = apply_generated_images_to_html(
+                clean_content,
+                query,
+                enable_text_to_image=enable_image_generation,
+                enable_image_to_image=enable_image_to_image,
+                input_image_data=image,
+                image_to_image_prompt=image_to_image_prompt,
+                text_to_image_prompt=text_to_image_prompt,
+            )
             
             # Update history with the cleaned content
             _history.append([query, clean_content])
@@ -2265,13 +2450,16 @@ This will help me create a better design for you."""
             # Regular generation - use the content as is
             final_content = remove_code_block(content)
             
-            # Apply image generation if enabled and this is HTML content
-            if enable_image_generation and language == "html" and (final_content.strip().startswith('<!DOCTYPE html>') or final_content.strip().startswith('<html')):
-                # Create search/replace blocks for image replacement based on images found in code
-                image_replacement_blocks = create_image_replacement_blocks(final_content, query)
-                if image_replacement_blocks:
-                    # Apply the image replacements using existing search/replace logic
-                    final_content = apply_search_replace_changes(final_content, image_replacement_blocks)
+            # Apply image generation (text→image and/or image→image)
+            final_content = apply_generated_images_to_html(
+                final_content,
+                query,
+                enable_text_to_image=enable_image_generation,
+                enable_image_to_image=enable_image_to_image,
+                input_image_data=image,
+                image_to_image_prompt=image_to_image_prompt,
+                text_to_image_prompt=text_to_image_prompt,
+            )
             
             _history.append([query, final_content])
             yield {
@@ -3049,6 +3237,12 @@ with gr.Blocks(
             label="UI design image",
             visible=False
         )
+        image_to_image_prompt = gr.Textbox(
+            label="Image-to-Image Prompt",
+            placeholder="Describe how to transform the uploaded image (e.g., 'Turn the cat into a tiger.')",
+            lines=2,
+            visible=False
+        )
         with gr.Row():
             btn = gr.Button("Generate", variant="primary", size="lg", scale=2, visible=True)
             clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)
@@ -3080,12 +3274,42 @@ with gr.Blocks(
             value=False,
             visible=True
         )
-        # Image generation toggle
+        # Image generation toggles
         image_generation_toggle = gr.Checkbox(
-            label="🎨 Generate Images",
+            label="🎨 Generate Images (text → image)",
             value=False,
             visible=True,
             info="Include generated images in your outputs using Qwen image model"
+        )
+        text_to_image_prompt = gr.Textbox(
+            label="Text-to-Image Prompt",
+            placeholder="Describe the image to generate (e.g., 'A minimalist dashboard hero illustration in pastel colors.')",
+            lines=2,
+            visible=False
+        )
+        image_to_image_toggle = gr.Checkbox(
+            label="🖼️ Image to Image (uses input image)",
+            value=False,
+            visible=True,
+            info="Transform your uploaded image using FLUX.1-Kontext-dev"
+        )
+
+        def on_image_to_image_toggle(toggled):
+            # Show image input and its prompt when image-to-image is enabled
+            return gr.update(visible=bool(toggled)), gr.update(visible=bool(toggled))
+
+        def on_text_to_image_toggle(toggled):
+            return gr.update(visible=bool(toggled))
+
+        image_to_image_toggle.change(
+            on_image_to_image_toggle,
+            inputs=[image_to_image_toggle],
+            outputs=[image_input, image_to_image_prompt]
+        )
+        image_generation_toggle.change(
+            on_text_to_image_toggle,
+            inputs=[image_generation_toggle],
+            outputs=[text_to_image_prompt]
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
@@ -3256,7 +3480,7 @@ with gr.Blocks(
 
     btn.click(
         generation_code,
-        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle],
+        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         show_deploy_components,
