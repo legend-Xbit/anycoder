@@ -2057,114 +2057,23 @@ This will help me create a better design for you."""
                 messages=messages,
                 max_tokens=16384
             )
-        elif _current_model["id"] == "gpt-5":
-            # Special handling for GPT-5 model - no streaming due to organization verification requirement
-            completion = client.chat.completions.create(
-                model="gpt-5",
-                messages=messages,
-                max_completion_tokens=16384
-            )
-            # Handle non-streaming response
-            content = completion.choices[0].message.content
-            clean_code = remove_code_block(content)
-            
-            # Apply image generation if enabled and this is HTML content
-            final_content = content
-            if enable_image_generation and language == "html" and (clean_code.strip().startswith('<!DOCTYPE html>') or clean_code.strip().startswith('<html')):
-                # Create search/replace blocks for image replacement based on images found in code
-                image_replacement_blocks = create_image_replacement_blocks(content, query)
-                if image_replacement_blocks:
-                    # Apply the image replacements using existing search/replace logic
-                    final_content = apply_search_replace_changes(content, image_replacement_blocks)
-            
-            _history.append([query, final_content])
-            
-            if language == "transformers.js":
-                files = parse_transformers_js_output(clean_code)
-                if files['index.html'] and files['index.js'] and files['style.css']:
-                    # Apply image generation if enabled
-                    if enable_image_generation:
-                        # Create search/replace blocks for image replacement based on images found in code
-                        image_replacement_blocks = create_image_replacement_blocks(files['index.html'], query)
-                        if image_replacement_blocks:
-                            # Apply the image replacements using existing search/replace logic
-                            files['index.html'] = apply_search_replace_changes(files['index.html'], image_replacement_blocks)
-                    
-                    formatted_output = format_transformers_js_output(files)
-                    yield {
-                        code_output: formatted_output,
-                        history: _history,
-                        sandbox: send_to_sandbox(files['index.html']),
-                        history_output: history_to_chatbot_messages(_history),
-                    }
-                else:
-                    yield {
-                        code_output: clean_code,
-                        history: _history,
-                        sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Error parsing transformers.js output. Please try again.</div>",
-                        history_output: history_to_chatbot_messages(_history),
-                    }
-            elif language == "svelte":
-                files = parse_svelte_output(clean_code)
-                if files['src/App.svelte'] and files['src/app.css']:
-                    formatted_output = format_svelte_output(files)
-                    yield {
-                        code_output: formatted_output,
-                        history: _history,
-                        sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
-                        history_output: history_to_chatbot_messages(_history),
-                    }
-                else:
-                    yield {
-                        code_output: clean_code,
-                        history: _history,
-                        sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
-                        history_output: history_to_chatbot_messages(_history),
-                    }
-            else:
-                if has_existing_content and not (clean_code.strip().startswith("<!DOCTYPE html>") or clean_code.strip().startswith("<html")):
-                    last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
-                    modified_content = apply_search_replace_changes(last_content, clean_code)
-                    clean_content = remove_code_block(modified_content)
-                    
-                    # Apply image generation if enabled and this is HTML content
-                    if enable_image_generation and language == "html" and (clean_content.strip().startswith('<!DOCTYPE html>') or clean_content.strip().startswith('<html')):
-                        # Create search/replace blocks for image replacement based on images found in code
-                        image_replacement_blocks = create_image_replacement_blocks(clean_content, query)
-                        if image_replacement_blocks:
-                            # Apply the image replacements using existing search/replace logic
-                            clean_content = apply_search_replace_changes(clean_content, image_replacement_blocks)
-                    
-                    yield {
-                        code_output: clean_content,
-                        history: _history,
-                        sandbox: send_to_sandbox(clean_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                        history_output: history_to_chatbot_messages(_history),
-                    }
-                else:
-                    # Apply image generation if enabled and this is HTML content
-                    final_content = clean_code
-                    if enable_image_generation and language == "html" and (final_content.strip().startswith('<!DOCTYPE html>') or final_content.strip().startswith('<html')):
-                        # Create search/replace blocks for image replacement based on images found in code
-                        image_replacement_blocks = create_image_replacement_blocks(final_content, query)
-                        if image_replacement_blocks:
-                            # Apply the image replacements using existing search/replace logic
-                            final_content = apply_search_replace_changes(final_content, image_replacement_blocks)
-                    
-                    yield {
-                        code_output: final_content,
-                        history: _history,
-                        sandbox: send_to_sandbox(final_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
-                        history_output: history_to_chatbot_messages(_history),
-                    }
-            return
+
         else:
-            completion = client.chat.completions.create(
-                model=_current_model["id"],
-                messages=messages,
-                stream=True,
-                max_tokens=16384
-            )
+            # Use max_completion_tokens for GPT-5, max_tokens for others
+            if _current_model["id"] == "gpt-5":
+                completion = client.chat.completions.create(
+                    model=_current_model["id"],
+                    messages=messages,
+                    stream=True,
+                    max_completion_tokens=16384
+                )
+            else:
+                completion = client.chat.completions.create(
+                    model=_current_model["id"],
+                    messages=messages,
+                    stream=True,
+                    max_tokens=16384
+                )
         content = ""
         for chunk in completion:
             # Handle different response formats for Mistral vs others
