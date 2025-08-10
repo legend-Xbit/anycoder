@@ -498,6 +498,16 @@ AVAILABLE_MODELS = [
     }
 ]
 
+# Default model selection
+DEFAULT_MODEL_NAME = "GPT-5"
+DEFAULT_MODEL = None
+for _m in AVAILABLE_MODELS:
+    if _m.get("name") == DEFAULT_MODEL_NAME:
+        DEFAULT_MODEL = _m
+        break
+if DEFAULT_MODEL is None and AVAILABLE_MODELS:
+    DEFAULT_MODEL = AVAILABLE_MODELS[0]
+
 DEMO_LIST = [
     {
         "title": "Todo App",
@@ -3547,7 +3557,7 @@ with gr.Blocks(
     setting = gr.State({
         "system": HTML_SYSTEM_PROMPT,
     })
-    current_model = gr.State(AVAILABLE_MODELS[10])  # Qwen3-Coder-480B-A35B-Instruct
+    current_model = gr.State(DEFAULT_MODEL)
     open_panel = gr.State(None)
     last_login_state = gr.State(None)
 
@@ -3685,7 +3695,7 @@ with gr.Blocks(
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
-            value="Qwen3-Coder-480B-A35B-Instruct",
+            value=DEFAULT_MODEL_NAME,
             label="Model",
             visible=True
         )
