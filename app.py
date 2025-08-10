@@ -805,6 +805,96 @@ def format_transformers_js_output(files):
     output.append(files['style.css'])
     return '\n'.join(output)
 
+def build_transformers_inline_html(files: dict) -> str:
+    """Merge transformers.js three-file output into a single self-contained HTML document.
+
+    - Inlines style.css into a <style> tag
+    - Inlines index.js into a <script type="module"> tag
+    - Rewrites ESM imports for transformers.js to a stable CDN URL so it works in data: iframes
+    """
+    import re as _re
+
+    html = files.get('index.html') or ''
+    js = files.get('index.js') or ''
+    css = files.get('style.css') or ''
+
+    # Normalize JS imports to CDN (handle both @huggingface/transformers and legacy @xenova/transformers)
+    cdn_url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.1"
+    js = _re.sub(r"from\s+['\"]@huggingface/transformers['\"]", f"from '{cdn_url}'", js)
+    js = _re.sub(r"from\s+['\"]@xenova/transformers['\"]", f"from '{cdn_url}'", js)
+
+    # Prepend a small prelude to reduce persistent caching during preview
+    # Note: importing env alongside user's own imports is fine in ESM
+    if js.strip():
+        prelude = (
+            f"import {{ env }} from '{cdn_url}';\n"
+            "try { env.useBrowserCache = false; } catch (e) {}\n"
+        )
+        js = prelude + js
+
+    # If index.html missing or doesn't look like a full document, create a minimal shell
+    doc = html.strip()
+    if not doc or ('<html' not in doc.lower()):
+        doc = (
+            "<!DOCTYPE html>\n"
+            "<html>\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Transformers.js App</title>\n</head>\n"
+            "<body>\n<div id=\"app\"></div>\n</body>\n</html>"
+        )
+
+    # Remove local references to style.css and index.js to avoid duplicates when inlining
+    doc = _re.sub(r"<link[^>]+href=\"[^\"]*style\.css\"[^>]*>\s*", "", doc, flags=_re.IGNORECASE)
+    doc = _re.sub(r"<script[^>]+src=\"[^\"]*index\.js\"[^>]*>\s*</script>\s*", "", doc, flags=_re.IGNORECASE)
+
+    # Inline CSS: insert before </head> or create a <head>
+    style_tag = f"<style>\n{css}\n</style>" if css else ""
+    if style_tag:
+        if '</head>' in doc.lower():
+            # Preserve original casing by finding closing head case-insensitively
+            match = _re.search(r"</head>", doc, flags=_re.IGNORECASE)
+            if match:
+                idx = match.start()
+                doc = doc[:idx] + style_tag + doc[idx:]
+        else:
+            # No head; insert at top of body
+            match = _re.search(r"<body[^>]*>", doc, flags=_re.IGNORECASE)
+            if match:
+                idx = match.end()
+                doc = doc[:idx] + "\n" + style_tag + doc[idx:]
+            else:
+                # Append at beginning
+                doc = style_tag + doc
+
+    # Inline JS: insert before </body>
+    script_tag = f"<script type=\"module\">\n{js}\n</script>" if js else ""
+    # Cleanup script to clear Cache Storage and IndexedDB on unload to free model weights
+    cleanup_tag = (
+        "<script>\n"
+        "(function(){\n"
+        "  function cleanup(){\n"
+        "    try { if (window.caches && caches.keys) { caches.keys().then(keys => keys.forEach(k => caches.delete(k))); } } catch(e){}\n"
+        "    try { if (window.indexedDB && indexedDB.databases) { indexedDB.databases().then(dbs => dbs.forEach(db => db && db.name && indexedDB.deleteDatabase(db.name))); } } catch(e){}\n"
+        "  }\n"
+        "  window.addEventListener('pagehide', cleanup, { once: true });\n"
+        "  window.addEventListener('beforeunload', cleanup, { once: true });\n"
+        "})();\n"
+        "</script>"
+    )
+    if script_tag:
+        match = _re.search(r"</body>", doc, flags=_re.IGNORECASE)
+        if match:
+            idx = match.start()
+            doc = doc[:idx] + script_tag + cleanup_tag + doc[idx:]
+        else:
+            # Append at end
+            doc = doc + script_tag + cleanup_tag
+
+    return doc
+
+def send_transformers_to_sandbox(files: dict) -> str:
+    """Build a self-contained HTML document from transformers.js files and return an iframe preview."""
+    merged_html = build_transformers_inline_html(files)
+    return send_to_sandbox(merged_html)
+
 def parse_svelte_output(text):
     """Parse Svelte output to extract individual files"""
     files = {
@@ -2218,7 +2308,7 @@ This will help me create a better design for you."""
                 yield {
                     code_output: formatted_output,
                     history: _history,
-                    sandbox: send_to_sandbox(files['index.html']),
+                    sandbox: send_transformers_to_sandbox(files),
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
@@ -2462,16 +2552,17 @@ This will help me create a better design for you."""
                         yield {
                             code_output: gr.update(value=formatted_output, language="html"),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_to_sandbox(files['index.html']) if files['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                            sandbox: send_transformers_to_sandbox(files) if files['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                         }
                     elif has_existing_content:
                         # Model is returning search/replace changes for transformers.js - apply them
                         last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
                         modified_content = apply_transformers_js_search_replace_changes(last_content, content)
+                        _mf = parse_transformers_js_output(modified_content)
                         yield {
                             code_output: gr.update(value=modified_content, language="html"),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_to_sandbox(parse_transformers_js_output(modified_content)['index.html']) if parse_transformers_js_output(modified_content)['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                            sandbox: send_transformers_to_sandbox(_mf) if _mf['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                         }
                     else:
                         # Still streaming, show partial content
@@ -2549,7 +2640,7 @@ This will help me create a better design for you."""
                 yield {
                     code_output: formatted_output,
                     history: _history,
-                    sandbox: send_to_sandbox(files['index.html']),
+                    sandbox: send_transformers_to_sandbox(files),
                     history_output: history_to_chatbot_messages(_history),
                 }
             elif has_existing_content:
@@ -2557,10 +2648,11 @@ This will help me create a better design for you."""
                 last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
                 modified_content = apply_transformers_js_search_replace_changes(last_content, content)
                 _history.append([query, modified_content])
+                _mf = parse_transformers_js_output(modified_content)
                 yield {
                     code_output: modified_content,
                     history: _history,
-                    sandbox: send_to_sandbox(parse_transformers_js_output(modified_content)['index.html']),
+                    sandbox: send_transformers_to_sandbox(_mf),
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
@@ -3650,7 +3742,7 @@ with gr.Blocks(
         if language == "transformers.js":
             files = parse_transformers_js_output(code)
             if files['index.html']:
-                return send_to_sandbox(files['index.html'])
+                return send_transformers_to_sandbox(files)
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
         if language == "svelte":
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code and deploy it to see the result.</div>"
