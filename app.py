@@ -35,6 +35,9 @@ GRADIO_SUPPORTED_LANGUAGES = [
 ]
 
 def get_gradio_language(language):
+    # Map composite options to a supported syntax highlighting
+    if language == "streamlit":
+        return "python"
     return language if language in GRADIO_SUPPORTED_LANGUAGES else None
 
 # Search/Replace Constants
@@ -1563,6 +1566,43 @@ def send_to_sandbox(code):
     iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
     return iframe
 
+def is_streamlit_code(code: str) -> bool:
+    """Heuristic check to determine if Python code is a Streamlit app."""
+    if not code:
+        return False
+    lowered = code.lower()
+    return ("import streamlit" in lowered) or ("from streamlit" in lowered) or ("st." in code and "streamlit" in lowered)
+
+def send_streamlit_to_stlite(code: str) -> str:
+    """Render Streamlit code using stlite inside a sandboxed iframe for preview."""
+    # Build an HTML document that loads stlite and mounts the Streamlit app defined inline
+    html_doc = (
+        """<!doctype html>
+<html>
+  <head>
+    <meta charset=\"UTF-8\" />
+    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, shrink-to-fit=no\" />
+    <title>Streamlit Preview</title>
+    <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@stlite/browser@0.86.0/build/stlite.css\" />
+    <style>html,body{margin:0;padding:0;height:100%;} streamlit-app{display:block;height:100%;}</style>
+    <script type=\"module\" src=\"https://cdn.jsdelivr.net/npm/@stlite/browser@0.86.0/build/stlite.js\"></script>
+  </head>
+  <body>
+    <streamlit-app>
+"""
+        + (code or "")
+        + """
+    </streamlit-app>
+  </body>
+</html>
+"""
+    )
+    encoded_html = base64.b64encode(html_doc.encode('utf-8')).decode('utf-8')
+    data_uri = f"data:text/html;charset=utf-8;base64,{encoded_html}"
+    iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
+    return iframe
+
 def demo_card_click(e: gr.EventData):
     try:
         # Get the index from the event data
@@ -2091,10 +2131,16 @@ This will help me create a better design for you."""
                 if chunk.choices[0].delta.content:
                     content += chunk.choices[0].delta.content
                     clean_code = remove_code_block(content)
+                    # Live streaming preview
+                    preview_val = None
+                    if language == "html":
+                        preview_val = send_to_sandbox(clean_code)
+                    elif language == "python" and is_streamlit_code(clean_code):
+                        preview_val = send_streamlit_to_stlite(clean_code)
                     yield {
                         code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                         history_output: history_to_chatbot_messages(_history),
-                        sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                        sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                     }
             
         except Exception as e:
@@ -2291,10 +2337,15 @@ This will help me create a better design for you."""
                     text_to_image_prompt=text_to_image_prompt,
                 )
                 
+                preview_val = None
+                if language == "html":
+                    preview_val = send_to_sandbox(final_content)
+                elif language == "python" and is_streamlit_code(final_content):
+                    preview_val = send_streamlit_to_stlite(final_content)
                 yield {
                     code_output: final_content,
                     history: _history,
-                    sandbox: send_to_sandbox(final_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                    sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
         return
@@ -2400,26 +2451,41 @@ This will help me create a better design for you."""
                         # Handle modification of existing content
                         if clean_code.strip().startswith("<!DOCTYPE html>") or clean_code.strip().startswith("<html"):
                             # Model returned a complete HTML file
+                            preview_val = None
+                            if language == "html":
+                                preview_val = send_to_sandbox(clean_code)
+                            elif language == "python" and is_streamlit_code(clean_code):
+                                preview_val = send_streamlit_to_stlite(clean_code)
                             yield {
                                 code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                                 history_output: history_to_chatbot_messages(_history),
-                                sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                                sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                             }
                         else:
                             # Model returned search/replace changes - apply them
                             last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
                             modified_content = apply_search_replace_changes(last_content, clean_code)
                             clean_content = remove_code_block(modified_content)
+                            preview_val = None
+                            if language == "html":
+                                preview_val = send_to_sandbox(clean_content)
+                            elif language == "python" and is_streamlit_code(clean_content):
+                                preview_val = send_streamlit_to_stlite(clean_content)
                             yield {
                                 code_output: gr.update(value=clean_content, language=get_gradio_language(language)),
                                 history_output: history_to_chatbot_messages(_history),
-                                sandbox: send_to_sandbox(clean_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                                sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                             }
                     else:
+                        preview_val = None
+                        if language == "html":
+                            preview_val = send_to_sandbox(clean_code)
+                        elif language == "python" and is_streamlit_code(clean_code):
+                            preview_val = send_streamlit_to_stlite(clean_code)
                         yield {
                             code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_to_sandbox(clean_code) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                            sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                         }
             # Skip chunks with empty choices (end of stream)
             # Do not treat as error
@@ -2518,7 +2584,7 @@ This will help me create a better design for you."""
             yield {
                 code_output: clean_content,
                 history: _history,
-                sandbox: send_to_sandbox(clean_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                sandbox: (send_to_sandbox(clean_content) if language == "html" else (send_streamlit_to_stlite(clean_content) if (language == "python" and is_streamlit_code(clean_content)) else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>")),
                 history_output: history_to_chatbot_messages(_history),
             }
         else:
@@ -2537,10 +2603,15 @@ This will help me create a better design for you."""
             )
             
             _history.append([query, final_content])
+            preview_val = None
+            if language == "html":
+                preview_val = send_to_sandbox(final_content)
+            elif language == "python" and is_streamlit_code(final_content):
+                preview_val = send_streamlit_to_stlite(final_content)
             yield {
                 code_output: final_content,
                 history: _history,
-                sandbox: send_to_sandbox(final_content),
+                sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                 history_output: history_to_chatbot_messages(_history),
             }
     except Exception as e:
@@ -3287,9 +3358,9 @@ with gr.Blocks(
             lines=3,
             visible=True
         )
-        # Language dropdown for code generation
+        # Language dropdown for code generation (add Streamlit as a first-class option)
         language_choices = [
-            "html", "python", "transformers.js", "svelte", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
+            "html", "streamlit", "python", "transformers.js", "svelte", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
         ]
         language_dropdown = gr.Dropdown(
             choices=language_choices,
@@ -3456,10 +3527,21 @@ with gr.Blocks(
             # Success - update the code output and show success message
             # Also update history to include the loaded project
             loaded_history = [[f"Loaded project from {url}", code]]
+            # Determine preview based on content (HTML or Streamlit)
+            if code and (code.strip().startswith('<!DOCTYPE html>') or code.strip().startswith('<html')):
+                preview_html = send_to_sandbox(code)
+                code_lang = "html"
+            elif is_streamlit_code(code):
+                preview_html = send_streamlit_to_stlite(code)
+                code_lang = "python"
+            else:
+                preview_html = "<div style='padding:1em;color:#888;text-align:center;'>Preview not available for this file type.</div>"
+                code_lang = "html"
+
             return [
                 gr.update(value=status, visible=True),
-                gr.update(value=code, language="html"),
-                gr.update(value=send_to_sandbox(code) if code.strip().startswith('<!DOCTYPE html>') or code.strip().startswith('<html') else "<div style='padding:1em;color:#888;text-align:center;'>Preview not available for this file type.</div>"),
+                gr.update(value=code, language=code_lang),
+                gr.update(value=preview_html),
                 gr.update(value=""),
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
@@ -3490,6 +3572,8 @@ with gr.Blocks(
             return gr.update(value="Svelte")
         elif language == "html":
             return gr.update(value="Static (HTML)")
+        elif language == "streamlit":
+            return gr.update(value="Streamlit (Python)")
         else:
             return gr.update(value="Gradio (Python)")
 
@@ -3499,18 +3583,20 @@ with gr.Blocks(
     def preview_logic(code, language):
         if language == "html":
             return send_to_sandbox(code)
-        elif language == "transformers.js":
-            # For transformers.js, extract the HTML part for preview
+        if language == "streamlit":
+            return send_streamlit_to_stlite(code) if is_streamlit_code(code) else "<div style='padding:1em;color:#888;text-align:center;'>Add `import streamlit as st` to enable Streamlit preview.</div>"
+        if language == "python" or is_streamlit_code(code):
+            if is_streamlit_code(code):
+                return send_streamlit_to_stlite(code)
+            return "<div style='padding:1em;color:#888;text-align:center;'>Preview available only for Streamlit apps in Python. Add `import streamlit as st`.</div>"
+        if language == "transformers.js":
             files = parse_transformers_js_output(code)
             if files['index.html']:
                 return send_to_sandbox(files['index.html'])
-            else:
-                return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
-        elif language == "svelte":
-            # For Svelte, we can't preview the compiled app, so show a message
-            return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code and deploy it to see the result.</div>"
-        else:
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
+        if language == "svelte":
+            return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code and deploy it to see the result.</div>"
+        return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML.</div>"
 
     def show_deploy_components(*args):
         return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
