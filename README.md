@@ -45,6 +45,7 @@ pip install -r requirements.txt
 export HF_TOKEN="your_huggingface_token"
 export TAVILY_API_KEY="your_tavily_api_key"  # Optional, for web search feature
 export DASHSCOPE_API_KEY="your_dashscope_api_key"  # Required for Qwen3-30B models via DashScope
+export POE_API_KEY="your_poe_api_key"  # Required for GPT-5 and Grok-4 via Poe
 ```
 
 ## Usage
@@ -79,6 +80,8 @@ python app.py
 - Qwen3-30B-A3B-Thinking-2507 (via DashScope)
 - SmolLM3-3B
 - GLM-4.1V-9B-Thinking (multimodal)
+- GPT-5 (via Poe)
+- Grok-4 (via Poe)
 
 ## Input Options
 
