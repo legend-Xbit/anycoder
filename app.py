@@ -734,6 +734,20 @@ def strip_placeholder_thinking(text: str) -> str:
     # Matches lines like: "Thinking..." or "Thinking... (12s elapsed)"
     return re.sub(r"(?mi)^[\t ]*Thinking\.\.\.(?:\s*\(\d+s elapsed\))?[\t ]*$\n?", "", text)
 
+def is_placeholder_thinking_only(text: str) -> bool:
+    """Return True if text contains only 'Thinking...' placeholder lines (with optional elapsed)."""
+    if not text:
+        return False
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return re.fullmatch(r"(?s)(?:\s*Thinking\.\.\.(?:\s*\(\d+s elapsed\))?\s*)+", stripped) is not None
+
+def extract_last_thinking_line(text: str) -> str:
+    """Extract the last 'Thinking...' line to display as status."""
+    matches = list(re.finditer(r"Thinking\.\.\.(?:\s*\(\d+s elapsed\))?", text))
+    return matches[-1].group(0) if matches else "Thinking..."
+
 def parse_transformers_js_output(text):
     """Parse transformers.js output and extract the three files (index.html, index.js, style.css)"""
     files = {
@@ -2566,6 +2580,15 @@ This will help me create a better design for you."""
             
             if chunk_content:
                 if _current_model["id"] == "gpt-5":
+                    # If this chunk is only placeholder thinking, surface a status update without polluting content
+                    if is_placeholder_thinking_only(chunk_content):
+                        status_line = extract_last_thinking_line(chunk_content)
+                        yield {
+                            code_output: gr.update(value=(content or "") + "\n<!-- " + status_line + " -->", language="html"),
+                            history_output: history_to_chatbot_messages(_history),
+                            sandbox: "<div style='padding:1em;color:#888;text-align:center;'>" + status_line + "</div>",
+                        }
+                        continue
                     # Filter placeholders
                     incoming = strip_placeholder_thinking(chunk_content)
                     # Process code fences incrementally, only keep content inside fences
