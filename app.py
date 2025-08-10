@@ -587,9 +587,10 @@ def get_inference_client(model_id, provider="auto"):
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
     elif model_id == "gpt-5":
-        # Use OpenAI client for GPT-5 model
+        # Use Poe (OpenAI-compatible) client for GPT-5 model
         return OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
         )
     elif model_id == "step-3":
         # Use StepFun API client for Step-3 model
@@ -699,10 +700,24 @@ def remove_code_block(text):
             # Remove a leading language marker line (e.g., 'python') if present
             if extracted.split('\n', 1)[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plSQL', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
                 return extracted.split('\n', 1)[1] if '\n' in extracted else ''
+            # If HTML markup starts later in the block (e.g., Poe injected preface), trim to first HTML root
+            html_root_idx = None
+            for tag in ['<!DOCTYPE html', '<html']:
+                idx = extracted.find(tag)
+                if idx != -1:
+                    html_root_idx = idx if html_root_idx is None else min(html_root_idx, idx)
+            if html_root_idx is not None and html_root_idx > 0:
+                return extracted[html_root_idx:].strip()
             return extracted
     # If no code block is found, check if the entire text is HTML
-    if text.strip().startswith('<!DOCTYPE html>') or text.strip().startswith('<html') or text.strip().startswith('<'):
-        return text.strip()
+    stripped = text.strip()
+    if stripped.startswith('<!DOCTYPE html>') or stripped.startswith('<html') or stripped.startswith('<'):
+        # If HTML root appears later (e.g., Poe preface), trim to first HTML root
+        for tag in ['<!DOCTYPE html', '<html']:
+            idx = stripped.find(tag)
+            if idx > 0:
+                return stripped[idx:].strip()
+        return stripped
     # Special handling for python: remove python marker
     if text.strip().startswith('```python'):
         return text.strip()[9:-3].strip()
@@ -711,6 +726,13 @@ def remove_code_block(text):
     if lines[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plSQL', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
         return lines[1] if len(lines) > 1 else ''
     return text.strip()
+
+def strip_placeholder_thinking(text: str) -> str:
+    """Remove placeholder 'Thinking...' status lines from streamed text."""
+    if not text:
+        return text
+    # Matches lines like: "Thinking..." or "Thinking... (12s elapsed)"
+    return re.sub(r"(?mi)^[\t ]*Thinking\.\.\.(?:\s*\(\d+s elapsed\))?[\t ]*$\n?", "", text)
 
 def parse_transformers_js_output(text):
     """Parse transformers.js output and extract the three files (index.html, index.js, style.css)"""
@@ -2500,13 +2522,13 @@ This will help me create a better design for you."""
             )
 
         else:
-            # Use max_completion_tokens for GPT-5, max_tokens for others
+            # Poe expects model id "GPT-5" and uses max_tokens
             if _current_model["id"] == "gpt-5":
                 completion = client.chat.completions.create(
-                    model=_current_model["id"],
+                    model="GPT-5",
                     messages=messages,
                     stream=True,
-                    max_completion_tokens=16384
+                    max_tokens=16384
                 )
             else:
                 completion = client.chat.completions.create(
@@ -2516,6 +2538,9 @@ This will help me create a better design for you."""
                     max_tokens=16384
                 )
         content = ""
+        # For Poe/GPT-5, maintain a simple code-fence state machine to only accumulate code
+        poe_inside_code_block = False
+        poe_partial_buffer = ""
         for chunk in completion:
             # Handle different response formats for Mistral vs others
             chunk_content = None
@@ -2540,7 +2565,42 @@ This will help me create a better design for you."""
                     chunk_content = chunk.choices[0].delta.content
             
             if chunk_content:
-                content += chunk_content
+                if _current_model["id"] == "gpt-5":
+                    # Filter placeholders
+                    incoming = strip_placeholder_thinking(chunk_content)
+                    # Process code fences incrementally, only keep content inside fences
+                    s = poe_partial_buffer + incoming
+                    append_text = ""
+                    i = 0
+                    # Find all triple backticks positions
+                    for m in re.finditer(r"```", s):
+                        if not poe_inside_code_block:
+                            # Opening fence. Require a newline to confirm full opener so we can skip optional language line
+                            nl = s.find("\n", m.end())
+                            if nl == -1:
+                                # Incomplete opener; buffer from this fence and wait for more
+                                poe_partial_buffer = s[m.start():]
+                                s = None
+                                break
+                            # Enter code, skip past newline after optional language token
+                            poe_inside_code_block = True
+                            i = nl + 1
+                        else:
+                            # Closing fence, append content inside and exit code
+                            append_text += s[i:m.start()]
+                            poe_inside_code_block = False
+                            i = m.end()
+                    if s is not None:
+                        if poe_inside_code_block:
+                            append_text += s[i:]
+                            poe_partial_buffer = ""
+                        else:
+                            poe_partial_buffer = s[i:]
+                    if append_text:
+                        content += append_text
+                else:
+                    # Append content, filtering out placeholder thinking lines
+                    content += strip_placeholder_thinking(chunk_content)
                 search_status = " (with web search)" if enable_search and tavily_client else ""
                 
                 # Handle transformers.js output differently
