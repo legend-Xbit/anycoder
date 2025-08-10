@@ -38,6 +38,8 @@ def get_gradio_language(language):
     # Map composite options to a supported syntax highlighting
     if language == "streamlit":
         return "python"
+    if language == "gradio":
+        return "python"
     return language if language in GRADIO_SUPPORTED_LANGUAGES else None
 
 # Search/Replace Constants
@@ -1603,6 +1605,47 @@ def send_streamlit_to_stlite(code: str) -> str:
     iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
     return iframe
 
+def is_gradio_code(code: str) -> bool:
+    """Heuristic check to determine if Python code is a Gradio app."""
+    if not code:
+        return False
+    lowered = code.lower()
+    return (
+        "import gradio" in lowered
+        or "from gradio" in lowered
+        or "gr.Interface(" in code
+        or "gr.Blocks(" in code
+    )
+
+def send_gradio_to_lite(code: str) -> str:
+    """Render Gradio code using gradio-lite inside a sandboxed iframe for preview."""
+    html_doc = (
+        """<!doctype html>
+<html>
+  <head>
+    <meta charset=\"UTF-8\" />
+    <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, shrink-to-fit=no\" />
+    <title>Gradio Preview</title>
+    <script type=\"module\" crossorigin src=\"https://cdn.jsdelivr.net/npm/@gradio/lite/dist/lite.js\"></script>
+    <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/@gradio/lite/dist/lite.css\" />
+    <style>html,body{margin:0;padding:0;height:100%;} gradio-lite{display:block;height:100%;}</style>
+  </head>
+  <body>
+    <gradio-lite>
+"""
+        + (code or "")
+        + """
+    </gradio-lite>
+  </body>
+</html>
+"""
+    )
+    encoded_html = base64.b64encode(html_doc.encode('utf-8')).decode('utf-8')
+    data_uri = f"data:text/html;charset=utf-8;base64,{encoded_html}"
+    iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
+    return iframe
+
 def demo_card_click(e: gr.EventData):
     try:
         # Get the index from the event data
@@ -2456,6 +2499,8 @@ This will help me create a better design for you."""
                                 preview_val = send_to_sandbox(clean_code)
                             elif language == "python" and is_streamlit_code(clean_code):
                                 preview_val = send_streamlit_to_stlite(clean_code)
+                            elif language == "gradio" or (language == "python" and is_gradio_code(clean_code)):
+                                preview_val = send_gradio_to_lite(clean_code)
                             yield {
                                 code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                                 history_output: history_to_chatbot_messages(_history),
@@ -2471,6 +2516,8 @@ This will help me create a better design for you."""
                                 preview_val = send_to_sandbox(clean_content)
                             elif language == "python" and is_streamlit_code(clean_content):
                                 preview_val = send_streamlit_to_stlite(clean_content)
+                            elif language == "gradio" or (language == "python" and is_gradio_code(clean_content)):
+                                preview_val = send_gradio_to_lite(clean_content)
                             yield {
                                 code_output: gr.update(value=clean_content, language=get_gradio_language(language)),
                                 history_output: history_to_chatbot_messages(_history),
@@ -2482,6 +2529,8 @@ This will help me create a better design for you."""
                             preview_val = send_to_sandbox(clean_code)
                         elif language == "python" and is_streamlit_code(clean_code):
                             preview_val = send_streamlit_to_stlite(clean_code)
+                        elif language == "gradio" or (language == "python" and is_gradio_code(clean_code)):
+                            preview_val = send_gradio_to_lite(clean_code)
                         yield {
                             code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                             history_output: history_to_chatbot_messages(_history),
@@ -2608,6 +2657,8 @@ This will help me create a better design for you."""
                 preview_val = send_to_sandbox(final_content)
             elif language == "python" and is_streamlit_code(final_content):
                 preview_val = send_streamlit_to_stlite(final_content)
+            elif language == "gradio" or (language == "python" and is_gradio_code(final_content)):
+                preview_val = send_gradio_to_lite(final_content)
             yield {
                 code_output: final_content,
                 history: _history,
@@ -3358,9 +3409,9 @@ with gr.Blocks(
             lines=3,
             visible=True
         )
-        # Language dropdown for code generation (add Streamlit as a first-class option)
+        # Language dropdown for code generation (add Streamlit and Gradio as first-class options)
         language_choices = [
-            "html", "streamlit", "python", "transformers.js", "svelte", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
+            "html", "streamlit", "gradio", "python", "transformers.js", "svelte", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
         ]
         language_dropdown = gr.Dropdown(
             choices=language_choices,
@@ -3534,6 +3585,9 @@ with gr.Blocks(
             elif is_streamlit_code(code):
                 preview_html = send_streamlit_to_stlite(code)
                 code_lang = "python"
+            elif is_gradio_code(code):
+                preview_html = send_gradio_to_lite(code)
+                code_lang = "python"
             else:
                 preview_html = "<div style='padding:1em;color:#888;text-align:center;'>Preview not available for this file type.</div>"
                 code_lang = "html"
@@ -3574,6 +3628,8 @@ with gr.Blocks(
             return gr.update(value="Static (HTML)")
         elif language == "streamlit":
             return gr.update(value="Streamlit (Python)")
+        elif language == "gradio":
+            return gr.update(value="Gradio (Python)")
         else:
             return gr.update(value="Gradio (Python)")
 
@@ -3585,6 +3641,8 @@ with gr.Blocks(
             return send_to_sandbox(code)
         if language == "streamlit":
             return send_streamlit_to_stlite(code) if is_streamlit_code(code) else "<div style='padding:1em;color:#888;text-align:center;'>Add `import streamlit as st` to enable Streamlit preview.</div>"
+        if language == "gradio":
+            return send_gradio_to_lite(code) if is_gradio_code(code) else "<div style='padding:1em;color:#888;text-align:center;'>Add `import gradio as gr` to enable Gradio preview.</div>"
         if language == "python" or is_streamlit_code(code):
             if is_streamlit_code(code):
                 return send_streamlit_to_stlite(code)
