@@ -48,16 +48,7 @@ DIVIDER = "======="
 REPLACE_END = ">>>>>>> REPLACE"
 
 # Configuration
-HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
-
-Output a COMPLETE, STANDALONE HTML document that renders directly in a browser. Requirements:
-- Include <!DOCTYPE html>, <html>, <head>, and <body> with proper nesting
-- Include all required <link> and <script> tags for any libraries you use
-- Do NOT escape characters (no \\n, \\t, or escaped quotes). Output raw HTML/JS/CSS.
-- If you use React or Tailwind, include correct CDN tags
-- Keep everything in ONE file; inline CSS/JS as needed
-
-For website redesign tasks:
+HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
 For website redesign tasks:
 - Use the provided original HTML code as the starting point for redesign
@@ -781,6 +772,8 @@ def remove_code_block(text):
     if lines[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql', 'sql-mssql', 'sql-mysql', 'sql-mariadb', 'sql-sqlite', 'sql-cassandra', 'sql-plSQL', 'sql-hive', 'sql-pgsql', 'sql-gql', 'sql-gpsql', 'sql-sparksql', 'sql-esper']:
         return lines[1] if len(lines) > 1 else ''
     return text.strip()
+
+## React CDN compatibility fixer removed per user preference
 
 def strip_placeholder_thinking(text: str) -> str:
     """Remove placeholder 'Thinking...' status lines from streamed text."""
