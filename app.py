@@ -3720,7 +3720,7 @@ with gr.Blocks(
             visible=True
         )
         file_input = gr.File(
-            label="Reference file",
+            label="Reference file (OCR only)",
             file_types=[".pdf", ".txt", ".md", ".csv", ".docx", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"],
             visible=True
         )
