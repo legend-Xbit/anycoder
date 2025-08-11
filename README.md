@@ -20,6 +20,7 @@ AnyCoder is an AI-powered code generator that helps you create applications by d
 ## Features
 
 - **Multi-Model Support**: Choose from Moonshot Kimi-K2, DeepSeek V3, DeepSeek R1, ERNIE-4.5-VL, MiniMax M1, Qwen3-235B-A22B, Qwen3-30B-A3B-Instruct-2507, Qwen3-30B-A3B-Thinking-2507, SmolLM3-3B, GLM-4.1V-9B-Thinking, Gemini 2.5 Flash and Gemini 2.5 Pro (OpenAI-compatible)
+ - Claude-Opus-4.1 (via Poe)
 - **Flexible Input**: Describe your app in text, upload a UI design image (for multimodal models), provide a reference file (PDF, TXT, MD, CSV, DOCX, or image), or enter a website URL for redesign
 - **Web Search Integration**: Enable real-time web search (Tavily, with advanced search depth) to enhance code generation with up-to-date information and best practices
 - **Code Generation**: Generate code in HTML, Python, JS, and more. Special support for transformers.js apps (outputs index.html, index.js, style.css)
@@ -83,6 +84,7 @@ python app.py
 - GLM-4.1V-9B-Thinking (multimodal)
 - GPT-5 (via Poe)
 - Grok-4 (via Poe)
+ - Claude-Opus-4.1 (via Poe)
  - Gemini 2.5 Flash (OpenAI-compatible)
  - Gemini 2.5 Pro (OpenAI-compatible)
 

@@ -541,6 +541,11 @@ AVAILABLE_MODELS = [
         "name": "Grok-4",
         "id": "grok-4",
         "description": "Grok-4 model via Poe (OpenAI-compatible) for advanced tasks"
+    },
+    {
+        "name": "Claude-Opus-4.1",
+        "id": "claude-opus-4.1",
+        "description": "Anthropic Claude Opus 4.1 via Poe (OpenAI-compatible)"
     }
 ]
 
@@ -650,6 +655,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "grok-4":
         # Use Poe (OpenAI-compatible) client for Grok-4 model
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
+    elif model_id == "claude-opus-4.1":
+        # Use Poe (OpenAI-compatible) client for Claude-Opus-4.1
         return OpenAI(
             api_key=os.getenv("POE_API_KEY"),
             base_url="https://api.poe.com/v1"
@@ -2681,6 +2692,13 @@ This will help me create a better design for you."""
             elif _current_model["id"] == "grok-4":
                 completion = client.chat.completions.create(
                     model="Grok-4",
+                    messages=messages,
+                    stream=True,
+                    max_tokens=16384
+                )
+            elif _current_model["id"] == "claude-opus-4.1":
+                completion = client.chat.completions.create(
+                    model="Claude-Opus-4.1",
                     messages=messages,
                     stream=True,
                     max_tokens=16384
