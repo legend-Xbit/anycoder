@@ -513,6 +513,16 @@ AVAILABLE_MODELS = [
         "description": "Mistral Codestral model - specialized for code generation and programming tasks"
     },
     {
+        "name": "Gemini 2.5 Flash",
+        "id": "gemini-2.5-flash",
+        "description": "Google Gemini 2.5 Flash via OpenAI-compatible API"
+    },
+    {
+        "name": "Gemini 2.5 Pro",
+        "id": "gemini-2.5-pro",
+        "description": "Google Gemini 2.5 Pro via OpenAI-compatible API"
+    },
+    {
         "name": "GPT-OSS-120B",
         "id": "openai/gpt-oss-120b",
         "description": "OpenAI GPT-OSS-120B model for advanced code generation and general tasks"
@@ -653,6 +663,18 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "codestral-2508":
         # Use Mistral client for Codestral model
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
+    elif model_id == "gemini-2.5-flash":
+        # Use Google Gemini (OpenAI-compatible) client
+        return OpenAI(
+            api_key=os.getenv("GEMINI_API_KEY"),
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+    elif model_id == "gemini-2.5-pro":
+        # Use Google Gemini Pro (OpenAI-compatible) client
+        return OpenAI(
+            api_key=os.getenv("GEMINI_API_KEY"),
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
     elif model_id == "openai/gpt-oss-120b":
         provider = "cerebras"
     elif model_id == "openai/gpt-oss-20b":
