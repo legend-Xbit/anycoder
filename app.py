@@ -48,7 +48,16 @@ DIVIDER = "======="
 REPLACE_END = ">>>>>>> REPLACE"
 
 # Configuration
-HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
+HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
+
+Output a COMPLETE, STANDALONE HTML document that renders directly in a browser. Requirements:
+- Include <!DOCTYPE html>, <html>, <head>, and <body> with proper nesting
+- Include all required <link> and <script> tags for any libraries you use
+- Do NOT escape characters (no \\n, \\t, or escaped quotes). Output raw HTML/JS/CSS.
+- If you use React or Tailwind, include correct CDN tags
+- Keep everything in ONE file; inline CSS/JS as needed
+
+For website redesign tasks:
 
 For website redesign tasks:
 - Use the provided original HTML code as the starting point for redesign
@@ -66,6 +75,19 @@ If an image is provided, analyze it and use the visual information to better und
 Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output."""
+
+# Stricter prompt for GLM-4.5V to ensure a complete, runnable HTML document with no escaped characters
+GLM45V_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
+
+Output a COMPLETE, STANDALONE HTML document that renders directly in a browser. Requirements:
+- Include <!DOCTYPE html>, <html>, <head>, and <body> with proper nesting
+- Include all required <link> and <script> tags for any libraries you use
+- Do NOT escape characters (no \\n, \\t, or escaped quotes). Output raw HTML/JS/CSS.
+- If you use React or Tailwind, include correct CDN tags
+- Keep everything in ONE file; inline CSS/JS as needed
+
+Return ONLY the code inside a single ```html ... ``` code block. No additional text before or after.
+"""
 
 TRANSFORMERS_JS_SYSTEM_PROMPT = """You are an expert web developer creating a transformers.js application. You will generate THREE separate files: index.html, index.js, and style.css.
 
@@ -207,9 +229,16 @@ Always output only the three code blocks as shown above, and do not include any 
 GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output."""
 
 # System prompt with search capability
-HTML_SYSTEM_PROMPT_WITH_SEARCH = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
+HTML_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert front-end developer. You have access to real-time web search.
 
-You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies.
+Output a COMPLETE, STANDALONE HTML document that renders directly in a browser. Requirements:
+- Include <!DOCTYPE html>, <html>, <head>, and <body> with proper nesting
+- Include all required <link> and <script> tags for any libraries you use
+- Do NOT escape characters (no \\n, \\t, or escaped quotes). Output raw HTML/JS/CSS.
+- If you use React or Tailwind, include correct CDN tags
+- Keep everything in ONE file; inline CSS/JS as needed
+
+Use web search when needed to find the latest best practices or correct CDN links.
 
 For website redesign tasks:
 - Use the provided original HTML code as the starting point for redesign
@@ -420,6 +449,11 @@ AVAILABLE_MODELS = [
         "name": "GLM-4.5",
         "id": "zai-org/GLM-4.5",
         "description": "GLM-4.5 model with thinking capabilities for advanced code generation"
+    },
+    {
+        "name": "GLM-4.5V",
+        "id": "zai-org/GLM-4.5V",
+        "description": "GLM-4.5V multimodal model with image understanding for code generation"
     },
     {
         "name": "GLM-4.1V-9B-Thinking",
@@ -1006,7 +1040,8 @@ def update_image_input_visibility(model):
     """Update image input visibility based on selected model"""
     is_ernie_vl = model.get("id") == "baidu/ERNIE-4.5-VL-424B-A47B-Base-PT"
     is_glm_vl = model.get("id") == "THUDM/GLM-4.1V-9B-Thinking"
-    return gr.update(visible=is_ernie_vl or is_glm_vl)
+    is_glm_45v = model.get("id") == "zai-org/GLM-4.5V"
+    return gr.update(visible=is_ernie_vl or is_glm_vl or is_glm_45v)
 
 def process_image_for_model(image):
     """Convert image to base64 for model input"""
@@ -1680,37 +1715,9 @@ Please use the search results above to help create the requested application wit
     return enhanced_query
 
 def send_to_sandbox(code):
-    # Add a wrapper to inject necessary permissions and ensure full HTML
-    wrapped_code = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset=\"UTF-8\">
-        <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
-        <script>
-            // Safe localStorage polyfill
-            const safeStorage = {{
-                _data: {{}},
-                getItem: function(key) {{ return this._data[key] || null; }},
-                setItem: function(key, value) {{ this._data[key] = value; }},
-                removeItem: function(key) {{ delete this._data[key]; }},
-                clear: function() {{ this._data = {{}}; }}
-            }};
-            Object.defineProperty(window, 'localStorage', {{
-                value: safeStorage,
-                writable: false
-            }});
-            window.onerror = function(message, source, lineno, colno, error) {{
-                console.error('Error:', message);
-            }};
-        </script>
-    </head>
-    <body>
-        {code}
-    </body>
-    </html>
-    """
-    encoded_html = base64.b64encode(wrapped_code.encode('utf-8')).decode('utf-8')
+    """Render HTML in a sandboxed iframe. Assumes full HTML is provided by prompts."""
+    html_doc = (code or "").strip()
+    encoded_html = base64.b64encode(html_doc.encode('utf-8')).decode('utf-8')
     data_uri = f"data:text/html;charset=utf-8;base64,{encoded_html}"
     iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
     return iframe
@@ -2540,6 +2547,91 @@ This will help me create a better design for you."""
                 }
         return
     
+    # Handle GLM-4.5V (multimodal vision)
+    if _current_model["id"] == "zai-org/GLM-4.5V":
+        # Build structured messages with a strong system prompt to enforce full HTML output
+        structured = [
+            {"role": "system", "content": GLM45V_HTML_SYSTEM_PROMPT}
+        ]
+        if image is not None:
+            user_msg = {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": enhanced_query},
+                ],
+            }
+            try:
+                import io, base64
+                from PIL import Image
+                import numpy as np
+                if isinstance(image, np.ndarray):
+                    image = Image.fromarray(image)
+                buf = io.BytesIO()
+                image.save(buf, format="PNG")
+                b64 = base64.b64encode(buf.getvalue()).decode()
+                user_msg["content"].append({
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{b64}"}
+                })
+                structured.append(user_msg)
+            except Exception:
+                structured.append({"role": "user", "content": enhanced_query})
+        else:
+            structured.append({"role": "user", "content": enhanced_query})
+
+        try:
+            client = InferenceClient(
+                provider="auto",
+                api_key=os.environ["HF_TOKEN"],
+                bill_to="huggingface",
+            )
+            stream = client.chat.completions.create(
+                model="zai-org/GLM-4.5V",
+                messages=structured,
+                stream=True,
+            )
+            content = ""
+            for chunk in stream:
+                if getattr(chunk, "choices", None) and chunk.choices and getattr(chunk.choices[0], "delta", None) and getattr(chunk.choices[0].delta, "content", None):
+                    content += chunk.choices[0].delta.content
+                    clean_code = remove_code_block(content)
+                    # Ensure escaped newlines/tabs from model are rendered correctly
+                    if "\\n" in clean_code:
+                        clean_code = clean_code.replace("\\n", "\n")
+                    if "\\t" in clean_code:
+                        clean_code = clean_code.replace("\\t", "\t")
+                    preview_val = None
+                    if language == "html":
+                        preview_val = send_to_sandbox(clean_code)
+                    elif language == "python" and is_streamlit_code(clean_code):
+                        preview_val = send_streamlit_to_stlite(clean_code)
+                    yield {
+                        code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
+                        history_output: history_to_chatbot_messages(_history),
+                        sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
+                    }
+        except Exception as e:
+            content = f"Error with GLM-4.5V: {str(e)}\n\nPlease make sure HF_TOKEN environment variable is set."
+
+        clean_code = remove_code_block(content)
+        if "\\n" in clean_code:
+            clean_code = clean_code.replace("\\n", "\n")
+        if "\\t" in clean_code:
+            clean_code = clean_code.replace("\\t", "\t")
+        _history.append([query, clean_code])
+        preview_val = None
+        if language == "html":
+            preview_val = send_to_sandbox(clean_code)
+        elif language == "python" and is_streamlit_code(clean_code):
+            preview_val = send_streamlit_to_stlite(clean_code)
+        yield {
+            code_output: clean_code,
+            history: _history,
+            sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
+            history_output: history_to_chatbot_messages(_history),
+        }
+        return
+
     # Use dynamic client based on selected model (for non-GLM-4.5 models)
     client = get_inference_client(_current_model["id"], provider)
 
