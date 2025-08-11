@@ -70,11 +70,17 @@ Always output only the HTML code inside a ```html ... ``` code block, and do not
 # Stricter prompt for GLM-4.5V to ensure a complete, runnable HTML document with no escaped characters
 GLM45V_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
 
-Output a COMPLETE, STANDALONE HTML document that renders directly in a browser. Requirements:
-- Include <!DOCTYPE html>, <html>, <head>, and <body> with proper nesting
-- Include all required <link> and <script> tags for any libraries you use
+Output a COMPLETE, STANDALONE HTML document that renders directly in a browser.
+
+Hard constraints:
+- DO NOT use React, ReactDOM, JSX, Babel, Vue, Angular, Svelte, or any SPA framework.
+- Use ONLY plain HTML, CSS, and vanilla JavaScript.
+- Allowed external resources: Tailwind CSS CDN, Font Awesome CDN, Google Fonts.
 - Do NOT escape characters (no \\n, \\t, or escaped quotes). Output raw HTML/JS/CSS.
-- If you use React or Tailwind, include correct CDN tags
+
+Structural requirements:
+- Include <!DOCTYPE html>, <html>, <head>, and <body> with proper nesting
+- Include required <link> tags for any CSS you reference (e.g., Tailwind, Font Awesome, Google Fonts)
 - Keep everything in ONE file; inline CSS/JS as needed
 
 Return ONLY the code inside a single ```html ... ``` code block. No additional text before or after.
