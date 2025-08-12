@@ -3437,6 +3437,270 @@ def load_project_from_url(url: str) -> Tuple[str, str]:
     
     return f"✅ Successfully imported project from {username}/{project_name}", code_content
 
+# -------- Repo/Model Import (GitHub & Hugging Face model) --------
+def _parse_repo_or_model_url(url: str) -> Tuple[str, Optional[dict]]:
+    """Parse a URL and detect if it's a GitHub repo, HF Space, or HF Model.
+
+    Returns a tuple of (kind, meta) where kind in {"github", "hf_space", "hf_model", "unknown"}
+    Meta contains parsed identifiers.
+    """
+    try:
+        parsed = urlparse(url.strip())
+        netloc = (parsed.netloc or "").lower()
+        path = (parsed.path or "").strip("/")
+        # Hugging Face spaces
+        if ("huggingface.co" in netloc or netloc.endswith("hf.co")) and path.startswith("spaces/"):
+            parts = path.split("/")
+            if len(parts) >= 3:
+                return "hf_space", {"username": parts[1], "project": parts[2]}
+        # Hugging Face model repo (default)
+        if ("huggingface.co" in netloc or netloc.endswith("hf.co")) and not path.startswith(("spaces/", "datasets/", "organizations/")):
+            parts = path.split("/")
+            if len(parts) >= 2:
+                repo_id = f"{parts[0]}/{parts[1]}"
+                return "hf_model", {"repo_id": repo_id}
+        # GitHub repo
+        if "github.com" in netloc:
+            parts = path.split("/")
+            if len(parts) >= 2:
+                return "github", {"owner": parts[0], "repo": parts[1]}
+    except Exception:
+        pass
+    return "unknown", None
+
+def _fetch_hf_model_readme(repo_id: str) -> Optional[str]:
+    """Fetch README.md (model card) for a Hugging Face model repo."""
+    try:
+        api = HfApi()
+        # Try direct README.md first
+        try:
+            local_path = api.hf_hub_download(repo_id=repo_id, filename="README.md", repo_type="model")
+            with open(local_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            # Some repos use README at root without explicit type
+            local_path = api.hf_hub_download(repo_id=repo_id, filename="README.md")
+            with open(local_path, "r", encoding="utf-8") as f:
+                return f.read()
+    except Exception:
+        return None
+
+def _fetch_github_readme(owner: str, repo: str) -> Optional[str]:
+    """Fetch README.md from a GitHub repo via raw URLs, trying HEAD/main/master."""
+    bases = [
+        f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD/README.md",
+        f"https://raw.githubusercontent.com/{owner}/{repo}/main/README.md",
+        f"https://raw.githubusercontent.com/{owner}/{repo}/master/README.md",
+    ]
+    for url in bases:
+        try:
+            resp = requests.get(url, timeout=10)
+            if resp.status_code == 200 and resp.text:
+                return resp.text
+        except Exception:
+            continue
+    return None
+
+def _extract_transformers_or_diffusers_snippet(markdown_text: str) -> Tuple[Optional[str], Optional[str]]:
+    """Extract the most relevant Python code block referencing transformers/diffusers from markdown.
+
+    Returns (language, code). If not found, returns (None, None).
+    """
+    if not markdown_text:
+        return None, None
+    # Find fenced code blocks
+    code_blocks = []
+    import re as _re
+    for match in _re.finditer(r"```([\w+-]+)?\s*\n([\s\S]*?)```", markdown_text, _re.IGNORECASE):
+        lang = (match.group(1) or "").lower()
+        code = match.group(2) or ""
+        code_blocks.append((lang, code.strip()))
+    # Filter for transformers/diffusers relevance
+    def score_block(code: str) -> int:
+        score = 0
+        kws = [
+            "from transformers", "import transformers", "pipeline(",
+            "AutoModel", "AutoTokenizer", "text-generation",
+            "from diffusers", "import diffusers", "DiffusionPipeline",
+            "StableDiffusion", "UNet", "EulerDiscreteScheduler"
+        ]
+        for kw in kws:
+            if kw in code:
+                score += 1
+        # Prefer longer, self-contained snippets
+        score += min(len(code) // 200, 5)
+        return score
+    scored = sorted(
+        [cb for cb in code_blocks if any(kw in cb[1] for kw in ["transformers", "diffusers", "pipeline(", "StableDiffusion"])],
+        key=lambda x: score_block(x[1]),
+        reverse=True,
+    )
+    if scored:
+        return scored[0][0] or None, scored[0][1]
+    return None, None
+
+def _infer_task_from_context(snippet: Optional[str], pipeline_tag: Optional[str]) -> str:
+    """Infer a task string for transformers pipeline; fall back to provided pipeline_tag or 'text-generation'."""
+    if pipeline_tag:
+        return pipeline_tag
+    if not snippet:
+        return "text-generation"
+    lowered = snippet.lower()
+    task_hints = {
+        "text-generation": ["text-generation", "automodelforcausallm"],
+        "text2text-generation": ["text2text-generation", "t5forconditionalgeneration"],
+        "fill-mask": ["fill-mask", "automodelformaskedlm"],
+        "summarization": ["summarization"],
+        "translation": ["translation"],
+        "text-classification": ["text-classification", "sequenceclassification"],
+        "automatic-speech-recognition": ["speechrecognition", "automatic-speech-recognition", "asr"],
+        "image-classification": ["image-classification"],
+        "zero-shot-image-classification": ["zero-shot-image-classification"],
+    }
+    for task, hints in task_hints.items():
+        if any(h in lowered for h in hints):
+            return task
+    # Inspect explicit pipeline("task")
+    import re as _re
+    m = _re.search(r"pipeline\(\s*['\"]([\w\-]+)['\"]", snippet)
+    if m:
+        return m.group(1)
+    return "text-generation"
+
+def _generate_gradio_app_from_transformers(repo_id: str, task: str) -> str:
+    """Build a minimal Gradio app using transformers.pipeline for a given model and task."""
+    # Map simple UI per task; default to text in/out
+    if task in {"text-generation", "text2text-generation", "summarization", "translation", "fill-mask"}:
+        return (
+            "import gradio as gr\n"
+            "from transformers import pipeline\n\n"
+            f"pipe = pipeline(task='{task}', model='{repo_id}')\n\n"
+            "def infer(prompt, max_new_tokens=256, temperature=0.7, top_p=0.95):\n"
+            "    if '\u2047' in prompt:\n"
+            "        # Fill-mask often uses [MASK]; keep generic handling\n"
+            "        pass\n"
+            "    out = pipe(prompt, max_new_tokens=max_new_tokens, do_sample=True, temperature=temperature, top_p=top_p)\n"
+            "    if isinstance(out, list):\n"
+            "        if isinstance(out[0], dict):\n"
+            "            return next(iter(out[0].values())) if out[0] else str(out)\n"
+            "        return str(out[0])\n"
+            "    return str(out)\n\n"
+            "demo = gr.Interface(\n"
+            "    fn=infer,\n"
+            "    inputs=[gr.Textbox(label='Input', lines=8), gr.Slider(1, 2048, value=256, label='max_new_tokens'), gr.Slider(0.0, 1.5, value=0.7, step=0.01, label='temperature'), gr.Slider(0.0, 1.0, value=0.95, step=0.01, label='top_p')],\n"
+            "    outputs=gr.Textbox(label='Output', lines=8),\n"
+            "    title='Transformers Demo'\n"
+            ")\n\n"
+            "if __name__ == '__main__':\n"
+            "    demo.launch()\n"
+        )
+    elif task in {"text-classification"}:
+        return (
+            "import gradio as gr\n"
+            "from transformers import pipeline\n\n"
+            f"pipe = pipeline(task='{task}', model='{repo_id}')\n\n"
+            "def infer(text):\n"
+            "    out = pipe(text)\n"
+            "    # Expect list of dicts with label/score\n"
+            "    return {o['label']: float(o['score']) for o in out}\n\n"
+            "demo = gr.Interface(fn=infer, inputs=gr.Textbox(lines=6), outputs=gr.Label(), title='Text Classification')\n\n"
+            "if __name__ == '__main__':\n"
+            "    demo.launch()\n"
+        )
+    else:
+        # Fallback generic text pipeline (pipeline infers task from model config)
+        return (
+            "import gradio as gr\n"
+            "from transformers import pipeline\n\n"
+            f"pipe = pipeline(model='{repo_id}')\n\n"
+            "def infer(prompt):\n"
+            "    out = pipe(prompt)\n"
+            "    if isinstance(out, list):\n"
+            "        if isinstance(out[0], dict):\n"
+            "            return next(iter(out[0].values())) if out[0] else str(out)\n"
+            "        return str(out[0])\n"
+            "    return str(out)\n\n"
+            "demo = gr.Interface(fn=infer, inputs=gr.Textbox(lines=8), outputs=gr.Textbox(lines=8), title='Transformers Demo')\n\n"
+            "if __name__ == '__main__':\n"
+            "    demo.launch()\n"
+        )
+
+def _generate_gradio_app_from_diffusers(repo_id: str) -> str:
+    """Build a minimal Gradio app for text-to-image using diffusers."""
+    return (
+        "import gradio as gr\n"
+        "import torch\n"
+        "from diffusers import DiffusionPipeline\n\n"
+        f"pipe = DiffusionPipeline.from_pretrained('{repo_id}')\n"
+        "device = 'cuda' if torch.cuda.is_available() else 'cpu'\n"
+        "pipe = pipe.to(device)\n\n"
+        "def infer(prompt, guidance_scale=7.0, num_inference_steps=30, seed=0):\n"
+        "    generator = None if seed == 0 else torch.Generator(device=device).manual_seed(int(seed))\n"
+        "    image = pipe(prompt, guidance_scale=float(guidance_scale), num_inference_steps=int(num_inference_steps), generator=generator).images[0]\n"
+        "    return image\n\n"
+        "demo = gr.Interface(\n"
+        "    fn=infer,\n"
+        "    inputs=[gr.Textbox(label='Prompt'), gr.Slider(0.0, 15.0, value=7.0, step=0.1, label='guidance_scale'), gr.Slider(1, 100, value=30, step=1, label='num_inference_steps'), gr.Slider(0, 2**32-1, value=0, step=1, label='seed')],\n"
+        "    outputs=gr.Image(type='pil'),\n"
+        "    title='Diffusers Text-to-Image'\n"
+        ")\n\n"
+        "if __name__ == '__main__':\n"
+        "    demo.launch()\n"
+    )
+
+def _generate_streamlit_wrapper(gradio_code: str) -> str:
+    """Convert a simple Gradio app into a Streamlit wrapper by embedding via components if needed.
+    If code is already Streamlit, return as is. Otherwise, provide a basic Streamlit UI calling the same pipeline.
+    """
+    # For now, simply return a minimal placeholder to keep scope tight; prefer Gradio by default.
+    return (
+        "import streamlit as st\n"
+        "st.markdown('This model is best used with a Gradio app in this tool. Switch framework to Gradio for a runnable demo.')\n"
+    )
+
+def import_repo_to_app(url: str, framework: str = "Gradio") -> Tuple[str, str, str]:
+    """Import a GitHub or HF model repo and return the raw code snippet from README/model card.
+
+    Returns (status_markdown, code_snippet, preview_html). Preview left empty; UI will decide.
+    """
+    if not url or not url.strip():
+        return "Please enter a repository URL.", "", ""
+    kind, meta = _parse_repo_or_model_url(url)
+    if kind == "hf_space" and meta:
+        # Spaces already contain runnable apps; keep existing behavior to fetch main file raw
+        status, code = load_project_from_url(url)
+        return status, code, ""
+    # Fetch markdown
+    markdown = None
+    repo_id = None
+    pipeline_tag = None
+    library_name = None
+    if kind == "hf_model" and meta:
+        repo_id = meta.get("repo_id")
+        # Try model info to get pipeline tag/library
+        try:
+            api = HfApi()
+            info = api.model_info(repo_id)
+            pipeline_tag = getattr(info, "pipeline_tag", None)
+            library_name = getattr(info, "library_name", None)
+        except Exception:
+            pass
+        markdown = _fetch_hf_model_readme(repo_id)
+    elif kind == "github" and meta:
+        markdown = _fetch_github_readme(meta.get("owner"), meta.get("repo"))
+    else:
+        return "Error: Unsupported or invalid URL. Provide a GitHub repo or Hugging Face model URL.", "", ""
+
+    if not markdown:
+        return "Error: Could not fetch README/model card.", "", ""
+
+    lang, snippet = _extract_transformers_or_diffusers_snippet(markdown)
+    if not snippet:
+        return "Error: No relevant transformers/diffusers code block found in README/model card.", "", ""
+
+    status = "✅ Imported code snippet from README/model card. Use it as a starting point."
+    return status, snippet, ""
+
 # Gradio Theme Configurations with proper theme objects
 def get_saved_theme():
     """Get the saved theme preference from file"""
@@ -3736,17 +4000,15 @@ with gr.Blocks(
             apply_theme_btn = gr.Button("Apply Theme", variant="primary", size="sm")
             theme_status = gr.Markdown("")
         
-        # Add Load Project section
-        gr.Markdown("📥 Load Existing Project")
+        # Unified Import section
+        gr.Markdown("📥 Import Project (Space, GitHub, or Model)")
         load_project_url = gr.Textbox(
-            label="Hugging Face Space URL",
-            placeholder="https://huggingface.co/spaces/username/project",
+            label="Project URL",
+            placeholder="https://huggingface.co/spaces/user/space OR https://huggingface.co/user/model OR https://github.com/owner/repo",
             lines=1
         )
         load_project_btn = gr.Button("Import Project", variant="secondary", size="sm")
         load_project_status = gr.Markdown(visible=False)
-        
-        gr.Markdown("---")
         
         input = gr.Textbox(
             label="What would you like to build?",
@@ -3901,6 +4163,7 @@ with gr.Blocks(
                 )
             with gr.Tab("Preview"):
                 sandbox = gr.HTML(label="Live preview")
+            # Removed Import Logs tab for cleaner UI
             # History tab hidden per user request
             # with gr.Tab("History"):
             #     history_output = gr.Chatbot(show_label=False, height=400, type="messages")
@@ -3908,57 +4171,73 @@ with gr.Blocks(
         # Keep history_output as hidden component to maintain functionality
         history_output = gr.Chatbot(show_label=False, height=400, type="messages", visible=False)
 
-    # Load project function
-    def handle_load_project(url):
+    # Unified import handler
+    def handle_import_project(url):
         if not url.strip():
-            return gr.update(value="Please enter a URL.", visible=True)
-        
-        status, code = load_project_from_url(url)
-        
-        if code:
+            return [gr.update(value="Please enter a URL.", visible=True), gr.update(), gr.update(), gr.update(), [], [], gr.update(value="", visible=False), gr.update(value="🚀 Deploy App", visible=False)]
+
+        kind, meta = _parse_repo_or_model_url(url)
+        if kind == "hf_space":
+            status, code = load_project_from_url(url)
             # Extract space info for deployment
             is_valid, username, project_name = check_hf_space_url(url)
             space_info = f"{username}/{project_name}" if is_valid else ""
-            
-            # Success - update the code output and show success message
-            # Also update history to include the loaded project
-            loaded_history = [[f"Loaded project from {url}", code]]
-            # Determine preview based on content (HTML or Streamlit)
-            if code and (code.strip().startswith('<!DOCTYPE html>') or code.strip().startswith('<html')):
-                preview_html = send_to_sandbox(code)
-                code_lang = "html"
-            elif is_streamlit_code(code):
-                preview_html = send_streamlit_to_stlite(code)
-                code_lang = "python"
-            elif is_gradio_code(code):
-                preview_html = send_gradio_to_lite(code)
-                code_lang = "python"
-            else:
-                preview_html = "<div style='padding:1em;color:#888;text-align:center;'>Preview not available for this file type.</div>"
-                code_lang = "html"
-
+            loaded_history = [[f"Imported Space from {url}", code]]
+            # Preview not auto-rendered for imported content
+            code_lang = "python" if (is_streamlit_code(code) or is_gradio_code(code)) else "html"
             return [
                 gr.update(value=status, visible=True),
                 gr.update(value=code, language=code_lang),
-                gr.update(value=preview_html),
+                gr.update(value=""),
                 gr.update(value=""),
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
-                gr.update(value=space_info, visible=True),  # Update space name with loaded project
-                gr.update(value="Update Existing Space", visible=True)  # Change button text
+                gr.update(value=space_info, visible=True),
+                gr.update(value="Update Existing Space", visible=True)
             ]
         else:
-            # Error - just show error message
+            # GitHub or HF model → return raw snippet for LLM starting point
+            status, code, _ = import_repo_to_app(url)
+            loaded_history = [[f"Imported Repo/Model from {url}", code]]
+            code_lang = "python"
+            lower = (code or "").lower()
+            if code.strip().startswith("<!doctype html>") or code.strip().startswith("<html"):
+                code_lang = "html"
+            elif "```json" in lower:
+                code_lang = "json"
             return [
                 gr.update(value=status, visible=True),
-                gr.update(),
-                gr.update(),
-                gr.update(),
-                [],
-                [],
+                gr.update(value=code, language=code_lang),
+                gr.update(value=""),
+                gr.update(value=""),
+                loaded_history,
+                history_to_chatbot_messages(loaded_history),
                 gr.update(value="", visible=False),
                 gr.update(value="🚀 Deploy App", visible=False)
             ]
+
+    # Import repo/model handler
+    def handle_import_repo(url, framework):
+        status, code, preview = import_repo_to_app(url, framework)
+        # Heuristically set editor language based on snippet fencing or content
+        code_lang = "python"
+        lowered = (code or "").lower()
+        if code.strip().startswith("<!doctype html>") or code.strip().startswith("<html"):
+            code_lang = "html"
+        elif "import gradio" in lowered or "from gradio" in lowered:
+            code_lang = "python"
+        elif "streamlit as st" in lowered or "import streamlit" in lowered:
+            code_lang = "python"
+        elif "from transformers" in lowered or "import transformers" in lowered:
+            code_lang = "python"
+        elif "from diffusers" in lowered or "import diffusers" in lowered:
+            code_lang = "python"
+        return [
+            gr.update(value=status, visible=True),
+            gr.update(value=code, language=code_lang),
+            gr.update(value=""),
+            gr.update(value=f"URL: {url}\n\n{status}"),
+        ]
 
     # Event handlers
     def update_code_language(language):
@@ -4035,9 +4314,9 @@ with gr.Blocks(
         # No imported project found, return no changes
         return [gr.update(), gr.update()]
 
-    # Load project button event
+    # Unified import event
     load_project_btn.click(
-        handle_load_project,
+        handle_import_project,
         inputs=[load_project_url],
         outputs=[load_project_status, code_output, sandbox, load_project_url, history, history_output, space_name_input, deploy_btn]
     )
