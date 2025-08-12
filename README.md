@@ -19,7 +19,7 @@ AnyCoder is an AI-powered code generator that helps you create applications by d
 
 ## Features
 
-- **Multi-Model Support**: Choose from Moonshot Kimi-K2, DeepSeek V3, DeepSeek R1, ERNIE-4.5-VL, MiniMax M1, Qwen3-235B-A22B, Qwen3-30B-A3B-Instruct-2507, Qwen3-30B-A3B-Thinking-2507, SmolLM3-3B, GLM-4.1V-9B-Thinking, Gemini 2.5 Flash and Gemini 2.5 Pro (OpenAI-compatible)
+- **Multi-Model Support**: Choose from Moonshot Kimi-K2, Kimi K2 Turbo (Preview), DeepSeek V3, DeepSeek R1, ERNIE-4.5-VL, MiniMax M1, Qwen3-235B-A22B, Qwen3-30B-A3B-Instruct-2507, Qwen3-30B-A3B-Thinking-2507, SmolLM3-3B, GLM-4.1V-9B-Thinking, Gemini 2.5 Flash and Gemini 2.5 Pro (OpenAI-compatible)
  - Claude-Opus-4.1 (via Poe)
 - **Flexible Input**: Describe your app in text, upload a UI design image (for multimodal models), provide a reference file (PDF, TXT, MD, CSV, DOCX, or image), or enter a website URL for redesign
 - **Web Search Integration**: Enable real-time web search (Tavily, with advanced search depth) to enhance code generation with up-to-date information and best practices
@@ -48,6 +48,7 @@ export TAVILY_API_KEY="your_tavily_api_key"  # Optional, for web search feature
 export DASHSCOPE_API_KEY="your_dashscope_api_key"  # Required for Qwen3-30B models via DashScope
 export POE_API_KEY="your_poe_api_key"  # Required for GPT-5 and Grok-4 via Poe
 export GEMINI_API_KEY="your_gemini_api_key"  # Required for Gemini models
+export MOONSHOT_API_KEY="your_moonshot_api_key"  # Required for Kimi models
 ```
 
 ## Usage
@@ -71,6 +72,7 @@ python app.py
 ## Supported Models
 
 - Moonshot Kimi-K2
+- Kimi K2 Turbo (Preview)
 - DeepSeek V3
 - DeepSeek R1
 - ERNIE-4.5-VL (multimodal)
@@ -129,6 +131,7 @@ python app.py
 - `HF_TOKEN`: Your Hugging Face API token (required)
 - `TAVILY_API_KEY`: Your Tavily API key (optional, for web search)
  - `GEMINI_API_KEY`: Your Google Gemini API key (required to use Gemini models)
+- `MOONSHOT_API_KEY`: Your Moonshot AI API key (required to use Kimi models)
 
 ## Project Structure
 

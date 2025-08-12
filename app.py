@@ -413,6 +413,11 @@ AVAILABLE_MODELS = [
         "description": "Moonshot AI Kimi-K2-Instruct model for code generation and general tasks"
     },
     {
+        "name": "Kimi K2 Turbo (Preview)",
+        "id": "kimi-k2-turbo-preview",
+        "description": "Moonshot AI Kimi K2 Turbo via OpenAI-compatible API"
+    },
+    {
         "name": "DeepSeek V3",
         "id": "deepseek-ai/DeepSeek-V3-0324",
         "description": "DeepSeek V3 model for code generation"
@@ -685,6 +690,12 @@ def get_inference_client(model_id, provider="auto"):
         return OpenAI(
             api_key=os.getenv("GEMINI_API_KEY"),
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+    elif model_id == "kimi-k2-turbo-preview":
+        # Use Moonshot AI (OpenAI-compatible) client for Kimi K2 Turbo (Preview)
+        return OpenAI(
+            api_key=os.getenv("MOONSHOT_API_KEY"),
+            base_url="https://api.moonshot.ai/v1",
         )
     elif model_id == "openai/gpt-oss-120b":
         provider = "cerebras"
