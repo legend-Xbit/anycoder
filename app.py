@@ -288,6 +288,10 @@ Format Rules:
 9. IMPORTANT: The SEARCH block must *exactly* match the current code, including indentation and whitespace.
 10. For multi-file projects, specify which file you're modifying by starting with the filename before the search/replace block.
 
+ CSS Changes Guidance:
+ - When changing a CSS property that conflicts with other properties (e.g., replacing a gradient text with a solid color), replace the entire CSS rule for that selector instead of only adding the new property. For example, replace the full `.hero h1 { ... }` block, removing `background-clip` and `color: transparent` when setting `color: #fff`.
+ - Ensure search blocks match the current code exactly (spaces, indentation, and line breaks) so replacements apply correctly.
+
 Example Modifying Code:
 ```
 Some explanation...
@@ -1573,6 +1577,49 @@ def apply_search_replace_changes(original_content: str, changes_text: str) -> st
     if not changes_text.strip():
         return original_content
     
+    # If the model didn't use the block markers, try a CSS-rule fallback where
+    # provided blocks like `.selector { ... }` replace matching CSS rules.
+    if (SEARCH_START not in changes_text) and (DIVIDER not in changes_text) and (REPLACE_END not in changes_text):
+        try:
+            import re  # Local import to avoid global side effects
+            updated_content = original_content
+            replaced_any_rule = False
+            # Find CSS-like rule blocks in the changes_text
+            # This is a conservative matcher that looks for `selector { ... }`
+            css_blocks = re.findall(r"([^{]+)\{([\s\S]*?)\}", changes_text, flags=re.MULTILINE)
+            for selector_raw, body_raw in css_blocks:
+                selector = selector_raw.strip()
+                body = body_raw.strip()
+                if not selector:
+                    continue
+                # Build a regex to find the existing rule for this selector
+                # Capture opening `{` and closing `}` to preserve them; replace inner body.
+                pattern = re.compile(rf"({re.escape(selector)}\s*\{{)([\s\S]*?)(\}})")
+                def _replace_rule(match):
+                    nonlocal replaced_any_rule
+                    replaced_any_rule = True
+                    prefix, existing_body, suffix = match.groups()
+                    # Preserve indentation of the existing first body line if present
+                    first_line_indent = ""
+                    for line in existing_body.splitlines():
+                        stripped = line.lstrip(" \t")
+                        if stripped:
+                            first_line_indent = line[: len(line) - len(stripped)]
+                            break
+                    # Re-indent provided body with the detected indent
+                    if body:
+                        new_body_lines = [first_line_indent + line if line.strip() else line for line in body.splitlines()]
+                        new_body_text = "\n" + "\n".join(new_body_lines) + "\n"
+                    else:
+                        new_body_text = existing_body  # If empty body provided, keep existing
+                    return f"{prefix}{new_body_text}{suffix}"
+                updated_content, num_subs = pattern.subn(_replace_rule, updated_content, count=1)
+            if replaced_any_rule:
+                return updated_content
+        except Exception:
+            # Fallback silently to the standard block-based application
+            pass
+
     # Split the changes text into individual search/replace blocks
     blocks = []
     current_block = ""
@@ -1628,7 +1675,41 @@ def apply_search_replace_changes(original_content: str, changes_text: str) -> st
             if search_text in modified_content:
                 modified_content = modified_content.replace(search_text, replace_text)
             else:
-                print(f"Warning: Search text not found in content: {search_text[:100]}...")
+                # If exact block match fails, attempt a CSS-rule fallback using the replace_text
+                try:
+                    import re
+                    updated_content = modified_content
+                    replaced_any_rule = False
+                    css_blocks = re.findall(r"([^{]+)\{([\s\S]*?)\}", replace_text, flags=re.MULTILINE)
+                    for selector_raw, body_raw in css_blocks:
+                        selector = selector_raw.strip()
+                        body = body_raw.strip()
+                        if not selector:
+                            continue
+                        pattern = re.compile(rf"({re.escape(selector)}\s*\{{)([\s\S]*?)(\}})")
+                        def _replace_rule(match):
+                            nonlocal replaced_any_rule
+                            replaced_any_rule = True
+                            prefix, existing_body, suffix = match.groups()
+                            first_line_indent = ""
+                            for line in existing_body.splitlines():
+                                stripped = line.lstrip(" \t")
+                                if stripped:
+                                    first_line_indent = line[: len(line) - len(stripped)]
+                                    break
+                            if body:
+                                new_body_lines = [first_line_indent + line if line.strip() else line for line in body.splitlines()]
+                                new_body_text = "\n" + "\n".join(new_body_lines) + "\n"
+                            else:
+                                new_body_text = existing_body
+                            return f"{prefix}{new_body_text}{suffix}"
+                        updated_content, num_subs = pattern.subn(_replace_rule, updated_content, count=1)
+                    if replaced_any_rule:
+                        modified_content = updated_content
+                    else:
+                        print(f"Warning: Search text not found in content: {search_text[:100]}...")
+                except Exception:
+                    print(f"Warning: Search text not found in content: {search_text[:100]}...")
     
     return modified_content
 
