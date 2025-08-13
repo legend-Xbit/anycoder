@@ -560,7 +560,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "GPT-5"
+DEFAULT_MODEL_NAME = "GLM-4.5"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
