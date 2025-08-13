@@ -2369,6 +2369,7 @@ This will help me create a better design for you."""
                 model="zai-org/GLM-4.5",
                 messages=messages,
                 stream=True,
+                max_tokens=16384,
             )
             
             content = ""
