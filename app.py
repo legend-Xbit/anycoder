@@ -518,6 +518,11 @@ AVAILABLE_MODELS = [
         "description": "Mistral Codestral model - specialized for code generation and programming tasks"
     },
     {
+        "name": "Mistral Medium 2508",
+        "id": "mistral-medium-2508",
+        "description": "Mistral Medium 2508 model via Mistral API for general tasks and coding"
+    },
+    {
         "name": "Gemini 2.5 Flash",
         "id": "gemini-2.5-flash",
         "description": "Google Gemini 2.5 Flash via OpenAI-compatible API"
@@ -676,8 +681,8 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("STEP_API_KEY"),
             base_url="https://api.stepfun.com/v1"
         )
-    elif model_id == "codestral-2508":
-        # Use Mistral client for Codestral model
+    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508":
+        # Use Mistral client for Mistral models
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
     elif model_id == "gemini-2.5-flash":
         # Use Google Gemini (OpenAI-compatible) client
@@ -2684,7 +2689,7 @@ This will help me create a better design for you."""
         messages.append({'role': 'user', 'content': enhanced_query})
     try:
         # Handle Mistral API method difference
-        if _current_model["id"] == "codestral-2508":
+        if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
             completion = client.chat.stream(
                 model=_current_model["id"],
                 messages=messages,
@@ -2728,7 +2733,7 @@ This will help me create a better design for you."""
         for chunk in completion:
             # Handle different response formats for Mistral vs others
             chunk_content = None
-            if _current_model["id"] == "codestral-2508":
+            if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
                 # Mistral format: chunk.data.choices[0].delta.content
                 if (
                     hasattr(chunk, "data") and chunk.data and
