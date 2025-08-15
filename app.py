@@ -707,7 +707,7 @@ def get_inference_client(model_id, provider="auto"):
             base_url="https://api.moonshot.ai/v1",
         )
     elif model_id == "openai/gpt-oss-120b":
-        provider = "cerebras"
+        provider = "groq"
     elif model_id == "openai/gpt-oss-20b":
         provider = "groq"
     elif model_id == "moonshotai/Kimi-K2-Instruct":
