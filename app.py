@@ -4072,7 +4072,7 @@ with gr.Blocks(
     open_panel = gr.State(None)
     last_login_state = gr.State(None)
 
-    with gr.Sidebar():
+    with gr.Sidebar() as sidebar:
         login_button = gr.LoginButton()
         
         # Theme Selector (hidden for end users, developers can modify code)
@@ -4088,7 +4088,7 @@ with gr.Blocks(
             theme_status = gr.Markdown("")
         
         # Unified Import section
-        gr.Markdown("📥 Import Project (Space, GitHub, or Model)")
+        import_header_md = gr.Markdown("📥 Import Project (Space, GitHub, or Model)")
         load_project_url = gr.Textbox(
             label="Project URL",
             placeholder="https://huggingface.co/spaces/user/space OR https://huggingface.co/user/model OR https://github.com/owner/repo",
@@ -4239,7 +4239,7 @@ with gr.Blocks(
         # --- Remove deploy/app name/sdk from bottom column ---
         # (delete the gr.Column() block containing space_name_input, sdk_dropdown, deploy_btn, deploy_status)
 
-    with gr.Column():
+    with gr.Column() as main_column:
         with gr.Tabs():
             with gr.Tab("Code"):
                 code_output = gr.Code(
@@ -4258,10 +4258,24 @@ with gr.Blocks(
         # Keep history_output as hidden component to maintain functionality
         history_output = gr.Chatbot(show_label=False, height=400, type="messages", visible=False)
 
+    # Global generation status view (disabled placeholder)
+    generating_status = gr.Markdown("", visible=False)
+
     # Unified import handler
     def handle_import_project(url):
         if not url.strip():
-            return [gr.update(value="Please enter a URL.", visible=True), gr.update(), gr.update(), gr.update(), [], [], gr.update(value="", visible=False), gr.update(value="🚀 Deploy App", visible=False)]
+            return [
+                gr.update(value="Please enter a URL.", visible=True),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                [],
+                [],
+                gr.update(value="", visible=False),
+                gr.update(value="🚀 Deploy App", visible=False),
+                gr.update(),  # keep import header as-is
+                gr.update()   # keep import button as-is
+            ]
 
         kind, meta = _parse_repo_or_model_url(url)
         if kind == "hf_space":
@@ -4276,11 +4290,13 @@ with gr.Blocks(
                 gr.update(value=status, visible=True),
                 gr.update(value=code, language=code_lang),
                 gr.update(value=""),
-                gr.update(value=""),
+                gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
                 gr.update(value=space_info, visible=True),
-                gr.update(value="Update Existing Space", visible=True)
+                gr.update(value="Update Existing Space", visible=True),
+                gr.update(visible=False),  # hide import header
+                gr.update(visible=False)   # hide import button
             ]
         else:
             # GitHub or HF model → return raw snippet for LLM starting point
@@ -4296,11 +4312,13 @@ with gr.Blocks(
                 gr.update(value=status, visible=True),
                 gr.update(value=code, language=code_lang),
                 gr.update(value=""),
-                gr.update(value=""),
+                gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
                 gr.update(value="", visible=False),
-                gr.update(value="🚀 Deploy App", visible=False)
+                gr.update(value="🚀 Deploy App", visible=False),
+                gr.update(visible=False),  # hide import header
+                gr.update(visible=False)   # hide import button
             ]
 
     # Import repo/model handler
@@ -4405,13 +4423,41 @@ with gr.Blocks(
     load_project_btn.click(
         handle_import_project,
         inputs=[load_project_url],
-        outputs=[load_project_status, code_output, sandbox, load_project_url, history, history_output, space_name_input, deploy_btn]
+        outputs=[
+            load_project_status,
+            code_output,
+            sandbox,
+            load_project_url,
+            history,
+            history_output,
+            space_name_input,
+            deploy_btn,
+            import_header_md,
+            load_project_btn,
+        ],
     )
 
+    def begin_generation_ui():
+        # Hide only the sidebar; keep main UI visible; do not show any status text
+        return [gr.update(visible=False), gr.update(visible=False)]
+
+    def end_generation_ui():
+        # Keep sidebar visible but collapsed; hide the status
+        return [gr.update(visible=True, open=False), gr.update(visible=False)]
+
     btn.click(
+        begin_generation_ui,
+        inputs=None,
+        outputs=[sidebar, generating_status],
+        show_progress="hidden",
+    ).then(
         generation_code,
         inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt],
         outputs=[code_output, history, sandbox, history_output]
+    ).then(
+        end_generation_ui,
+        inputs=None,
+        outputs=[sidebar, generating_status]
     ).then(
         show_deploy_components,
         None,
