@@ -111,6 +111,11 @@ Requirements:
 6. Include proper error handling and loading states
 7. Follow accessibility best practices
 
+Library import (required): Add the following snippet to index.html to import transformers.js:
+<script type="module">
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2';
+</script>
+
 The index.html should contain the basic HTML structure and link to the CSS and JS files.
 The index.js should contain all the JavaScript logic including transformers.js integration.
 The style.css should contain all the styling for the application.
@@ -216,6 +221,11 @@ Requirements:
 6. Use modern CSS practices and JavaScript ES6+ features
 7. Include proper error handling and loading states
 8. Follow accessibility best practices
+
+Library import (required): Add the following snippet to index.html to import transformers.js:
+<script type="module">
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2';
+</script>
 
 The index.html should contain the basic HTML structure and link to the CSS and JS files.
 The index.js should contain all the JavaScript logic including transformers.js integration.
