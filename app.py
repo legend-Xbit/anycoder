@@ -28,6 +28,8 @@ from huggingface_hub import HfApi
 import tempfile
 from openai import OpenAI
 from mistralai import Mistral
+import uuid
+import threading
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
@@ -85,6 +87,64 @@ Structural requirements:
 
 Return ONLY the code inside a single ```html ... ``` code block. No additional text before or after.
 """
+
+# ---------------------------------------------------------------------------
+# Video temp-file management (per-session tracking and cleanup)
+# ---------------------------------------------------------------------------
+VIDEO_TEMP_DIR = os.path.join(tempfile.gettempdir(), "anycoder_videos")
+VIDEO_FILE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
+_SESSION_VIDEO_FILES: Dict[str, List[str]] = {}
+_VIDEO_FILES_LOCK = threading.Lock()
+
+
+def _ensure_video_dir_exists() -> None:
+    try:
+        os.makedirs(VIDEO_TEMP_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+
+def _register_video_for_session(session_id: Optional[str], file_path: str) -> None:
+    if not session_id or not file_path:
+        return
+    with _VIDEO_FILES_LOCK:
+        if session_id not in _SESSION_VIDEO_FILES:
+            _SESSION_VIDEO_FILES[session_id] = []
+        _SESSION_VIDEO_FILES[session_id].append(file_path)
+
+
+def cleanup_session_videos(session_id: Optional[str]) -> None:
+    if not session_id:
+        return
+    with _VIDEO_FILES_LOCK:
+        file_list = _SESSION_VIDEO_FILES.pop(session_id, [])
+    for path in file_list:
+        try:
+            if path and os.path.exists(path):
+                os.unlink(path)
+        except Exception:
+            # Best-effort cleanup
+            pass
+
+
+def reap_old_videos(ttl_seconds: int = VIDEO_FILE_TTL_SECONDS) -> None:
+    """Delete old video files in the temp directory based on modification time."""
+    try:
+        _ensure_video_dir_exists()
+        now_ts = time.time()
+        for name in os.listdir(VIDEO_TEMP_DIR):
+            path = os.path.join(VIDEO_TEMP_DIR, name)
+            try:
+                if not os.path.isfile(path):
+                    continue
+                mtime = os.path.getmtime(path)
+                if now_ts - mtime > ttl_seconds:
+                    os.unlink(path)
+            except Exception:
+                pass
+    except Exception:
+        # Temp dir might not exist or be accessible; ignore
+        pass
 
 TRANSFORMERS_JS_SYSTEM_PROMPT = """You are an expert web developer creating a transformers.js application. You will generate THREE separate files: index.html, index.js, and style.css.
 
@@ -1236,6 +1296,129 @@ def generate_image_to_image(input_image_data, prompt: str) -> str:
         print(f"Image-to-image generation error: {str(e)}")
         return f"Error generating image (image-to-image): {str(e)}"
 
+def generate_video_from_image(input_image_data, prompt: str, session_id: Optional[str] = None) -> str:
+    """Generate a video from an input image and prompt using Hugging Face InferenceClient.
+
+    Returns an HTML <video> tag whose source points to a local file URL (file://...).
+    """
+    try:
+        print("[Image2Video] Starting video generation")
+        if not os.getenv('HF_TOKEN'):
+            print("[Image2Video] Missing HF_TOKEN")
+            return "Error: HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token."
+
+        # Prepare client
+        client = InferenceClient(
+            provider="auto",
+            api_key=os.getenv('HF_TOKEN'),
+            bill_to="huggingface",
+        )
+        print(f"[Image2Video] InferenceClient initialized (provider=auto)")
+
+        # Normalize input image to bytes
+        import io
+        from PIL import Image
+        try:
+            import numpy as np
+        except Exception:
+            np = None
+
+        print(f"[Image2Video] Normalizing input image type={type(input_image_data)}")
+        if hasattr(input_image_data, 'read'):
+            raw = input_image_data.read()
+            pil_image = Image.open(io.BytesIO(raw))
+        elif hasattr(input_image_data, 'mode') and hasattr(input_image_data, 'size'):
+            pil_image = input_image_data
+        elif np is not None and isinstance(input_image_data, np.ndarray):
+            pil_image = Image.fromarray(input_image_data)
+        elif isinstance(input_image_data, (bytes, bytearray)):
+            pil_image = Image.open(io.BytesIO(input_image_data))
+        else:
+            pil_image = Image.open(io.BytesIO(bytes(input_image_data)))
+
+        if pil_image.mode != 'RGB':
+            pil_image = pil_image.convert('RGB')
+        try:
+            print(f"[Image2Video] Input PIL image size={pil_image.size} mode={pil_image.mode}")
+        except Exception:
+            pass
+
+        buf = io.BytesIO()
+        pil_image.save(buf, format='PNG')
+        input_bytes = buf.getvalue()
+
+        # Call image-to-video; require method support
+        model_id = "Lightricks/LTX-Video-0.9.8-13B-distilled"
+        image_to_video_method = getattr(client, "image_to_video", None)
+        if not callable(image_to_video_method):
+            print("[Image2Video] InferenceClient.image_to_video not available in this huggingface_hub version")
+            return (
+                "Error generating video (image-to-video): Your installed huggingface_hub version "
+                "does not expose InferenceClient.image_to_video. Please upgrade with "
+                "`pip install -U huggingface_hub` and try again."
+            )
+        print(f"[Image2Video] Calling image_to_video with model={model_id}, prompt length={len(prompt or '')}")
+        video_bytes = image_to_video_method(
+            input_bytes,
+            prompt=prompt,
+            model=model_id,
+        )
+        print(f"[Image2Video] Received video bytes: {len(video_bytes) if hasattr(video_bytes, '__len__') else 'unknown length'}")
+
+        # Save to temp file for this session (for cleanup on next Generate)
+        try:
+            _ensure_video_dir_exists()
+            file_name = f"{uuid.uuid4()}.mp4"
+            file_path = os.path.join(VIDEO_TEMP_DIR, file_name)
+            with open(file_path, "wb") as f:
+                f.write(video_bytes)
+            _register_video_for_session(session_id, file_path)
+            try:
+                file_size = os.path.getsize(file_path)
+            except Exception:
+                file_size = -1
+            print(f"[Image2Video] Saved video to temp file: {file_path} (size={file_size} bytes)")
+        except Exception as save_exc:
+            print(f"[Image2Video] Warning: could not persist temp video file: {save_exc}")
+
+        # Always use a file URL for the video source.
+        video_html = ""
+        file_url = None
+        try:
+            if 'file_path' in locals() and file_path:
+                # Build a proper file:// URL for absolute paths (e.g., file:///var/.../uuid.mp4)
+                try:
+                    from pathlib import Path
+                    file_url = Path(file_path).as_uri()
+                except Exception:
+                    # Fallback to manual construction; ensure three slashes
+                    # Note: this may not be fully standards-compliant on Windows
+                    if file_path.startswith('/'):
+                        file_url = f"file:///{file_path.lstrip('/')}"  # file:///abs/path
+                    else:
+                        file_url = f"file:///{file_path}"
+        except Exception:
+            file_url = None
+
+        if file_url:
+            video_html = (
+                f"<video controls style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\">"
+                f"<source src=\"{file_url}\" type=\"video/mp4\" />"
+                f"Your browser does not support the video tag."
+                f"</video>"
+            )
+        else:
+            # If a file URL cannot be constructed, signal error to avoid embedding data URIs.
+            return "Error generating video (image-to-video): Could not persist video to a local file."
+        print("[Image2Video] Successfully generated video HTML tag")
+        return video_html
+    except Exception as e:
+        import traceback
+        print("[Image2Video] Exception during generation:")
+        traceback.print_exc()
+        print(f"Image-to-video generation error: {str(e)}")
+        return f"Error generating video (image-to-video): {str(e)}"
+
 def extract_image_prompts_from_text(text: str, num_images_needed: int = 1) -> list:
     """Extract image generation prompts from the full text based on number of images needed"""
     # Use the entire text as the base prompt for image generation
@@ -1308,7 +1491,8 @@ def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
     # If no placeholder images found, look for any img tags
     if not placeholder_images:
         img_pattern = r'<img[^>]*>'
-        placeholder_images = re.findall(img_pattern, html_content)
+        # Case-insensitive to catch <IMG> or mixed-case tags
+        placeholder_images = re.findall(img_pattern, html_content, re.IGNORECASE)
     
     # Also look for div elements that might be image placeholders
     div_placeholder_patterns = [
@@ -1543,17 +1727,127 @@ def create_image_replacement_blocks_from_input_image(html_content: str, user_pro
 
     return '\n\n'.join(replacement_blocks)
 
-def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None) -> str:
+def create_video_replacement_blocks_from_input_image(html_content: str, user_prompt: str, input_image_data, session_id: Optional[str] = None) -> str:
+    """Create search/replace blocks that replace the first <img> (or placeholder) with a generated <video>.
+
+    Uses generate_video_from_image to produce a single video and swaps it in.
+    """
+    if not user_prompt:
+        return ""
+
+    import re
+    print("[Image2Video] Creating replacement blocks for video insertion")
+
+    placeholder_patterns = [
+        r'<img[^>]*src=["\'](?:placeholder|dummy|sample|example)[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://via\.placeholder\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://picsum\.photos[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://dummyimage\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*alt=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*class=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*id=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']data:image[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']#["\'][^>]*>',
+        r'<img[^>]*src=["\']about:blank["\'][^>]*>',
+    ]
+
+    placeholder_images = []
+    for pattern in placeholder_patterns:
+        matches = re.findall(pattern, html_content, re.IGNORECASE)
+        if matches:
+            placeholder_images.extend(matches)
+
+    if not placeholder_images:
+        img_pattern = r'<img[^>]*>'
+        placeholder_images = re.findall(img_pattern, html_content)
+    print(f"[Image2Video] Found {len(placeholder_images)} candidate <img> elements")
+
+    video_html = generate_video_from_image(input_image_data, user_prompt, session_id=session_id)
+    try:
+        has_file_src = 'src="' in video_html and video_html.count('src="') >= 1 and 'data:video/mp4;base64' not in video_html.split('src="', 1)[1]
+        print(f"[Image2Video] Generated video HTML length={len(video_html)}; has_file_src={has_file_src}")
+    except Exception:
+        pass
+    if video_html.startswith("Error"):
+        print("[Image2Video] Video generation returned error; aborting replacement")
+        return ""
+
+    if placeholder_images:
+        placeholder = placeholder_images[0]
+        placeholder_clean = re.sub(r'\s+', ' ', placeholder.strip())
+        print("[Image2Video] Replacing first image placeholder with video")
+        placeholder_variations = [
+            # Try the exact string first to maximize replacement success
+            placeholder,
+            placeholder_clean,
+            placeholder_clean.replace('"', "'"),
+            placeholder_clean.replace("'", '"'),
+            re.sub(r'\s+', ' ', placeholder_clean),
+            placeholder_clean.replace('  ', ' '),
+        ]
+        blocks = []
+        for variation in placeholder_variations:
+            blocks.append(f"""{SEARCH_START}
+{variation}
+{DIVIDER}
+{video_html}
+{REPLACE_END}""")
+        return '\n\n'.join(blocks)
+
+    if '<body' in html_content:
+        body_start = html_content.find('<body')
+        body_end = html_content.find('>', body_start) + 1
+        opening_body_tag = html_content[body_start:body_end]
+        print("[Image2Video] No <img> found; inserting video right after the opening <body> tag")
+        print(f"[Image2Video] Opening <body> tag snippet: {opening_body_tag[:120]}")
+        return f"""{SEARCH_START}
+{opening_body_tag}
+{DIVIDER}
+{opening_body_tag}
+    {video_html}
+{REPLACE_END}"""
+
+    print("[Image2Video] No <body> tag; appending video via replacement block")
+    return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
+
+def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None) -> str:
     """Apply text-to-image and/or image-to-image replacements to HTML content.
 
     If both toggles are enabled, text-to-image replacements run first, then image-to-image.
     """
     result = html_content
     try:
+        print(
+            f"[MediaApply] enable_i2v={enable_image_to_video}, enable_i2i={enable_image_to_image}, "
+            f"enable_t2i={enable_text_to_image}, has_image={input_image_data is not None}"
+        )
+        # If image-to-video is enabled, replace the first image with a generated video and return.
+        if enable_image_to_video and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
+            i2v_prompt = (image_to_video_prompt or user_prompt or "").strip()
+            print(f"[MediaApply] Running image-to-video with prompt len={len(i2v_prompt)}")
+            blocks_v = create_video_replacement_blocks_from_input_image(result, i2v_prompt, input_image_data, session_id=session_id)
+            if blocks_v:
+                print("[MediaApply] Applying image-to-video replacement blocks")
+                before_len = len(result)
+                result_after = apply_search_replace_changes(result, blocks_v)
+                after_len = len(result_after)
+                changed = (result_after != result)
+                print(f"[MediaApply] i2v blocks length={len(blocks_v)}; html before={before_len}, after={after_len}, changed={changed}")
+                if not changed:
+                    print("[MediaApply] DEBUG: Replacement did not change content. Dumping first block:")
+                    try:
+                        first_block = blocks_v.split(REPLACE_END)[0][:1000]
+                        print(first_block)
+                    except Exception:
+                        pass
+                result = result_after
+            else:
+                print("[MediaApply] No i2v replacement blocks generated")
+            return result
+
         # If an input image is provided and image-to-image is enabled, we only replace one image
         # and skip text-to-image to satisfy the requirement to replace exactly the number of uploaded images.
         if enable_image_to_image and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
-            # Prefer the dedicated image-to-image prompt if provided
             i2i_prompt = (image_to_image_prompt or user_prompt or "").strip()
             blocks2 = create_image_replacement_blocks_from_input_image(result, i2i_prompt, input_image_data, max_images=1)
             if blocks2:
@@ -1562,11 +1856,16 @@ def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_t
 
         if enable_text_to_image and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             t2i_prompt = (text_to_image_prompt or user_prompt or "").strip()
+            print(f"[MediaApply] Running text-to-image with prompt len={len(t2i_prompt)}")
             # Single-image flow for text-to-image
             blocks = create_image_replacement_blocks_text_to_image_single(result, t2i_prompt)
             if blocks:
+                print("[MediaApply] Applying text-to-image replacement blocks")
                 result = apply_search_replace_changes(result, blocks)
     except Exception:
+        import traceback
+        print("[MediaApply] Exception during media application:")
+        traceback.print_exc()
         return html_content
     return result
 
@@ -1856,6 +2155,39 @@ Please use the search results above to help create the requested application wit
 def send_to_sandbox(code):
     """Render HTML in a sandboxed iframe. Assumes full HTML is provided by prompts."""
     html_doc = (code or "").strip()
+    # For preview only: inline local file URLs (e.g., file:///.../video.mp4) as data URIs so the
+    # data: iframe can load them. The original code (shown to the user) still contains file URLs.
+    try:
+        import re
+        import base64 as _b64
+        import mimetypes as _mtypes
+        import urllib.parse as _uparse
+        def _file_url_to_data_uri(file_url: str) -> str | None:
+            try:
+                parsed = _uparse.urlparse(file_url)
+                path = _uparse.unquote(parsed.path)
+                if not path:
+                    return None
+                with open(path, 'rb') as _f:
+                    raw = _f.read()
+                mime = _mtypes.guess_type(path)[0] or 'application/octet-stream'
+                b64 = _b64.b64encode(raw).decode()
+                return f"data:{mime};base64,{b64}"
+            except Exception:
+                return None
+        def _repl_double(m):
+            url = m.group(1)
+            data_uri = _file_url_to_data_uri(url)
+            return f'src="{data_uri}"' if data_uri else m.group(0)
+        def _repl_single(m):
+            url = m.group(1)
+            data_uri = _file_url_to_data_uri(url)
+            return f"src='{data_uri}'" if data_uri else m.group(0)
+        html_doc = re.sub(r'src="(file:[^"]+)"', _repl_double, html_doc)
+        html_doc = re.sub(r"src='(file:[^']+)'", _repl_single, html_doc)
+    except Exception:
+        # Best-effort; continue without inlining
+        pass
     encoded_html = base64.b64encode(html_doc.encode('utf-8')).decode('utf-8')
     data_uri = f"data:text/html;charset=utf-8;base64,{encoded_html}"
     iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
@@ -2361,7 +2693,7 @@ The HTML code above contains the complete original website structure with all im
 stop_generation = False
 
 
-def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None):
+def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None):
     if query is None:
         query = ''
     if _history is None:
@@ -2388,6 +2720,22 @@ def generation_code(query: Optional[str], image: Optional[gr.Image], file: Optio
             '=== style.css ===' in last_assistant_msg or
             '=== src/App.svelte ===' in last_assistant_msg):
             has_existing_content = True
+
+    # Create/lookup a session id for temp-file tracking and cleanup
+    if _setting is not None and isinstance(_setting, dict):
+        session_id = _setting.get("__session_id__")
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            _setting["__session_id__"] = session_id
+    else:
+        session_id = str(uuid.uuid4())
+
+    # On each generate, reap old global files and cleanup previous session files
+    try:
+        cleanup_session_videos(session_id)
+        reap_old_videos()
+    except Exception:
+        pass
 
     # Choose system prompt based on context
     if has_existing_content:
@@ -2444,8 +2792,8 @@ This will help me create a better design for you."""
 
     # Check if this is GLM-4.5 model and handle with simple HuggingFace InferenceClient
     if _current_model["id"] == "zai-org/GLM-4.5":
-        if image is not None:
-            messages.append(create_multimodal_message(enhanced_query, image))
+        if vlm_image is not None:
+            messages.append(create_multimodal_message(enhanced_query, vlm_image))
         else:
             messages.append({'role': 'user', 'content': enhanced_query})
         
@@ -2486,13 +2834,17 @@ This will help me create a better design for you."""
         clean_code = remove_code_block(content)
         
         # Apply image generation (text→image and/or image→image)
+        print("[Generate] Applying post-generation media to GLM-4.5 HTML output")
         final_content = apply_generated_images_to_html(
             content,
             query,
             enable_text_to_image=enable_image_generation,
             enable_image_to_image=enable_image_to_image,
-            input_image_data=image,
+            input_image_data=gen_image,
             image_to_image_prompt=image_to_image_prompt,
+            enable_image_to_video=enable_image_to_video,
+            image_to_video_prompt=image_to_video_prompt,
+            session_id=session_id,
         )
         
         _history.append([query, final_content])
@@ -2647,13 +2999,17 @@ This will help me create a better design for you."""
                 clean_content = remove_code_block(modified_content)
                 
                 # Apply image generation (text→image and/or image→image)
+                print("[Generate] Applying post-generation media to modified HTML content")
                 clean_content = apply_generated_images_to_html(
                     clean_content,
                     query,
                     enable_text_to_image=enable_image_generation,
                     enable_image_to_image=enable_image_to_image,
-                    input_image_data=image,
+                    input_image_data=gen_image,
                     image_to_image_prompt=image_to_image_prompt,
+                    enable_image_to_video=enable_image_to_video,
+                    image_to_video_prompt=image_to_video_prompt,
+                    session_id=session_id,
                 )
                 
                 yield {
@@ -2664,14 +3020,18 @@ This will help me create a better design for you."""
                 }
             else:
                 # Apply image generation (text→image and/or image→image)
+                print("[Generate] Applying post-generation media to new HTML content")
                 final_content = apply_generated_images_to_html(
                     clean_code,
                     query,
                     enable_text_to_image=enable_image_generation,
                     enable_image_to_image=enable_image_to_image,
-                    input_image_data=image,
+                    input_image_data=gen_image,
                     image_to_image_prompt=image_to_image_prompt,
                     text_to_image_prompt=text_to_image_prompt,
+                    enable_image_to_video=enable_image_to_video,
+                    image_to_video_prompt=image_to_video_prompt,
+                    session_id=session_id,
                 )
                 
                 preview_val = None
@@ -2693,7 +3053,7 @@ This will help me create a better design for you."""
         structured = [
             {"role": "system", "content": GLM45V_HTML_SYSTEM_PROMPT}
         ]
-        if image is not None:
+        if vlm_image is not None:
             user_msg = {
                 "role": "user",
                 "content": [
@@ -2704,10 +3064,10 @@ This will help me create a better design for you."""
                 import io, base64
                 from PIL import Image
                 import numpy as np
-                if isinstance(image, np.ndarray):
-                    image = Image.fromarray(image)
+                if isinstance(vlm_image, np.ndarray):
+                    vlm_image = Image.fromarray(vlm_image)
                 buf = io.BytesIO()
-                image.save(buf, format="PNG")
+                vlm_image.save(buf, format="PNG")
                 b64 = base64.b64encode(buf.getvalue()).decode()
                 user_msg["content"].append({
                     "type": "image_url",
@@ -2775,8 +3135,8 @@ This will help me create a better design for you."""
     # Use dynamic client based on selected model (for non-GLM-4.5 models)
     client = get_inference_client(_current_model["id"], provider)
 
-    if image is not None:
-        messages.append(create_multimodal_message(enhanced_query, image))
+    if vlm_image is not None:
+        messages.append(create_multimodal_message(enhanced_query, vlm_image))
     else:
         messages.append({'role': 'user', 'content': enhanced_query})
     try:
@@ -3060,13 +3420,17 @@ This will help me create a better design for you."""
                 clean_content = remove_code_block(modified_content)
             
             # Apply image generation (text→image and/or image→image)
+            print("[Generate] Applying post-generation media to follow-up HTML content")
             clean_content = apply_generated_images_to_html(
                 clean_content,
                 query,
                 enable_text_to_image=enable_image_generation,
                 enable_image_to_image=enable_image_to_image,
-                input_image_data=image,
+                input_image_data=gen_image,
                 image_to_image_prompt=image_to_image_prompt,
+                enable_image_to_video=enable_image_to_video,
+                image_to_video_prompt=image_to_video_prompt,
+                session_id=session_id,
                 text_to_image_prompt=text_to_image_prompt,
             )
             
@@ -3083,14 +3447,18 @@ This will help me create a better design for you."""
             final_content = remove_code_block(content)
             
             # Apply image generation (text→image and/or image→image)
+            print("[Generate] Applying post-generation media to final HTML content")
             final_content = apply_generated_images_to_html(
                 final_content,
                 query,
                 enable_text_to_image=enable_image_generation,
                 enable_image_to_image=enable_image_to_image,
-                input_image_data=image,
+                input_image_data=gen_image,
                 image_to_image_prompt=image_to_image_prompt,
                 text_to_image_prompt=text_to_image_prompt,
+                enable_image_to_video=enable_image_to_video,
+                image_to_video_prompt=image_to_video_prompt,
+                session_id=session_id,
             )
             
             _history.append([query, final_content])
@@ -4138,6 +4506,11 @@ with gr.Blocks(
             label="UI design image",
             visible=False
         )
+        # New hidden image input used for VLMs, image-to-image, and image-to-video
+        generation_image_input = gr.Image(
+            label="image for generation",
+            visible=False
+        )
         image_to_image_prompt = gr.Textbox(
             label="Image-to-Image Prompt",
             placeholder="Describe how to transform the uploaded image (e.g., 'Turn the cat into a tiger.')",
@@ -4194,9 +4567,21 @@ with gr.Blocks(
             visible=True,
             info="Transform your uploaded image using FLUX.1-Kontext-dev"
         )
+        image_to_video_toggle = gr.Checkbox(
+            label="🎞️ Image to Video (uses input image)",
+            value=False,
+            visible=True,
+            info="Generate a short video from your uploaded image using Lightricks LTX-Video"
+        )
+        image_to_video_prompt = gr.Textbox(
+            label="Image-to-Video Prompt",
+            placeholder="Describe the motion (e.g., 'The cat starts to dance')",
+            lines=2,
+            visible=False
+        )
 
         def on_image_to_image_toggle(toggled):
-            # Show image input and its prompt when image-to-image is enabled
+            # Show generation image input and its prompt when image-to-image is enabled
             return gr.update(visible=bool(toggled)), gr.update(visible=bool(toggled))
 
         def on_text_to_image_toggle(toggled):
@@ -4205,7 +4590,15 @@ with gr.Blocks(
         image_to_image_toggle.change(
             on_image_to_image_toggle,
             inputs=[image_to_image_toggle],
-            outputs=[image_input, image_to_image_prompt]
+            outputs=[generation_image_input, image_to_image_prompt]
+        )
+        def on_image_to_video_toggle(toggled):
+            return gr.update(visible=bool(toggled)), gr.update(visible=bool(toggled))
+
+        image_to_video_toggle.change(
+            on_image_to_video_toggle,
+            inputs=[image_to_video_toggle],
+            outputs=[generation_image_input, image_to_video_prompt]
         )
         image_generation_toggle.change(
             on_text_to_image_toggle,
@@ -4462,7 +4855,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
