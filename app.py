@@ -1315,7 +1315,7 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
         )
         print(f"[Image2Video] InferenceClient initialized (provider=auto)")
 
-        # Normalize input image to bytes
+        # Normalize input image to bytes, with downscale/compress to cap request size
         import io
         from PIL import Image
         try:
@@ -1323,19 +1323,18 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
         except Exception:
             np = None
 
-        print(f"[Image2Video] Normalizing input image type={type(input_image_data)}")
-        if hasattr(input_image_data, 'read'):
-            raw = input_image_data.read()
-            pil_image = Image.open(io.BytesIO(raw))
-        elif hasattr(input_image_data, 'mode') and hasattr(input_image_data, 'size'):
-            pil_image = input_image_data
-        elif np is not None and isinstance(input_image_data, np.ndarray):
-            pil_image = Image.fromarray(input_image_data)
-        elif isinstance(input_image_data, (bytes, bytearray)):
-            pil_image = Image.open(io.BytesIO(input_image_data))
-        else:
-            pil_image = Image.open(io.BytesIO(bytes(input_image_data)))
+        def _load_pil(img_like) -> Image.Image:
+            if hasattr(img_like, 'read'):
+                return Image.open(io.BytesIO(img_like.read()))
+            if hasattr(img_like, 'mode') and hasattr(img_like, 'size'):
+                return img_like
+            if np is not None and isinstance(img_like, np.ndarray):
+                return Image.fromarray(img_like)
+            if isinstance(img_like, (bytes, bytearray)):
+                return Image.open(io.BytesIO(img_like))
+            return Image.open(io.BytesIO(bytes(img_like)))
 
+        pil_image = _load_pil(input_image_data)
         if pil_image.mode != 'RGB':
             pil_image = pil_image.convert('RGB')
         try:
@@ -1343,9 +1342,35 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
         except Exception:
             pass
 
-        buf = io.BytesIO()
-        pil_image.save(buf, format='PNG')
-        input_bytes = buf.getvalue()
+        # Progressive encode to keep payload under ~3.9MB (below 4MB limit)
+        MAX_BYTES = 3_900_000
+        max_dim = 1024  # initial cap on longest edge
+        quality = 90
+
+        def encode_current(pil: Image.Image, q: int) -> bytes:
+            tmp = io.BytesIO()
+            pil.save(tmp, format='JPEG', quality=q, optimize=True)
+            return tmp.getvalue()
+
+        # Downscale while the longest edge exceeds max_dim
+        while max(pil_image.size) > max_dim:
+            ratio = max_dim / float(max(pil_image.size))
+            new_size = (max(1, int(pil_image.size[0] * ratio)), max(1, int(pil_image.size[1] * ratio)))
+            pil_image = pil_image.resize(new_size, Image.Resampling.LANCZOS)
+
+        encoded = encode_current(pil_image, quality)
+        # If still too big, iteratively reduce quality, then dimensions
+        while len(encoded) > MAX_BYTES and (quality > 40 or max(pil_image.size) > 640):
+            if quality > 40:
+                quality -= 10
+            else:
+                # reduce dims by 15% if already at low quality
+                new_w = max(1, int(pil_image.size[0] * 0.85))
+                new_h = max(1, int(pil_image.size[1] * 0.85))
+                pil_image = pil_image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            encoded = encode_current(pil_image, quality)
+
+        input_bytes = encoded
 
         # Call image-to-video; require method support
         model_id = "Lightricks/LTX-Video-0.9.8-13B-distilled"
@@ -1402,7 +1427,7 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
 
         if file_url:
             video_html = (
-                f"<video controls style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\">"
+                f"<video controls autoplay muted loop playsinline style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\">"
                 f"<source src=\"{file_url}\" type=\"video/mp4\" />"
                 f"Your browser does not support the video tag."
                 f"</video>"
@@ -1418,6 +1443,86 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
         traceback.print_exc()
         print(f"Image-to-video generation error: {str(e)}")
         return f"Error generating video (image-to-video): {str(e)}"
+
+def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> str:
+    """Generate a video from a text prompt using Hugging Face InferenceClient.
+
+    Returns an HTML <video> tag whose source points to a local file URL (file://...).
+    """
+    try:
+        print("[Text2Video] Starting video generation from text")
+        if not os.getenv('HF_TOKEN'):
+            print("[Text2Video] Missing HF_TOKEN")
+            return "Error: HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token."
+
+        client = InferenceClient(
+            provider="auto",
+            api_key=os.getenv('HF_TOKEN'),
+            bill_to="huggingface",
+        )
+        print("[Text2Video] InferenceClient initialized (provider=auto)")
+
+        # Ensure the client has text_to_video (newer huggingface_hub)
+        text_to_video_method = getattr(client, "text_to_video", None)
+        if not callable(text_to_video_method):
+            print("[Text2Video] InferenceClient.text_to_video not available in this huggingface_hub version")
+            return (
+                "Error generating video (text-to-video): Your installed huggingface_hub version "
+                "does not expose InferenceClient.text_to_video. Please upgrade with "
+                "`pip install -U huggingface_hub` and try again."
+            )
+
+        model_id = "Wan-AI/Wan2.2-TI2V-5B"
+        prompt_str = (prompt or "").strip()
+        print(f"[Text2Video] Calling text_to_video with model={model_id}, prompt length={len(prompt_str)}")
+        video_bytes = text_to_video_method(
+            prompt_str,
+            model=model_id,
+        )
+        print(f"[Text2Video] Received video bytes: {len(video_bytes) if hasattr(video_bytes, '__len__') else 'unknown length'}")
+
+        # Persist to a temp .mp4 and return a file URL based <video>
+        try:
+            _ensure_video_dir_exists()
+            file_name = f"{uuid.uuid4()}.mp4"
+            file_path = os.path.join(VIDEO_TEMP_DIR, file_name)
+            with open(file_path, "wb") as f:
+                f.write(video_bytes)
+            _register_video_for_session(session_id, file_path)
+            try:
+                file_size = os.path.getsize(file_path)
+            except Exception:
+                file_size = -1
+            print(f"[Text2Video] Saved video to temp file: {file_path} (size={file_size} bytes)")
+        except Exception as save_exc:
+            print(f"[Text2Video] Warning: could not persist temp video file: {save_exc}")
+
+        # Build file:// URL
+        file_url = None
+        try:
+            if 'file_path' in locals() and file_path:
+                from pathlib import Path
+                file_url = Path(file_path).as_uri()
+        except Exception:
+            file_url = None
+
+        if not file_url:
+            return "Error generating video (text-to-video): Could not persist video to a local file."
+
+        video_html = (
+            f"<video controls autoplay muted loop playsinline style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\">"
+            f"<source src=\"{file_url}\" type=\"video/mp4\" />"
+            f"Your browser does not support the video tag."
+            f"</video>"
+        )
+        print("[Text2Video] Successfully generated video HTML tag from text")
+        return video_html
+    except Exception as e:
+        import traceback
+        print("[Text2Video] Exception during generation:")
+        traceback.print_exc()
+        print(f"Text-to-video generation error: {str(e)}")
+        return f"Error generating video (text-to-video): {str(e)}"
 
 def extract_image_prompts_from_text(text: str, num_images_needed: int = 1) -> list:
     """Extract image generation prompts from the full text based on number of images needed"""
@@ -1638,6 +1743,79 @@ def create_image_replacement_blocks_text_to_image_single(html_content: str, prom
     # If no <body>, just append
     return f"{SEARCH_START}\n\n{DIVIDER}\n{image_html}\n{REPLACE_END}"
 
+def create_video_replacement_blocks_text_to_video(html_content: str, prompt: str, session_id: Optional[str] = None) -> str:
+    """Create search/replace blocks that generate and insert ONLY ONE text-to-video result.
+
+    Replaces the first detected <img> placeholder; if none found, inserts one video near the top of <body>.
+    """
+    if not prompt or not prompt.strip():
+        return ""
+
+    import re
+
+    # Detect the same placeholders as image counterparts, to replace the first image slot with a video
+    placeholder_patterns = [
+        r'<img[^>]*src=["\'](?:placeholder|dummy|sample|example)[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://via\.placeholder\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://picsum\.photos[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']https?://dummyimage\.com[^"\']*["\'][^>]*>',
+        r'<img[^>]*alt=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*class=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*id=["\'][^"\']*placeholder[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']data:image[^"\']*["\'][^>]*>',
+        r'<img[^>]*src=["\']#["\'][^>]*>',
+        r'<img[^>]*src=["\']about:blank["\'][^>]*>',
+    ]
+
+    placeholder_images = []
+    for pattern in placeholder_patterns:
+        matches = re.findall(pattern, html_content, re.IGNORECASE)
+        if matches:
+            placeholder_images.extend(matches)
+
+    if not placeholder_images:
+        img_pattern = r'<img[^>]*>'
+        placeholder_images = re.findall(img_pattern, html_content)
+
+    video_html = generate_video_from_text(prompt, session_id=session_id)
+    if video_html.startswith("Error"):
+        return ""
+
+    # Replace first placeholder if present
+    if placeholder_images:
+        placeholder = placeholder_images[0]
+        placeholder_clean = re.sub(r'\s+', ' ', placeholder.strip())
+        placeholder_variations = [
+            placeholder,
+            placeholder_clean,
+            placeholder_clean.replace('"', "'"),
+            placeholder_clean.replace("'", '"'),
+            re.sub(r'\s+', ' ', placeholder_clean),
+            placeholder_clean.replace('  ', ' '),
+        ]
+        blocks = []
+        for variation in placeholder_variations:
+            blocks.append(f"""{SEARCH_START}
+{variation}
+{DIVIDER}
+{video_html}
+{REPLACE_END}""")
+        return '\n\n'.join(blocks)
+
+    # Otherwise insert after <body>
+    if '<body' in html_content:
+        body_end = html_content.find('>', html_content.find('<body')) + 1
+        insertion_point = html_content[:body_end] + '\n    '
+        return f"""{SEARCH_START}
+{insertion_point}
+{DIVIDER}
+{insertion_point}
+    {video_html}
+{REPLACE_END}"""
+
+    # If no <body>, just append
+    return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
+
 def create_image_replacement_blocks_from_input_image(html_content: str, user_prompt: str, input_image_data, max_images: int = 1) -> str:
     """Create search/replace blocks using image-to-image generation with a provided input image.
 
@@ -1810,7 +1988,7 @@ def create_video_replacement_blocks_from_input_image(html_content: str, user_pro
     print("[Image2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None) -> str:
+def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: str | None = None) -> str:
     """Apply text-to-image and/or image-to-image replacements to HTML content.
 
     If both toggles are enabled, text-to-image replacements run first, then image-to-image.
@@ -1843,6 +2021,18 @@ def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_t
                 result = result_after
             else:
                 print("[MediaApply] No i2v replacement blocks generated")
+            return result
+
+        # If text-to-video is enabled, insert a generated video (no input image required) and return.
+        if enable_text_to_video and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
+            t2v_prompt = (text_to_video_prompt or user_prompt or "").strip()
+            print(f"[MediaApply] Running text-to-video with prompt len={len(t2v_prompt)}")
+            blocks_tv = create_video_replacement_blocks_text_to_video(result, t2v_prompt, session_id=session_id)
+            if blocks_tv:
+                print("[MediaApply] Applying text-to-video replacement blocks")
+                result = apply_search_replace_changes(result, blocks_tv)
+            else:
+                print("[MediaApply] No t2v replacement blocks generated")
             return result
 
         # If an input image is provided and image-to-image is enabled, we only replace one image
@@ -2693,7 +2883,7 @@ The HTML code above contains the complete original website structure with all im
 stop_generation = False
 
 
-def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None):
+def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None):
     if query is None:
         query = ''
     if _history is None:
@@ -2845,6 +3035,8 @@ This will help me create a better design for you."""
             enable_image_to_video=enable_image_to_video,
             image_to_video_prompt=image_to_video_prompt,
             session_id=session_id,
+            enable_text_to_video=enable_text_to_video,
+            text_to_video_prompt=text_to_video_prompt,
         )
         
         _history.append([query, final_content])
@@ -3010,6 +3202,8 @@ This will help me create a better design for you."""
                     enable_image_to_video=enable_image_to_video,
                     image_to_video_prompt=image_to_video_prompt,
                     session_id=session_id,
+                    enable_text_to_video=enable_text_to_video,
+                    text_to_video_prompt=text_to_video_prompt,
                 )
                 
                 yield {
@@ -3032,6 +3226,8 @@ This will help me create a better design for you."""
                     enable_image_to_video=enable_image_to_video,
                     image_to_video_prompt=image_to_video_prompt,
                     session_id=session_id,
+                    enable_text_to_video=enable_text_to_video,
+                    text_to_video_prompt=text_to_video_prompt,
                 )
                 
                 preview_val = None
@@ -3432,6 +3628,8 @@ This will help me create a better design for you."""
                 image_to_video_prompt=image_to_video_prompt,
                 session_id=session_id,
                 text_to_image_prompt=text_to_image_prompt,
+                enable_text_to_video=enable_text_to_video,
+                text_to_video_prompt=text_to_video_prompt,
             )
             
             # Update history with the cleaned content
@@ -3459,6 +3657,8 @@ This will help me create a better design for you."""
                 enable_image_to_video=enable_image_to_video,
                 image_to_video_prompt=image_to_video_prompt,
                 session_id=session_id,
+                enable_text_to_video=enable_text_to_video,
+                text_to_video_prompt=text_to_video_prompt,
             )
             
             _history.append([query, final_content])
@@ -4580,6 +4780,20 @@ with gr.Blocks(
             visible=False
         )
 
+        # Text-to-Video
+        text_to_video_toggle = gr.Checkbox(
+            label="📹 Generate Video (text → video)",
+            value=False,
+            visible=True,
+            info="Generate a short video directly from your prompt using Wan-AI/Wan2.2-TI2V-5B"
+        )
+        text_to_video_prompt = gr.Textbox(
+            label="Text-to-Video Prompt",
+            placeholder="Describe the video to generate (e.g., 'A young man walking on the street')",
+            lines=2,
+            visible=False
+        )
+
         def on_image_to_image_toggle(toggled):
             # Show generation image input and its prompt when image-to-image is enabled
             return gr.update(visible=bool(toggled)), gr.update(visible=bool(toggled))
@@ -4604,6 +4818,11 @@ with gr.Blocks(
             on_text_to_image_toggle,
             inputs=[image_generation_toggle],
             outputs=[text_to_image_prompt]
+        )
+        text_to_video_toggle.change(
+            on_text_to_image_toggle,
+            inputs=[text_to_video_toggle],
+            outputs=[text_to_video_prompt]
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
@@ -4855,7 +5074,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
