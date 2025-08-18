@@ -5122,14 +5122,38 @@ with gr.Blocks(
     )
 
     def begin_generation_ui():
-        # If beta chat UI is active, keep sidebar visible; otherwise, default behavior
-        return [gr.update(), gr.update(visible=False)]
+        # Collapse the sidebar when generation starts; keep status hidden
+        return [gr.update(open=False), gr.update(visible=False)]
 
     def end_generation_ui():
         # Keep sidebar as is; hide the status
         return [gr.update(), gr.update(visible=False)]
 
     btn.click(
+        begin_generation_ui,
+        inputs=None,
+        outputs=[sidebar, generating_status],
+        show_progress="hidden",
+    ).then(
+        generation_code,
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt],
+        outputs=[code_output, history, sandbox, history_output]
+    ).then(
+        end_generation_ui,
+        inputs=None,
+        outputs=[sidebar, generating_status]
+    ).then(
+        show_deploy_components,
+        None,
+        [space_name_input, sdk_dropdown, deploy_btn]
+    ).then(
+        preserve_space_info_for_followup,
+        inputs=[history],
+        outputs=[space_name_input, deploy_btn]
+    )
+
+    # Pressing Enter in the main input should trigger generation and collapse the sidebar
+    input.submit(
         begin_generation_ui,
         inputs=None,
         outputs=[sidebar, generating_status],
