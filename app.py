@@ -1227,7 +1227,7 @@ def generate_image_with_qwen(prompt: str, image_index: int = 0) -> str:
         return f"Error generating image: {str(e)}"
 
 def generate_image_to_image(input_image_data, prompt: str) -> str:
-    """Generate an image using image-to-image with FLUX.1-Kontext-dev via Hugging Face InferenceClient.
+    """Generate an image using image-to-image with Qwen-Image-Edit via Hugging Face InferenceClient.
 
     Returns an HTML <img> tag with optimized base64 JPEG data, similar to text-to-image output.
     """
@@ -1270,15 +1270,20 @@ def generate_image_to_image(input_image_data, prompt: str) -> str:
         if pil_image.mode != 'RGB':
             pil_image = pil_image.convert('RGB')
 
+        # Resize input image to avoid request body size limits
+        max_input_size = 1024
+        if pil_image.width > max_input_size or pil_image.height > max_input_size:
+            pil_image.thumbnail((max_input_size, max_input_size), Image.Resampling.LANCZOS)
+
         buf = io.BytesIO()
-        pil_image.save(buf, format='PNG')
+        pil_image.save(buf, format='JPEG', quality=85, optimize=True)
         input_bytes = buf.getvalue()
 
         # Call image-to-image
         image = client.image_to_image(
             input_bytes,
             prompt=prompt,
-            model="black-forest-labs/FLUX.1-Kontext-dev",
+            model="Qwen/Qwen-Image-Edit",
         )
 
         # Resize/optimize
@@ -4824,7 +4829,7 @@ with gr.Blocks(
             label="🖼️ Image to Image (uses input image)",
             value=False,
             visible=True,
-            info="Transform your uploaded image using FLUX.1-Kontext-dev"
+            info="Transform your uploaded image using Qwen-Image-Edit"
         )
         image_to_video_toggle = gr.Checkbox(
             label="🎞️ Image to Video (uses input image)",
