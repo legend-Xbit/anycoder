@@ -146,6 +146,61 @@ def reap_old_videos(ttl_seconds: int = VIDEO_FILE_TTL_SECONDS) -> None:
         # Temp dir might not exist or be accessible; ignore
         pass
 
+# ---------------------------------------------------------------------------
+# Audio temp-file management (per-session tracking and cleanup)
+# ---------------------------------------------------------------------------
+AUDIO_TEMP_DIR = os.path.join(tempfile.gettempdir(), "anycoder_audio")
+AUDIO_FILE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
+_SESSION_AUDIO_FILES: Dict[str, List[str]] = {}
+_AUDIO_FILES_LOCK = threading.Lock()
+
+
+def _ensure_audio_dir_exists() -> None:
+    try:
+        os.makedirs(AUDIO_TEMP_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+
+def _register_audio_for_session(session_id: Optional[str], file_path: str) -> None:
+    if not session_id or not file_path:
+        return
+    with _AUDIO_FILES_LOCK:
+        if session_id not in _SESSION_AUDIO_FILES:
+            _SESSION_AUDIO_FILES[session_id] = []
+        _SESSION_AUDIO_FILES[session_id].append(file_path)
+
+
+def cleanup_session_audio(session_id: Optional[str]) -> None:
+    if not session_id:
+        return
+    with _AUDIO_FILES_LOCK:
+        file_list = _SESSION_AUDIO_FILES.pop(session_id, [])
+    for path in file_list:
+        try:
+            if path and os.path.exists(path):
+                os.unlink(path)
+        except Exception:
+            pass
+
+
+def reap_old_audio(ttl_seconds: int = AUDIO_FILE_TTL_SECONDS) -> None:
+    try:
+        _ensure_audio_dir_exists()
+        now_ts = time.time()
+        for name in os.listdir(AUDIO_TEMP_DIR):
+            path = os.path.join(AUDIO_TEMP_DIR, name)
+            try:
+                if not os.path.isfile(path):
+                    continue
+                mtime = os.path.getmtime(path)
+                if now_ts - mtime > ttl_seconds:
+                    os.unlink(path)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
 TRANSFORMERS_JS_SYSTEM_PROMPT = """You are an expert web developer creating a transformers.js application. You will generate THREE separate files: index.html, index.js, and style.css.
 
 IMPORTANT: You MUST output ALL THREE files in the following format:
@@ -1529,6 +1584,68 @@ def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> s
         print(f"Text-to-video generation error: {str(e)}")
         return f"Error generating video (text-to-video): {str(e)}"
 
+def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_id: Optional[str] = None) -> str:
+    """Generate music from a text prompt using ElevenLabs Music API and return an HTML <audio> tag.
+
+    Saves audio to a temp file and references it via file:// URL similar to videos.
+    Requires ELEVENLABS_API_KEY in the environment.
+    """
+    try:
+        api_key = os.getenv('ELEVENLABS_API_KEY')
+        if not api_key:
+            return "Error: ELEVENLABS_API_KEY environment variable is not set."
+
+        headers = {
+            'Content-Type': 'application/json',
+            'xi-api-key': api_key,
+        }
+        payload = {
+            'prompt': (prompt or 'Epic orchestral theme with soaring strings and powerful brass'),
+            'music_length_ms': int(music_length_ms) if music_length_ms else 30000,
+        }
+
+        resp = requests.post('https://api.elevenlabs.io/v1/music/compose', headers=headers, json=payload)
+        try:
+            resp.raise_for_status()
+        except Exception as e:
+            return f"Error generating music: {getattr(e, 'response', resp).text if hasattr(e, 'response') else resp.text}"
+
+        # Persist audio to temp file and return an <audio> element using file:// URL
+        _ensure_audio_dir_exists()
+        file_name = f"{uuid.uuid4()}.wav"
+        file_path = os.path.join(AUDIO_TEMP_DIR, file_name)
+        try:
+            with open(file_path, 'wb') as f:
+                f.write(resp.content)
+            _register_audio_for_session(session_id, file_path)
+        except Exception as save_exc:
+            return f"Error generating music: could not save audio file ({save_exc})"
+
+        # Build file URI
+        try:
+            from pathlib import Path
+            file_url = Path(file_path).as_uri()
+        except Exception:
+            if file_path.startswith('/'):
+                file_url = f"file:///{file_path.lstrip('/')}"
+            else:
+                file_url = f"file:///{file_path}"
+
+        audio_html = (
+            "<div class=\"anycoder-music\" style=\"max-width:420px;margin:16px auto;padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;background:linear-gradient(180deg,#fafafa,#f3f4f6);box-shadow:0 2px 8px rgba(0,0,0,0.06)\">"
+            "  <div style=\"font-size:13px;color:#374151;margin-bottom:8px;display:flex;align-items:center;gap:6px\">"
+            "    <span>🎵 Generated music</span>"
+            "  </div>"
+            f"  <audio controls autoplay loop style=\"width:100%;outline:none;\">"
+            f"    <source src=\"{file_url}\" type=\"audio/wav\" />"
+            "    Your browser does not support the audio element."
+            "  </audio>"
+            "</div>"
+        )
+        return audio_html
+    except Exception as e:
+        return f"Error generating music: {str(e)}"
+
 def extract_image_prompts_from_text(text: str, num_images_needed: int = 1) -> list:
     """Extract image generation prompts from the full text based on number of images needed"""
     # Use the entire text as the base prompt for image generation
@@ -1821,6 +1938,53 @@ def create_video_replacement_blocks_text_to_video(html_content: str, prompt: str
     # If no <body>, just append
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
+def create_music_replacement_blocks_text_to_music(html_content: str, prompt: str, session_id: Optional[str] = None) -> str:
+    """Create search/replace blocks that insert ONE generated <audio> near the top of <body>.
+
+    Unlike images/videos which replace placeholders, music doesn't map to an <img> tag.
+    We simply insert an <audio> player after the opening <body>.
+    """
+    if not prompt or not prompt.strip():
+        return ""
+
+    audio_html = generate_music_from_text(prompt, session_id=session_id)
+    if audio_html.startswith("Error"):
+        return ""
+
+    # Prefer inserting after the first <section>...</section> if present; else after <body>
+    import re
+    section_match = re.search(r"<section\b[\s\S]*?</section>", html_content, flags=re.IGNORECASE)
+    if section_match:
+        section_html = section_match.group(0)
+        section_clean = re.sub(r"\s+", " ", section_html.strip())
+        variations = [
+            section_html,
+            section_clean,
+            section_clean.replace('"', "'"),
+            section_clean.replace("'", '"'),
+            re.sub(r"\s+", " ", section_clean),
+        ]
+        blocks = []
+        for v in variations:
+            blocks.append(f"""{SEARCH_START}
+{v}
+{DIVIDER}
+{v}\n    {audio_html}
+{REPLACE_END}""")
+        return "\n\n".join(blocks)
+    if '<body' in html_content:
+        body_end = html_content.find('>', html_content.find('<body')) + 1
+        insertion_point = html_content[:body_end] + '\n    '
+        return f"""{SEARCH_START}
+{insertion_point}
+{DIVIDER}
+{insertion_point}
+    {audio_html}
+{REPLACE_END}"""
+
+    # If no <body>, just append
+    return f"{SEARCH_START}\n\n{DIVIDER}\n{audio_html}\n{REPLACE_END}"
+
 def create_image_replacement_blocks_from_input_image(html_content: str, user_prompt: str, input_image_data, max_images: int = 1) -> str:
     """Create search/replace blocks using image-to-image generation with a provided input image.
 
@@ -1993,7 +2157,7 @@ def create_video_replacement_blocks_from_input_image(html_content: str, user_pro
     print("[Image2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: str | None = None) -> str:
+def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: str | None = None, enable_text_to_music: bool = False, text_to_music_prompt: str | None = None) -> str:
     """Apply text-to-image and/or image-to-image replacements to HTML content.
 
     If both toggles are enabled, text-to-image replacements run first, then image-to-image.
@@ -2002,7 +2166,7 @@ def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_t
     try:
         print(
             f"[MediaApply] enable_i2v={enable_image_to_video}, enable_i2i={enable_image_to_image}, "
-            f"enable_t2i={enable_text_to_image}, has_image={input_image_data is not None}"
+            f"enable_t2i={enable_text_to_image}, enable_t2v={enable_text_to_video}, enable_t2m={enable_text_to_music}, has_image={input_image_data is not None}"
         )
         # If image-to-video is enabled, replace the first image with a generated video and return.
         if enable_image_to_video and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
@@ -2038,6 +2202,18 @@ def apply_generated_images_to_html(html_content: str, user_prompt: str, enable_t
                 result = apply_search_replace_changes(result, blocks_tv)
             else:
                 print("[MediaApply] No t2v replacement blocks generated")
+            return result
+
+        # If text-to-music is enabled, insert a generated audio player near the top of body and return.
+        if enable_text_to_music and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
+            t2m_prompt = (text_to_music_prompt or user_prompt or "").strip()
+            print(f"[MediaApply] Running text-to-music with prompt len={len(t2m_prompt)}")
+            blocks_tm = create_music_replacement_blocks_text_to_music(result, t2m_prompt, session_id=session_id)
+            if blocks_tm:
+                print("[MediaApply] Applying text-to-music replacement blocks")
+                result = apply_search_replace_changes(result, blocks_tm)
+            else:
+                print("[MediaApply] No t2m replacement blocks generated")
             return result
 
         # If an input image is provided and image-to-image is enabled, we only replace one image
@@ -2888,7 +3064,7 @@ The HTML code above contains the complete original website structure with all im
 stop_generation = False
 
 
-def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None):
+def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None):
     if query is None:
         query = ''
     if _history is None:
@@ -2928,7 +3104,9 @@ def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_ima
     # On each generate, reap old global files and cleanup previous session files
     try:
         cleanup_session_videos(session_id)
+        cleanup_session_audio(session_id)
         reap_old_videos()
+        reap_old_audio()
     except Exception:
         pass
 
@@ -3028,9 +3206,9 @@ This will help me create a better design for you."""
         
         clean_code = remove_code_block(content)
         
-        # Apply image generation (text→image and/or image→image)
+        # Apply media generation (images/video/music)
         print("[Generate] Applying post-generation media to GLM-4.5 HTML output")
-        final_content = apply_generated_images_to_html(
+        final_content = apply_generated_media_to_html(
             content,
             query,
             enable_text_to_image=enable_image_generation,
@@ -3042,6 +3220,8 @@ This will help me create a better design for you."""
             session_id=session_id,
             enable_text_to_video=enable_text_to_video,
             text_to_video_prompt=text_to_video_prompt,
+            enable_text_to_music=enable_text_to_music,
+            text_to_music_prompt=text_to_music_prompt,
         )
         
         _history.append([query, final_content])
@@ -3195,9 +3375,9 @@ This will help me create a better design for you."""
                 modified_content = apply_search_replace_changes(last_content, clean_code)
                 clean_content = remove_code_block(modified_content)
                 
-                # Apply image generation (text→image and/or image→image)
+                # Apply media generation (images/video/music)
                 print("[Generate] Applying post-generation media to modified HTML content")
-                clean_content = apply_generated_images_to_html(
+                clean_content = apply_generated_media_to_html(
                     clean_content,
                     query,
                     enable_text_to_image=enable_image_generation,
@@ -3209,6 +3389,8 @@ This will help me create a better design for you."""
                     session_id=session_id,
                     enable_text_to_video=enable_text_to_video,
                     text_to_video_prompt=text_to_video_prompt,
+                    enable_text_to_music=enable_text_to_music,
+                    text_to_music_prompt=text_to_music_prompt,
                 )
                 
                 yield {
@@ -3218,9 +3400,9 @@ This will help me create a better design for you."""
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
-                # Apply image generation (text→image and/or image→image)
+                # Apply media generation (images/video/music)
                 print("[Generate] Applying post-generation media to new HTML content")
-                final_content = apply_generated_images_to_html(
+                final_content = apply_generated_media_to_html(
                     clean_code,
                     query,
                     enable_text_to_image=enable_image_generation,
@@ -3233,6 +3415,8 @@ This will help me create a better design for you."""
                     session_id=session_id,
                     enable_text_to_video=enable_text_to_video,
                     text_to_video_prompt=text_to_video_prompt,
+                    enable_text_to_music=enable_text_to_music,
+                    text_to_music_prompt=text_to_music_prompt,
                 )
                 
                 preview_val = None
@@ -3620,9 +3804,9 @@ This will help me create a better design for you."""
                 modified_content = apply_search_replace_changes(last_content, final_code)
                 clean_content = remove_code_block(modified_content)
             
-            # Apply image generation (text→image and/or image→image)
+            # Apply media generation (images/video/music)
             print("[Generate] Applying post-generation media to follow-up HTML content")
-            clean_content = apply_generated_images_to_html(
+            clean_content = apply_generated_media_to_html(
                 clean_content,
                 query,
                 enable_text_to_image=enable_image_generation,
@@ -3635,6 +3819,8 @@ This will help me create a better design for you."""
                 text_to_image_prompt=text_to_image_prompt,
                 enable_text_to_video=enable_text_to_video,
                 text_to_video_prompt=text_to_video_prompt,
+                enable_text_to_music=enable_text_to_music,
+                text_to_music_prompt=text_to_music_prompt,
             )
             
             # Update history with the cleaned content
@@ -3649,9 +3835,9 @@ This will help me create a better design for you."""
             # Regular generation - use the content as is
             final_content = remove_code_block(content)
             
-            # Apply image generation (text→image and/or image→image)
+            # Apply media generation (images/video/music)
             print("[Generate] Applying post-generation media to final HTML content")
-            final_content = apply_generated_images_to_html(
+            final_content = apply_generated_media_to_html(
                 final_content,
                 query,
                 enable_text_to_image=enable_image_generation,
@@ -3664,6 +3850,8 @@ This will help me create a better design for you."""
                 session_id=session_id,
                 enable_text_to_video=enable_text_to_video,
                 text_to_video_prompt=text_to_video_prompt,
+                enable_text_to_music=enable_text_to_music,
+                text_to_music_prompt=text_to_music_prompt,
             )
             
             _history.append([query, final_content])
@@ -4858,6 +5046,20 @@ with gr.Blocks(
             visible=False
         )
 
+        # Text-to-Music
+        text_to_music_toggle = gr.Checkbox(
+            label="🎵 Generate Music (text → music)",
+            value=False,
+            visible=True,
+            info="Compose short music from your prompt using ElevenLabs Music"
+        )
+        text_to_music_prompt = gr.Textbox(
+            label="Text-to-Music Prompt",
+            placeholder="Describe the music to generate (e.g., 'Epic orchestral theme with soaring strings and powerful brass')",
+            lines=2,
+            visible=False
+        )
+
         def on_image_to_image_toggle(toggled, beta_enabled):
             # Only show in classic mode (beta disabled)
             vis = bool(toggled) and not bool(beta_enabled)
@@ -4890,6 +5092,11 @@ with gr.Blocks(
             on_text_to_image_toggle,
             inputs=[text_to_video_toggle, beta_toggle],
             outputs=[text_to_video_prompt]
+        )
+        text_to_music_toggle.change(
+            on_text_to_image_toggle,
+            inputs=[text_to_music_toggle, beta_toggle],
+            outputs=[text_to_music_prompt]
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
@@ -5141,7 +5348,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, text_to_music_toggle, text_to_music_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -5217,6 +5424,8 @@ with gr.Blocks(
         upd_t2v_prompt = gr.skip()
         upd_model_dropdown = gr.skip()
         upd_current_model = gr.skip()
+        upd_t2m_toggle = gr.skip()
+        upd_t2m_prompt = gr.skip()
 
         # Split by comma to separate main prompt and directives
         segments = [seg.strip() for seg in (text or "").split(",") if seg.strip()]
@@ -5282,6 +5491,13 @@ with gr.Blocks(
                 if p:
                     upd_t2v_prompt = gr.update(value=p)
 
+            # Text-to-music
+            if ("text to music" in seg_norm) or ("text-to-music" in seg_norm) or ("generate music" in seg_norm) or ("compose music" in seg_norm):
+                upd_t2m_toggle = gr.update(value=True)
+                p = after_colon(seg)
+                if p:
+                    upd_t2m_prompt = gr.update(value=p)
+
             # URL (website redesign)
             url = _extract_url(seg)
             if url:
@@ -5346,6 +5562,8 @@ with gr.Blocks(
             upd_t2v_prompt,
             upd_model_dropdown,
             upd_current_model,
+            upd_t2m_toggle,
+            upd_t2m_prompt,
         )
 
     # Wire chat submit -> apply settings -> run generation
@@ -5371,6 +5589,8 @@ with gr.Blocks(
             text_to_video_prompt,
             model_dropdown,
             current_model,
+            text_to_music_toggle,
+            text_to_music_prompt,
         ],
         queue=False,
     ).then(
@@ -5380,7 +5600,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, text_to_music_toggle, text_to_music_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -5397,12 +5617,13 @@ with gr.Blocks(
     )
 
     # Toggle between classic controls and beta chat UI
-    def toggle_beta(checked: bool, t2i: bool, i2i: bool, i2v: bool, t2v: bool):
+    def toggle_beta(checked: bool, t2i: bool, i2i: bool, i2v: bool, t2v: bool, t2m: bool):
         # Prompts only visible in classic mode and when their toggles are on
         t2i_vis = (not checked) and bool(t2i)
         i2i_vis = (not checked) and bool(i2i)
         i2v_vis = (not checked) and bool(i2v)
         t2v_vis = (not checked) and bool(t2v)
+        t2m_vis = (not checked) and bool(t2m)
 
         return (
             # Chat UI group
@@ -5426,6 +5647,8 @@ with gr.Blocks(
             gr.update(visible=i2v_vis),      # image_to_video_prompt
             gr.update(visible=not checked),  # text_to_video_toggle
             gr.update(visible=t2v_vis),      # text_to_video_prompt
+            gr.update(visible=not checked),  # text_to_music_toggle
+            gr.update(visible=t2m_vis),      # text_to_music_prompt
             gr.update(visible=not checked),  # model_dropdown
             gr.update(visible=not checked),  # quick_start_md
             gr.update(visible=not checked),  # quick_examples_col
@@ -5433,7 +5656,7 @@ with gr.Blocks(
 
     beta_toggle.change(
         toggle_beta,
-        inputs=[beta_toggle, image_generation_toggle, image_to_image_toggle, image_to_video_toggle, text_to_video_toggle],
+        inputs=[beta_toggle, image_generation_toggle, image_to_image_toggle, image_to_video_toggle, text_to_video_toggle, text_to_music_toggle],
         outputs=[
             sidebar_chatbot,
             sidebar_msg,
@@ -5454,6 +5677,8 @@ with gr.Blocks(
             image_to_video_prompt,
             text_to_video_toggle,
             text_to_video_prompt,
+            text_to_music_toggle,
+            text_to_music_prompt,
             model_dropdown,
             quick_start_md,
             quick_examples_col,
