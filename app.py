@@ -1089,20 +1089,20 @@ def parse_transformers_js_output(text):
     
     # Multiple patterns to match the three code blocks with different variations
     html_patterns = [
-        r'```html\s*\n([\s\S]+?)\n```',
-        r'```htm\s*\n([\s\S]+?)\n```',
-        r'```\s*(?:index\.html|html)\s*\n([\s\S]+?)\n```'
+        r'```html\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```htm\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```\s*(?:index\.html|html)\s*\n([\s\S]*?)(?:```|\Z)'
     ]
     
     js_patterns = [
-        r'```javascript\s*\n([\s\S]+?)\n```',
-        r'```js\s*\n([\s\S]+?)\n```',
-        r'```\s*(?:index\.js|javascript)\s*\n([\s\S]+?)\n```'
+        r'```javascript\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```js\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```\s*(?:index\.js|javascript|js)\s*\n([\s\S]*?)(?:```|\Z)'
     ]
     
     css_patterns = [
-        r'```css\s*\n([\s\S]+?)\n```',
-        r'```\s*(?:style\.css|css)\s*\n([\s\S]+?)\n```'
+        r'```css\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```\s*(?:style\.css|css)\s*\n([\s\S]*?)(?:```|\Z)'
     ]
     
     # Extract HTML content
@@ -3920,13 +3920,18 @@ This will help me create a better design for you."""
                 # Handle transformers.js output differently
                 if language == "transformers.js":
                     files = parse_transformers_js_output(content)
-                    if files['index.html'] and files['index.js'] and files['style.css']:
-                        # Model returned complete transformers.js output
-                        formatted_output = format_transformers_js_output(files)
+
+                    # Stream ALL code by merging current parts into a single HTML (inline CSS & JS)
+                    has_any_part = any([files.get('index.html'), files.get('index.js'), files.get('style.css')])
+                    if has_any_part:
+                        merged_html = build_transformers_inline_html(files)
+                        preview_val = None
+                        if files['index.html'] and files['index.js'] and files['style.css']:
+                            preview_val = send_transformers_to_sandbox(files)
                         yield {
-                            code_output: gr.update(value=formatted_output, language="html"),
+                            code_output: gr.update(value=merged_html, language="html"),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_transformers_to_sandbox(files) if files['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                            sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Generating transformers.js app...</div>",
                         }
                     elif has_existing_content:
                         # Model is returning search/replace changes for transformers.js - apply them
@@ -5562,9 +5567,11 @@ with gr.Blocks(
     def toggle_editors(language, code_text):
         if language == "transformers.js":
             files = parse_transformers_js_output(code_text or "")
+            # Hide multi-file editors until all files exist; show single code until then
+            editors_visible = True if (files.get('index.html') and files.get('index.js') and files.get('style.css')) else False
             return [
-                gr.update(visible=False),                 # code_output hidden
-                gr.update(visible=True),                  # tjs_group shown
+                gr.update(visible=not editors_visible),   # code_output shown if editors hidden
+                gr.update(visible=editors_visible),       # tjs_group shown only when complete
                 gr.update(value=files.get('index.html', '')),
                 gr.update(value=files.get('index.js', '')),
                 gr.update(value=files.get('style.css', '')),
@@ -5588,11 +5595,13 @@ with gr.Blocks(
         if language != "transformers.js":
             return [gr.update(), gr.update(), gr.update(), gr.update()]
         files = parse_transformers_js_output(code_text or "")
+        # Only reveal the multi-file editors when all three files are present
+        editors_visible = True if (files.get('index.html') and files.get('index.js') and files.get('style.css')) else None
         return [
             gr.update(value=files.get('index.html', '')),
             gr.update(value=files.get('index.js', '')),
             gr.update(value=files.get('style.css', '')),
-            gr.update(visible=True),
+            gr.update(visible=editors_visible) if editors_visible is not None else gr.update(),
         ]
 
     # Keep multi-file editors in sync when code_output changes and language is transformers.js
