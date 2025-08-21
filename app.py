@@ -690,6 +690,11 @@ AVAILABLE_MODELS = [
         "description": "Qwen3-Coder-30B-A3B-Instruct model for advanced code generation via Alibaba Cloud DashScope API"
     },
     {
+        "name": "Cohere Command-A Reasoning 08-2025",
+        "id": "CohereLabs/command-a-reasoning-08-2025",
+        "description": "Cohere Labs Command-A Reasoning (Aug 2025) via Hugging Face InferenceClient"
+    },
+    {
         "name": "StepFun Step-3",
         "id": "step-3",
         "description": "StepFun Step-3 model - AI chat assistant by 阶跃星辰 with multilingual capabilities"
