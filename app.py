@@ -552,6 +552,11 @@ AVAILABLE_MODELS = [
         "description": "DeepSeek V3 model for code generation"
     },
     {
+        "name": "DeepSeek V3.1",
+        "id": "deepseek-ai/DeepSeek-V3.1",
+        "description": "DeepSeek V3.1 model for code generation and general tasks"
+    },
+    {
         "name": "DeepSeek R1", 
         "id": "deepseek-ai/DeepSeek-R1-0528",
         "description": "DeepSeek R1 model for code generation"
@@ -689,7 +694,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Qwen3-Coder-480B-A35B-Instruct"
+DEFAULT_MODEL_NAME = "DeepSeek V3.1"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
