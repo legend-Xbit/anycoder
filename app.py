@@ -380,6 +380,54 @@ Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output."""
 
+# Multi-page static HTML project prompt (generic, production-style structure)
+MULTIPAGE_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
+
+Create a production-ready MULTI-PAGE website using ONLY HTML, CSS, and vanilla JavaScript. Do NOT use SPA frameworks.
+
+Output MUST be a multi-file project with at least:
+- index.html (home)
+- about.html (secondary page)
+- contact.html (secondary page)
+- assets/css/styles.css (global styles)
+- assets/js/main.js (site-wide JS)
+
+Navigation requirements:
+- A consistent header with a nav bar on every page
+- Highlight current nav item
+- Responsive layout and accessibility best practices
+
+Output format requirements (CRITICAL):
+- Return ONLY a series of file sections, each starting with a filename line:
+  === index.html ===
+  ...file content...
+
+  === about.html ===
+  ...file content...
+
+  (repeat for all files)
+- Do NOT wrap files in Markdown code fences
+- Use relative paths between files (e.g., assets/css/styles.css)
+
+General requirements:
+- Use modern, semantic HTML
+- Mobile-first responsive design
+- Include basic SEO meta tags in <head>
+- Include a footer on all pages
+- Avoid external CSS/JS frameworks (optional: CDN fonts/icons allowed)
+"""
+
+# Multi-page with search augmentation
+MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert front-end developer. You have access to real-time web search.
+
+Create a production-ready MULTI-PAGE website using ONLY HTML, CSS, and vanilla JavaScript. Do NOT use SPA frameworks.
+
+Follow the same file output format and project structure as specified:
+=== filename === blocks for each file (no Markdown fences)
+
+Use search results to apply current best practices in accessibility, semantics, responsive meta tags, and performance (preconnect, responsive images).
+"""
+
 GENERIC_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert {language} developer. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for {language}.
 
 Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output."""
@@ -1169,6 +1217,110 @@ def send_transformers_to_sandbox(files: dict) -> str:
     """Build a self-contained HTML document from transformers.js files and return an iframe preview."""
     merged_html = build_transformers_inline_html(files)
     return send_to_sandbox(merged_html)
+
+def parse_multipage_html_output(text: str) -> Dict[str, str]:
+    """Parse multi-page HTML output formatted as repeated "=== filename ===" sections.
+
+    Returns a mapping of filename → file content. Supports nested paths like assets/css/styles.css.
+    """
+    if not text:
+        return {}
+    # First, strip any markdown fences
+    cleaned = remove_code_block(text)
+    files: Dict[str, str] = {}
+    import re as _re
+    pattern = _re.compile(r"^===\s*([^=\n]+?)\s*===\s*\n([\s\S]*?)(?=\n===\s*[^=\n]+?\s*===|\Z)", _re.MULTILINE)
+    for m in pattern.finditer(cleaned):
+        name = m.group(1).strip()
+        content = m.group(2).strip()
+        # Remove accidental trailing fences if present
+        content = _re.sub(r"^```\w*\s*\n|\n```\s*$", "", content)
+        files[name] = content
+    return files
+
+def inline_multipage_into_single_preview(files: Dict[str, str]) -> str:
+    """Inline local CSS/JS referenced by index.html for preview inside a data: iframe.
+
+    - Uses index.html as the base document
+    - Inlines <link href="..."> if the target exists in files
+    - Inlines <script src="..."> if the target exists in files
+    - Leaves other links (e.g., about.html) untouched; preview covers the home page
+    """
+    import re as _re
+    html = files.get('index.html', '')
+    if not html:
+        return ""
+    doc = html
+    # Inline CSS links that point to known files
+    def _inline_css(match):
+        href = match.group(1)
+        if href in files:
+            return f"<style>\n{files[href]}\n</style>"
+        return match.group(0)
+    doc = _re.sub(r"<link[^>]+href=\"([^\"]+)\"[^>]*/?>", _inline_css, doc, flags=_re.IGNORECASE)
+
+    # Inline JS scripts that point to known files
+    def _inline_js(match):
+        src = match.group(1)
+        if src in files:
+            return f"<script>\n{files[src]}\n</script>"
+        return match.group(0)
+    doc = _re.sub(r"<script[^>]+src=\"([^\"]+)\"[^>]*>\s*</script>", _inline_js, doc, flags=_re.IGNORECASE)
+
+    # Inject a lightweight in-iframe client-side navigator to load other HTML files
+    try:
+        import json as _json
+        import base64 as _b64
+        import re as _re
+        html_pages = {k: v for k, v in files.items() if k.lower().endswith('.html')}
+        # Ensure index.html entry restores the current body's HTML
+        _m_body = _re.search(r"<body[^>]*>([\s\S]*?)</body>", doc, flags=_re.IGNORECASE)
+        _index_body = _m_body.group(1) if _m_body else doc
+        html_pages['index.html'] = _index_body
+        encoded = _b64.b64encode(_json.dumps(html_pages).encode('utf-8')).decode('ascii')
+        nav_script = (
+            "<script>\n"  # Simple client-side loader for internal links
+            "(function(){\n"
+            f"  const MP_FILES = JSON.parse(atob('{encoded}'));\n"
+            "  function extractBody(html){\n"
+            "    try {\n"
+            "      const doc = new DOMParser().parseFromString(html, 'text/html');\n"
+            "      const title = doc.querySelector('title'); if (title) document.title = title.textContent || document.title;\n"
+            "      return doc.body ? doc.body.innerHTML : html;\n"
+            "    } catch(e){ return html; }\n"
+            "  }\n"
+            "  function loadPage(path){\n"
+            "    if (!MP_FILES[path]) return false;\n"
+            "    const bodyHTML = extractBody(MP_FILES[path]);\n"
+            "    document.body.innerHTML = bodyHTML;\n"
+            "    attach();\n"
+            "    try { history.replaceState({}, '', '#'+path); } catch(e){}\n"
+            "    return true;\n"
+            "  }\n"
+            "  function clickHandler(e){\n"
+            "    const a = e.target && e.target.closest ? e.target.closest('a') : null;\n"
+            "    if (!a) return;\n"
+            "    const href = a.getAttribute('href') || '';\n"
+            "    if (!href || href.startsWith('#') || /^https?:/i.test(href) || href.startsWith('mailto:') || href.startsWith('tel:')) return;\n"
+            "    const clean = href.split('#')[0].split('?')[0];\n"
+            "    if (MP_FILES[clean]) { e.preventDefault(); loadPage(clean); }\n"
+            "  }\n"
+            "  function attach(){ document.removeEventListener('click', clickHandler, true); document.addEventListener('click', clickHandler, true); }\n"
+            "  document.addEventListener('DOMContentLoaded', function(){ attach(); const initial = (location.hash||'').slice(1); if (initial && MP_FILES[initial]) loadPage(initial); }, { once:true });\n"
+            "})();\n"
+            "</script>"
+        )
+        m = _re.search(r"</body>", doc, flags=_re.IGNORECASE)
+        if m:
+            i = m.start()
+            doc = doc[:i] + nav_script + doc[i:]
+        else:
+            doc = doc + nav_script
+    except Exception:
+        # Non-fatal in preview
+        pass
+
+    return doc
 
 def parse_svelte_output(text):
     """Parse Svelte output to extract individual files"""
@@ -3129,7 +3281,8 @@ def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_ima
     else:
         # Use language-specific prompt
         if language == "html":
-            system_prompt = HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else HTML_SYSTEM_PROMPT
+            # Use multi-page format prompt to encourage production multi-file output
+            system_prompt = MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else MULTIPAGE_HTML_SYSTEM_PROMPT
         elif language == "transformers.js":
             system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH if enable_search else TRANSFORMERS_JS_SYSTEM_PROMPT
         elif language == "svelte":
@@ -3199,7 +3352,8 @@ This will help me create a better design for you."""
                     # Live streaming preview
                     preview_val = None
                     if language == "html":
-                        preview_val = send_to_sandbox(clean_code)
+                        _mp = parse_multipage_html_output(clean_code)
+                        preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mp)) if _mp.get('index.html') else send_to_sandbox(clean_code)
                     elif language == "python" and is_streamlit_code(clean_code):
                         preview_val = send_streamlit_to_stlite(clean_code)
                     yield {
@@ -3428,7 +3582,8 @@ This will help me create a better design for you."""
                 
                 preview_val = None
                 if language == "html":
-                    preview_val = send_to_sandbox(final_content)
+                    _mpf2 = parse_multipage_html_output(final_content)
+                    preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf2)) if _mpf2.get('index.html') else send_to_sandbox(final_content)
                 elif language == "python" and is_streamlit_code(final_content):
                     preview_val = send_streamlit_to_stlite(final_content)
                 yield {
@@ -3494,7 +3649,8 @@ This will help me create a better design for you."""
                         clean_code = clean_code.replace("\\t", "\t")
                     preview_val = None
                     if language == "html":
-                        preview_val = send_to_sandbox(clean_code)
+                        _mpc = parse_multipage_html_output(clean_code)
+                        preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc)) if _mpc.get('index.html') else send_to_sandbox(clean_code)
                     elif language == "python" and is_streamlit_code(clean_code):
                         preview_val = send_streamlit_to_stlite(clean_code)
                     yield {
@@ -3513,7 +3669,8 @@ This will help me create a better design for you."""
         _history.append([query, clean_code])
         preview_val = None
         if language == "html":
-            preview_val = send_to_sandbox(clean_code)
+            _mpc2 = parse_multipage_html_output(clean_code)
+            preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc2)) if _mpc2.get('index.html') else send_to_sandbox(clean_code)
         elif language == "python" and is_streamlit_code(clean_code):
             preview_val = send_streamlit_to_stlite(clean_code)
         yield {
@@ -3689,7 +3846,8 @@ This will help me create a better design for you."""
                             # Model returned a complete HTML file
                             preview_val = None
                             if language == "html":
-                                preview_val = send_to_sandbox(clean_code)
+                                _mpc3 = parse_multipage_html_output(clean_code)
+                                preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc3)) if _mpc3.get('index.html') else send_to_sandbox(clean_code)
                             elif language == "python" and is_streamlit_code(clean_code):
                                 preview_val = send_streamlit_to_stlite(clean_code)
                             elif language == "gradio" or (language == "python" and is_gradio_code(clean_code)):
@@ -3706,7 +3864,8 @@ This will help me create a better design for you."""
                             clean_content = remove_code_block(modified_content)
                             preview_val = None
                             if language == "html":
-                                preview_val = send_to_sandbox(clean_content)
+                                _mpc4 = parse_multipage_html_output(clean_content)
+                                preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc4)) if _mpc4.get('index.html') else send_to_sandbox(clean_content)
                             elif language == "python" and is_streamlit_code(clean_content):
                                 preview_val = send_streamlit_to_stlite(clean_content)
                             elif language == "gradio" or (language == "python" and is_gradio_code(clean_content)):
@@ -3719,7 +3878,8 @@ This will help me create a better design for you."""
                     else:
                         preview_val = None
                         if language == "html":
-                            preview_val = send_to_sandbox(clean_code)
+                            _mpc5 = parse_multipage_html_output(clean_code)
+                            preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc5)) if _mpc5.get('index.html') else send_to_sandbox(clean_code)
                         elif language == "python" and is_streamlit_code(clean_code):
                             preview_val = send_streamlit_to_stlite(clean_code)
                         elif language == "gradio" or (language == "python" and is_gradio_code(clean_code)):
@@ -3835,7 +3995,7 @@ This will help me create a better design for you."""
             yield {
                 code_output: clean_content,
                 history: _history,
-                sandbox: (send_to_sandbox(clean_content) if language == "html" else (send_streamlit_to_stlite(clean_content) if (language == "python" and is_streamlit_code(clean_content)) else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>")),
+                sandbox: ((send_to_sandbox(inline_multipage_into_single_preview(parse_multipage_html_output(clean_content))) if parse_multipage_html_output(clean_content).get('index.html') else send_to_sandbox(clean_content)) if language == "html" else (send_streamlit_to_stlite(clean_content) if (language == "python" and is_streamlit_code(clean_content)) else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>")),
                 history_output: history_to_chatbot_messages(_history),
             }
         else:
@@ -3864,7 +4024,8 @@ This will help me create a better design for you."""
             _history.append([query, final_content])
             preview_val = None
             if language == "html":
-                preview_val = send_to_sandbox(final_content)
+                _mpf = parse_multipage_html_output(final_content)
+                preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf)) if _mpf.get('index.html') else send_to_sandbox(final_content)
             elif language == "python" and is_streamlit_code(final_content):
                 preview_val = send_streamlit_to_stlite(final_content)
             elif language == "gradio" or (language == "python" and is_gradio_code(final_content)):
@@ -5323,6 +5484,11 @@ with gr.Blocks(
 
     def preview_logic(code, language, html_part=None, js_part=None, css_part=None):
         if language == "html":
+            # If the content is a multi-page block, inline for preview; else render directly
+            files = parse_multipage_html_output(code)
+            if files and files.get('index.html'):
+                merged = inline_multipage_into_single_preview(files)
+                return send_to_sandbox(merged)
             return send_to_sandbox(code)
         if language == "streamlit":
             return send_streamlit_to_stlite(code) if is_streamlit_code(code) else "<div style='padding:1em;color:#888;text-align:center;'>Add `import streamlit as st` to enable Streamlit preview.</div>"
