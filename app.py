@@ -6368,12 +6368,50 @@ with gr.Blocks(
         # Other SDKs (existing logic)
         if sdk == "static":
             import time
-            file_name = "index.html"
             
             # Add anycoder tag to existing README (after repo creation)
             add_anycoder_tag_to_readme(api, repo_id)
             
-            # Wait and retry logic after repo creation
+            # Detect whether the HTML output is multi-file (=== filename === blocks)
+            files = {}
+            try:
+                files = parse_multipage_html_output(code)
+            except Exception:
+                files = {}
+            
+            # If we have multiple files (or at least a parsed index.html), upload the whole folder
+            if isinstance(files, dict) and files.get('index.html'):
+                import tempfile
+                import os
+                
+                try:
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        # Write each file preserving subdirectories if any
+                        for rel_path, content in files.items():
+                            safe_rel_path = rel_path.strip().lstrip('/')
+                            abs_path = os.path.join(tmpdir, safe_rel_path)
+                            os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                            with open(abs_path, 'w') as fh:
+                                fh.write(content)
+                        
+                        # Upload the folder in a single commit
+                        api.upload_folder(
+                            folder_path=tmpdir,
+                            repo_id=repo_id,
+                            repo_type="space"
+                        )
+                    space_url = f"https://huggingface.co/spaces/{repo_id}"
+                    action_text = "Updated" if is_update else "Deployed"
+                    return gr.update(value=f"✅ {action_text}! [Open your Space here]({space_url})", visible=True)
+                except Exception as e:
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    else:
+                        return gr.update(value=f"Error uploading static app folder: {e}", visible=True)
+            
+            # Fallback: single-file static HTML (upload index.html only)
+            file_name = "index.html"
             max_attempts = 3
             for attempt in range(max_attempts):
                 import tempfile
@@ -6395,7 +6433,7 @@ with gr.Blocks(
                     if "403 Forbidden" in error_msg and "write token" in error_msg:
                         return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
                     elif attempt < max_attempts - 1:
-                        time.sleep(2)  # Wait before retrying
+                        time.sleep(2)
                     else:
                         return gr.update(value=f"Error uploading file after {max_attempts} attempts: {e}. Please check your permissions and try again.", visible=True)
                 finally:
