@@ -5144,6 +5144,15 @@ with gr.Blocks(
                     interactive=True,
                     label="Generated code"
                 )
+                # Transformers.js multi-file editors (hidden by default)
+                with gr.Group(visible=False) as tjs_group:
+                    with gr.Tabs():
+                        with gr.Tab("index.html"):
+                            tjs_html_code = gr.Code(language="html", lines=20, interactive=True, label="index.html")
+                        with gr.Tab("index.js"):
+                            tjs_js_code = gr.Code(language="javascript", lines=20, interactive=True, label="index.js")
+                        with gr.Tab("style.css"):
+                            tjs_css_code = gr.Code(language="css", lines=20, interactive=True, label="style.css")
             with gr.Tab("Preview"):
                 sandbox = gr.HTML(label="Live preview")
             # Removed Import Logs tab for cleaner UI
@@ -5261,7 +5270,51 @@ with gr.Blocks(
     language_dropdown.change(update_code_language, inputs=language_dropdown, outputs=code_output)
     language_dropdown.change(update_sdk_based_on_language, inputs=language_dropdown, outputs=sdk_dropdown)
 
-    def preview_logic(code, language):
+    # Toggle single vs multi-file editors for transformers.js and populate when switching
+    def toggle_editors(language, code_text):
+        if language == "transformers.js":
+            files = parse_transformers_js_output(code_text or "")
+            return [
+                gr.update(visible=False),                 # code_output hidden
+                gr.update(visible=True),                  # tjs_group shown
+                gr.update(value=files.get('index.html', '')),
+                gr.update(value=files.get('index.js', '')),
+                gr.update(value=files.get('style.css', '')),
+            ]
+        else:
+            return [
+                gr.update(visible=True),                  # code_output shown
+                gr.update(visible=False),                 # tjs_group hidden
+                gr.update(),
+                gr.update(),
+                gr.update(),
+            ]
+
+    language_dropdown.change(
+        toggle_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code],
+    )
+
+    def sync_tjs_from_code(code_text, language):
+        if language != "transformers.js":
+            return [gr.update(), gr.update(), gr.update(), gr.update()]
+        files = parse_transformers_js_output(code_text or "")
+        return [
+            gr.update(value=files.get('index.html', '')),
+            gr.update(value=files.get('index.js', '')),
+            gr.update(value=files.get('style.css', '')),
+            gr.update(visible=True),
+        ]
+
+    # Keep multi-file editors in sync when code_output changes and language is transformers.js
+    code_output.change(
+        sync_tjs_from_code,
+        inputs=[code_output, language_dropdown],
+        outputs=[tjs_html_code, tjs_js_code, tjs_css_code, tjs_group],
+    )
+
+    def preview_logic(code, language, html_part=None, js_part=None, css_part=None):
         if language == "html":
             return send_to_sandbox(code)
         if language == "streamlit":
@@ -5273,13 +5326,27 @@ with gr.Blocks(
                 return send_streamlit_to_stlite(code)
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview available only for Streamlit apps in Python. Add `import streamlit as st`.</div>"
         if language == "transformers.js":
-            files = parse_transformers_js_output(code)
+            # Prefer values passed from multi-file editors if present; fallback to parsing single editor content
+            files = {'index.html': html_part or '', 'index.js': js_part or '', 'style.css': css_part or ''}
+            if not (files['index.html'] or files['index.js'] or files['style.css']):
+                files = parse_transformers_js_output(code)
             if files['index.html']:
                 return send_transformers_to_sandbox(files)
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
         if language == "svelte":
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code and deploy it to see the result.</div>"
         return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML.</div>"
+
+    # Direct preview updates from multi-file editor changes
+    def preview_from_tjs_editors(html_code, js_code, css_code):
+        files = {'index.html': html_code or '', 'index.js': js_code or '', 'style.css': css_code or ''}
+        if files['index.html']:
+            return send_transformers_to_sandbox(files)
+        return gr.update()
+
+    tjs_html_code.change(preview_from_tjs_editors, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
+    tjs_js_code.change(preview_from_tjs_editors, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
+    tjs_css_code.change(preview_from_tjs_editors, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
 
     def show_deploy_components(*args):
         return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
@@ -5354,6 +5421,11 @@ with gr.Blocks(
         end_generation_ui,
         inputs=None,
         outputs=[sidebar, generating_status]
+    ).then(
+        # After generation, toggle editors for transformers.js and populate
+        toggle_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code]
     ).then(
         show_deploy_components,
         None,
@@ -5607,6 +5679,10 @@ with gr.Blocks(
         inputs=None,
         outputs=[sidebar, generating_status]
     ).then(
+        toggle_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code]
+    ).then(
         show_deploy_components,
         None,
         [space_name_input, sdk_dropdown, deploy_btn]
@@ -5684,9 +5760,9 @@ with gr.Blocks(
             quick_examples_col,
         ],
     )
-    # Update preview when code or language changes
-    code_output.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
-    language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown], outputs=sandbox)
+    # Update preview when code or language changes (supports multi-file path via optional args)
+    code_output.change(preview_logic, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
+    language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
     # Update deploy button text when space name changes
     space_name_input.change(update_deploy_button_text, inputs=[space_name_input], outputs=[deploy_btn])
     clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
@@ -5911,8 +5987,14 @@ with gr.Blocks(
                             return gr.update(value=f"Error: Could not access space {repo_id} for update.", visible=True)
                     except Exception as e:
                         return gr.update(value=f"Error: Cannot update space {repo_id}. {str(e)}", visible=True)
-                # Parse the transformers.js output to get the three files
-                files = parse_transformers_js_output(code)
+                # Build files from multi-file editors if available; fallback to parsing single editor value
+                files = {
+                    'index.html': tjs_html_code.value if 'tjs_html_code' in locals() else '',
+                    'index.js': tjs_js_code.value if 'tjs_js_code' in locals() else '',
+                    'style.css': tjs_css_code.value if 'tjs_css_code' in locals() else '',
+                }
+                if not (files['index.html'] and files['index.js'] and files['style.css']):
+                    files = parse_transformers_js_output(code)
                 
                 if not files['index.html'] or not files['index.js'] or not files['style.css']:
                     return gr.update(value="Error: Could not parse transformers.js output. Please regenerate the code.", visible=True)
@@ -6205,7 +6287,25 @@ with gr.Blocks(
                 os.unlink(temp_path)
 
     # Connect the deploy button to the new function
+    def gather_code_for_deploy(code_text, language, html_part, js_part, css_part):
+        # When transformers.js is selected, ensure multi-file editors are used; otherwise, return single code
+        if language == "transformers.js":
+            # Join into a combined display string for auditing; actual deploy reads editor values directly
+            files = {
+                'index.html': html_part or '',
+                'index.js': js_part or '',
+                'style.css': css_part or '',
+            }
+            if files['index.html'] and files['index.js'] and files['style.css']:
+                return format_transformers_js_output(files)
+        return code_text
+
     deploy_btn.click(
+        gather_code_for_deploy,
+        inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code],
+        outputs=[code_output],
+        queue=False,
+    ).then(
         deploy_to_user_space,
         inputs=[code_output, space_name_input, sdk_dropdown],
         outputs=deploy_status
