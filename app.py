@@ -428,6 +428,45 @@ Follow the same file output format and project structure as specified:
 Use search results to apply current best practices in accessibility, semantics, responsive meta tags, and performance (preconnect, responsive images).
 """
 
+# Dynamic multi-page (model decides files) prompts
+DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
+
+Create a production-ready website using ONLY HTML, CSS, and vanilla JavaScript. Do NOT use SPA frameworks.
+
+File selection policy:
+- Generate ONLY the files actually needed for the user's request.
+- Include at least one HTML entrypoint (default: index.html) unless the user explicitly requests a non-HTML asset only.
+- If any local asset (CSS/JS/image) is referenced, include that file in the output.
+- Use relative paths between files (e.g., assets/css/styles.css).
+
+Output format (CRITICAL):
+- Return ONLY a series of file sections, each starting with a filename line:
+  === index.html ===
+  ...file content...
+
+  === assets/css/styles.css ===
+  ...file content...
+
+  (repeat for all files)
+- Do NOT wrap files in Markdown code fences
+
+General requirements:
+- Use modern, semantic HTML
+- Mobile-first responsive design
+- Include basic SEO meta tags in <head> for the entrypoint
+- Include a footer on all major pages when multiple pages are present
+- Avoid external CSS/JS frameworks (optional: CDN fonts/icons allowed)
+"""
+
+DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert front-end developer. You have access to real-time web search.
+
+Create a production-ready website using ONLY HTML, CSS, and vanilla JavaScript. Do NOT use SPA frameworks.
+
+Follow the same output format and file selection policy as above (=== filename === blocks; model decides which files to create; ensure index.html unless explicitly not needed).
+
+Use search results to apply current best practices in accessibility, semantics, responsive meta tags, and performance (preconnect, responsive images).
+"""
+
 GENERIC_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert {language} developer. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for {language}.
 
 Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output."""
@@ -1242,6 +1281,73 @@ def parse_multipage_html_output(text: str) -> Dict[str, str]:
         content = _re.sub(r"^```\w*\s*\n|\n```\s*$", "", content)
         files[name] = content
     return files
+
+def validate_and_autofix_files(files: Dict[str, str]) -> Dict[str, str]:
+    """Ensure minimal contract for multi-file sites; auto-fix missing pieces.
+
+    Rules:
+    - Ensure at least one HTML entrypoint (index.html). If none, synthesize a simple index.html linking discovered pages.
+    - For each HTML file, ensure referenced local assets exist in files; if missing, add minimal stubs.
+    - Normalize relative paths (strip leading '/').
+    """
+    if not isinstance(files, dict) or not files:
+        return files or {}
+    import re as _re
+
+    normalized: Dict[str, str] = {}
+    for k, v in files.items():
+        safe_key = k.strip().lstrip('/')
+        normalized[safe_key] = v
+
+    html_files = [p for p in normalized.keys() if p.lower().endswith('.html')]
+    has_index = 'index.html' in normalized
+
+    # If no index.html but some HTML pages exist, create a simple hub index linking to them
+    if not has_index and html_files:
+        links = '\n'.join([f"<li><a href=\"{p}\">{p}</a></li>" for p in html_files])
+        normalized['index.html'] = (
+            "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\"/>\n"
+            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>\n"
+            "<title>Site Index</title>\n</head>\n<body>\n<h1>Site</h1>\n<ul>\n"
+            + links + "\n</ul>\n</body>\n</html>"
+        )
+
+    # Collect references from HTML files
+    asset_refs: set[str] = set()
+    link_href = _re.compile(r"<link[^>]+href=\"([^\"]+)\"")
+    script_src = _re.compile(r"<script[^>]+src=\"([^\"]+)\"")
+    img_src = _re.compile(r"<img[^>]+src=\"([^\"]+)\"")
+    a_href = _re.compile(r"<a[^>]+href=\"([^\"]+)\"")
+
+    for path, content in list(normalized.items()):
+        if not path.lower().endswith('.html'):
+            continue
+        for patt in (link_href, script_src, img_src, a_href):
+            for m in patt.finditer(content or ""):
+                ref = (m.group(1) or "").strip()
+                if not ref or ref.startswith('http://') or ref.startswith('https://') or ref.startswith('data:') or '#' in ref:
+                    continue
+                asset_refs.add(ref.lstrip('/'))
+
+    # Add minimal stubs for missing local references (CSS/JS/images/pages)
+    for ref in list(asset_refs):
+        if ref not in normalized:
+            if ref.lower().endswith('.css'):
+                normalized[ref] = "/* generated stub */\n"
+            elif ref.lower().endswith('.js'):
+                normalized[ref] = "// generated stub\n"
+            elif any(ref.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']):
+                # Use a tiny inline SVG as placeholder content
+                normalized[ref] = (
+                    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"></svg>\n"
+                )
+            elif ref.lower().endswith('.html'):
+                normalized[ref] = (
+                    "<!DOCTYPE html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>Page</title></head>\n"
+                    "<body><main><h1>Placeholder page</h1><p>This page was auto-created to satisfy an internal link.</p></main></body>\n</html>"
+                )
+
+    return normalized
 
 def inline_multipage_into_single_preview(files: Dict[str, str]) -> str:
     """Inline local CSS/JS referenced by index.html for preview inside a data: iframe.
@@ -3286,8 +3392,8 @@ def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_ima
     else:
         # Use language-specific prompt
         if language == "html":
-            # Use multi-page format prompt to encourage production multi-file output
-            system_prompt = MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else MULTIPAGE_HTML_SYSTEM_PROMPT
+            # Dynamic file selection always enabled
+            system_prompt = DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT
         elif language == "transformers.js":
             system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH if enable_search else TRANSFORMERS_JS_SYSTEM_PROMPT
         elif language == "svelte":
@@ -3358,6 +3464,7 @@ This will help me create a better design for you."""
                     preview_val = None
                     if language == "html":
                         _mp = parse_multipage_html_output(clean_code)
+                        _mp = validate_and_autofix_files(_mp)
                         preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mp)) if _mp.get('index.html') else send_to_sandbox(clean_code)
                     elif language == "python" and is_streamlit_code(clean_code):
                         preview_val = send_streamlit_to_stlite(clean_code)
@@ -3588,6 +3695,7 @@ This will help me create a better design for you."""
                 preview_val = None
                 if language == "html":
                     _mpf2 = parse_multipage_html_output(final_content)
+                    _mpf2 = validate_and_autofix_files(_mpf2)
                     preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf2)) if _mpf2.get('index.html') else send_to_sandbox(final_content)
                 elif language == "python" and is_streamlit_code(final_content):
                     preview_val = send_streamlit_to_stlite(final_content)
@@ -3655,6 +3763,7 @@ This will help me create a better design for you."""
                     preview_val = None
                     if language == "html":
                         _mpc = parse_multipage_html_output(clean_code)
+                        _mpc = validate_and_autofix_files(_mpc)
                         preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc)) if _mpc.get('index.html') else send_to_sandbox(clean_code)
                     elif language == "python" and is_streamlit_code(clean_code):
                         preview_val = send_streamlit_to_stlite(clean_code)
@@ -3675,6 +3784,7 @@ This will help me create a better design for you."""
         preview_val = None
         if language == "html":
             _mpc2 = parse_multipage_html_output(clean_code)
+            _mpc2 = validate_and_autofix_files(_mpc2)
             preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc2)) if _mpc2.get('index.html') else send_to_sandbox(clean_code)
         elif language == "python" and is_streamlit_code(clean_code):
             preview_val = send_streamlit_to_stlite(clean_code)
@@ -3852,6 +3962,7 @@ This will help me create a better design for you."""
                             preview_val = None
                             if language == "html":
                                 _mpc3 = parse_multipage_html_output(clean_code)
+                                _mpc3 = validate_and_autofix_files(_mpc3)
                                 preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc3)) if _mpc3.get('index.html') else send_to_sandbox(clean_code)
                             elif language == "python" and is_streamlit_code(clean_code):
                                 preview_val = send_streamlit_to_stlite(clean_code)
@@ -3870,6 +3981,7 @@ This will help me create a better design for you."""
                             preview_val = None
                             if language == "html":
                                 _mpc4 = parse_multipage_html_output(clean_content)
+                                _mpc4 = validate_and_autofix_files(_mpc4)
                                 preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc4)) if _mpc4.get('index.html') else send_to_sandbox(clean_content)
                             elif language == "python" and is_streamlit_code(clean_content):
                                 preview_val = send_streamlit_to_stlite(clean_content)
@@ -3884,6 +3996,7 @@ This will help me create a better design for you."""
                         preview_val = None
                         if language == "html":
                             _mpc5 = parse_multipage_html_output(clean_code)
+                            _mpc5 = validate_and_autofix_files(_mpc5)
                             preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpc5)) if _mpc5.get('index.html') else send_to_sandbox(clean_code)
                         elif language == "python" and is_streamlit_code(clean_code):
                             preview_val = send_streamlit_to_stlite(clean_code)
@@ -4030,6 +4143,7 @@ This will help me create a better design for you."""
             preview_val = None
             if language == "html":
                 _mpf = parse_multipage_html_output(final_content)
+                _mpf = validate_and_autofix_files(_mpf)
                 preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf)) if _mpf.get('index.html') else send_to_sandbox(final_content)
             elif language == "python" and is_streamlit_code(final_content):
                 preview_val = send_streamlit_to_stlite(final_content)
@@ -5173,6 +5287,7 @@ with gr.Blocks(
             value=False,
             visible=True
         )
+        # Dynamic multipage is always enabled; no toggle in UI
         # Image generation toggles
         image_generation_toggle = gr.Checkbox(
             label="🎨 Generate Images (text → image)",
@@ -5491,6 +5606,7 @@ with gr.Blocks(
         if language == "html":
             # If the content is a multi-page block, inline for preview; else render directly
             files = parse_multipage_html_output(code)
+            files = validate_and_autofix_files(files)
             if files and files.get('index.html'):
                 merged = inline_multipage_into_single_preview(files)
                 return send_to_sandbox(merged)
@@ -6381,6 +6497,7 @@ with gr.Blocks(
             files = {}
             try:
                 files = parse_multipage_html_output(code)
+                files = validate_and_autofix_files(files)
             except Exception:
                 files = {}
             
