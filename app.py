@@ -1186,16 +1186,49 @@ def build_transformers_inline_html(files: dict) -> str:
     css = files.get('style.css') or ''
 
     # Normalize JS imports to CDN (handle both @huggingface/transformers and legacy @xenova/transformers)
-    cdn_url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.1"
-    js = _re.sub(r"from\s+['\"]@huggingface/transformers['\"]", f"from '{cdn_url}'", js)
-    js = _re.sub(r"from\s+['\"]@xenova/transformers['\"]", f"from '{cdn_url}'", js)
+    cdn_url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
+
+    def _normalize_imports(_code: str) -> str:
+        if not _code:
+            return _code or ""
+        _code = _re.sub(r"from\s+['\"]@huggingface/transformers['\"]", f"from '{cdn_url}'", _code)
+        _code = _re.sub(r"from\s+['\"]@xenova/transformers['\"]", f"from '{cdn_url}'", _code)
+        _code = _re.sub(r"from\s+['\"]https://cdn.jsdelivr.net/npm/@huggingface/transformers@[^'\"]+['\"]", f"from '{cdn_url}'", _code)
+        _code = _re.sub(r"from\s+['\"]https://cdn.jsdelivr.net/npm/@xenova/transformers@[^'\"]+['\"]", f"from '{cdn_url}'", _code)
+        return _code
+
+    # Extract inline module scripts from index.html, then merge into JS so we control imports
+    inline_modules = []
+    try:
+        for _m in _re.finditer(r"<script\\b[^>]*type=[\"\']module[\"\'][^>]*>([\s\S]*?)</script>", html, flags=_re.IGNORECASE):
+            inline_modules.append(_m.group(1))
+        if inline_modules:
+            html = _re.sub(r"<script\\b[^>]*type=[\"\']module[\"\'][^>]*>[\s\S]*?</script>\\s*", "", html, flags=_re.IGNORECASE)
+        # Normalize any external module script URLs that load transformers to a single CDN version (keep the tag)
+        html = _re.sub(r"https://cdn\.jsdelivr\.net/npm/@huggingface/transformers@[^'\"<>\s]+", cdn_url, html)
+        html = _re.sub(r"https://cdn\.jsdelivr\.net/npm/@xenova/transformers@[^'\"<>\s]+", cdn_url, html)
+    except Exception:
+        # Best-effort; continue
+        pass
+
+    # Merge inline module code with provided index.js, then normalize imports
+    combined_js_parts = []
+    if inline_modules:
+        combined_js_parts.append("\n\n".join(inline_modules))
+    if js:
+        combined_js_parts.append(js)
+    js = "\n\n".join([p for p in combined_js_parts if (p and p.strip())])
+    js = _normalize_imports(js)
 
     # Prepend a small prelude to reduce persistent caching during preview
+    # Also ensure a global `transformers` namespace exists for apps relying on it
     # Note: importing env alongside user's own imports is fine in ESM
     if js.strip():
         prelude = (
             f"import {{ env }} from '{cdn_url}';\n"
             "try { env.useBrowserCache = false; } catch (e) {}\n"
+            "try { if (env && env.backends && env.backends.onnx && env.backends.onnx.wasm) { env.backends.onnx.wasm.numThreads = 1; env.backends.onnx.wasm.proxy = false; } } catch (e) {}\n"
+            f"(async () => {{ try {{ if (typeof globalThis.transformers === 'undefined') {{ const m = await import('{cdn_url}'); globalThis.transformers = m; }} }} catch (e) {{}} }})();\n"
         )
         js = prelude + js
 
@@ -1233,6 +1266,26 @@ def build_transformers_inline_html(files: dict) -> str:
 
     # Inline JS: insert before </body>
     script_tag = f"<script type=\"module\">\n{js}\n</script>" if js else ""
+    # Lightweight debug console overlay to surface runtime errors inside the iframe
+    debug_overlay = (
+        "<style>\n"
+        "#anycoder-debug{position:fixed;left:0;right:0;bottom:0;max-height:45%;overflow:auto;"
+        "background:rgba(0,0,0,.85);color:#9eff9e;padding:.5em;font:12px/1.4 monospace;z-index:2147483647;display:none}"
+        "#anycoder-debug pre{margin:0;white-space:pre-wrap;word-break:break-word}"
+        "</style>\n"
+        "<div id=\"anycoder-debug\"></div>\n"
+        "<script>\n"
+        "(function(){\n"
+        "  const el = document.getElementById('anycoder-debug');\n"
+        "  function show(){ if(el && el.style.display!=='block'){ el.style.display='block'; } }\n"
+        "  function log(msg){ try{ show(); const pre=document.createElement('pre'); pre.textContent=msg; el.appendChild(pre);}catch(e){} }\n"
+        "  const origError = console.error.bind(console);\n"
+        "  console.error = function(){ origError.apply(console, arguments); try{ log('console.error: ' + Array.from(arguments).map(a=>{try{return (typeof a==='string')?a:JSON.stringify(a);}catch(e){return String(a);}}).join(' ')); }catch(e){} };\n"
+        "  window.addEventListener('error', e => { log('window.onerror: ' + (e && e.message ? e.message : 'Unknown error')); });\n"
+        "  window.addEventListener('unhandledrejection', e => { try{ const r=e && e.reason; log('unhandledrejection: ' + (r && (r.message || JSON.stringify(r)))); }catch(err){ log('unhandledrejection'); } });\n"
+        "})();\n"
+        "</script>"
+    )
     # Cleanup script to clear Cache Storage and IndexedDB on unload to free model weights
     cleanup_tag = (
         "<script>\n"
@@ -1250,10 +1303,10 @@ def build_transformers_inline_html(files: dict) -> str:
         match = _re.search(r"</body>", doc, flags=_re.IGNORECASE)
         if match:
             idx = match.start()
-            doc = doc[:idx] + script_tag + cleanup_tag + doc[idx:]
+            doc = doc[:idx] + debug_overlay + script_tag + cleanup_tag + doc[idx:]
         else:
             # Append at end
-            doc = doc + script_tag + cleanup_tag
+            doc = doc + debug_overlay + script_tag + cleanup_tag
 
     return doc
 
