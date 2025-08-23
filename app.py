@@ -979,6 +979,8 @@ def get_inference_client(model_id, provider="auto"):
         provider = "cerebras"
     elif model_id == "deepseek-ai/DeepSeek-V3.1":
         provider = "fireworks-ai"
+    elif model_id == "zai-org/GLM-4.5":
+        provider = "fireworks-ai"
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
