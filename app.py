@@ -69,6 +69,40 @@ Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output."""
 
+def llm_place_media(html_content: str, media_html_tag: str, media_kind: str = "image") -> str:
+    """Ask a lightweight model to produce search/replace blocks that insert media_html_tag in the best spot.
+
+    The model must return ONLY our block format using SEARCH_START/DIVIDER/REPLACE_END.
+    """
+    try:
+        client = get_inference_client("Qwen/Qwen3-Coder-480B-A35B-Instruct", "auto")
+        system_prompt = (
+            "You are a code editor. Insert the provided media tag into the given HTML in the most semantically appropriate place.\n"
+            "Prefer replacing a placeholder <img> or a hero area; otherwise insert inside <body> near primary content.\n"
+            "Return ONLY search/replace blocks using the exact markers: <<<<<<< SEARCH, =======, >>>>>>> REPLACE.\n"
+            "Do NOT include any commentary. Ensure the SEARCH block matches exact lines from the input.\n"
+        )
+        user_payload = (
+            "HTML Document:\n" + html_content + "\n\n" +
+            f"Media ({media_kind}):\n" + media_html_tag + "\n\n" +
+            "Produce search/replace blocks now."
+        )
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_payload},
+        ]
+        completion = client.chat.completions.create(
+            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            messages=messages,
+            max_tokens=2000,
+            temperature=0.2,
+        )
+        text = (completion.choices[0].message.content or "") if completion and completion.choices else ""
+        return text.strip()
+    except Exception as e:
+        print(f"[LLMPlaceMedia] Fallback due to error: {e}")
+        return ""
+
 # Stricter prompt for GLM-4.5V to ensure a complete, runnable HTML document with no escaped characters
 GLM45V_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
 
@@ -794,7 +828,6 @@ for _m in AVAILABLE_MODELS:
         break
 if DEFAULT_MODEL is None and AVAILABLE_MODELS:
     DEFAULT_MODEL = AVAILABLE_MODELS[0]
-
 DEMO_LIST = [
     {
         "title": "Todo App",
@@ -1335,6 +1368,27 @@ def parse_multipage_html_output(text: str) -> Dict[str, str]:
         files[name] = content
     return files
 
+def format_multipage_output(files: Dict[str, str]) -> str:
+    """Format a dict of files back into === filename === sections.
+
+    Ensures `index.html` appears first if present; others follow sorted by path.
+    """
+    if not isinstance(files, dict) or not files:
+        return ""
+    ordered_paths = []
+    if 'index.html' in files:
+        ordered_paths.append('index.html')
+    for path in sorted(files.keys()):
+        if path == 'index.html':
+            continue
+        ordered_paths.append(path)
+    parts: list[str] = []
+    for path in ordered_paths:
+        parts.append(f"=== {path} ===")
+        # Avoid trailing extra newlines to keep blocks compact
+        parts.append((files.get(path) or '').rstrip())
+    return "\n".join(parts)
+
 def validate_and_autofix_files(files: Dict[str, str]) -> Dict[str, str]:
     """Ensure minimal contract for multi-file sites; auto-fix missing pieces.
 
@@ -1486,6 +1540,19 @@ def inline_multipage_into_single_preview(files: Dict[str, str]) -> str:
 
     return doc
 
+def extract_html_document(text: str) -> str:
+    """Return substring starting from the first <!DOCTYPE html> or <html> if present, else original text.
+
+    This ignores prose or planning notes before the actual HTML so previews don't break.
+    """
+    if not text:
+        return text
+    lower = text.lower()
+    idx = lower.find("<!doctype html")
+    if idx == -1:
+        idx = lower.find("<html")
+    return text[idx:] if idx != -1 else text
+
 def parse_svelte_output(text):
     """Parse Svelte output to extract individual files"""
     files = {
@@ -1560,9 +1627,8 @@ def process_image_for_model(image):
     
     buffer = io.BytesIO()
     image.save(buffer, format='PNG')
-    img_str = base64.b64encode(buffer.getvalue()).decode()
+    img_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
     return f"data:image/png;base64,{img_str}"
-
 def generate_image_with_qwen(prompt: str, image_index: int = 0) -> str:
     """Generate image using Qwen image model via Hugging Face InferenceClient with optimized data URL"""
     try:
@@ -2307,7 +2373,6 @@ def create_music_replacement_blocks_text_to_music(html_content: str, prompt: str
 
     # If no <body>, just append
     return f"{SEARCH_START}\n\n{DIVIDER}\n{audio_html}\n{REPLACE_END}"
-
 def create_image_replacement_blocks_from_input_image(html_content: str, user_prompt: str, input_image_data, max_images: int = 1) -> str:
     """Create search/replace blocks using image-to-image generation with a provided input image.
 
@@ -2480,12 +2545,33 @@ def create_video_replacement_blocks_from_input_image(html_content: str, user_pro
     print("[Image2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: str | None = None, enable_text_to_music: bool = False, text_to_music_prompt: str | None = None) -> str:
-    """Apply text-to-image and/or image-to-image replacements to HTML content.
+def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None) -> str:
+    """Apply text/image/video/music replacements to HTML content.
 
-    If both toggles are enabled, text-to-image replacements run first, then image-to-image.
+    - Works with single-document HTML strings
+    - Also supports multi-page outputs formatted as === filename === sections by
+      applying changes to the HTML entrypoint (index.html if present) and
+      returning the updated multi-page text.
     """
-    result = html_content
+    # Detect multi-page sections and choose an entry HTML to modify
+    is_multipage = False
+    multipage_files: Dict[str, str] = {}
+    entry_html_path: Optional[str] = None
+    try:
+        multipage_files = parse_multipage_html_output(html_content) or {}
+        if multipage_files:
+            is_multipage = True
+            if 'index.html' in multipage_files:
+                entry_html_path = 'index.html'
+            else:
+                html_paths = [p for p in multipage_files.keys() if p.lower().endswith('.html')]
+                entry_html_path = html_paths[0] if html_paths else None
+    except Exception:
+        is_multipage = False
+        multipage_files = {}
+        entry_html_path = None
+
+    result = multipage_files.get(entry_html_path, html_content) if is_multipage and entry_html_path else html_content
     try:
         print(
             f"[MediaApply] enable_i2v={enable_image_to_video}, enable_i2i={enable_image_to_image}, "
@@ -2495,7 +2581,16 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
         if enable_image_to_video and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             i2v_prompt = (image_to_video_prompt or user_prompt or "").strip()
             print(f"[MediaApply] Running image-to-video with prompt len={len(i2v_prompt)}")
-            blocks_v = create_video_replacement_blocks_from_input_image(result, i2v_prompt, input_image_data, session_id=session_id)
+            try:
+                video_html_tag = generate_video_from_image(input_image_data, i2v_prompt, session_id=session_id)
+                if not (video_html_tag or "").startswith("Error"):
+                    blocks_v = llm_place_media(result, video_html_tag, media_kind="video")
+                else:
+                    blocks_v = ""
+            except Exception:
+                blocks_v = ""
+            if not blocks_v:
+                blocks_v = create_video_replacement_blocks_from_input_image(result, i2v_prompt, input_image_data, session_id=session_id)
             if blocks_v:
                 print("[MediaApply] Applying image-to-video replacement blocks")
                 before_len = len(result)
@@ -2513,46 +2608,94 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
                 result = result_after
             else:
                 print("[MediaApply] No i2v replacement blocks generated")
+            if is_multipage and entry_html_path:
+                multipage_files[entry_html_path] = result
+                return format_multipage_output(multipage_files)
             return result
 
         # If text-to-video is enabled, insert a generated video (no input image required) and return.
         if enable_text_to_video and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             t2v_prompt = (text_to_video_prompt or user_prompt or "").strip()
             print(f"[MediaApply] Running text-to-video with prompt len={len(t2v_prompt)}")
-            blocks_tv = create_video_replacement_blocks_text_to_video(result, t2v_prompt, session_id=session_id)
+            try:
+                video_html_tag = generate_video_from_text(t2v_prompt, session_id=session_id)
+                if not (video_html_tag or "").startswith("Error"):
+                    blocks_tv = llm_place_media(result, video_html_tag, media_kind="video")
+                else:
+                    blocks_tv = ""
+            except Exception:
+                blocks_tv = ""
+            if not blocks_tv:
+                blocks_tv = create_video_replacement_blocks_text_to_video(result, t2v_prompt, session_id=session_id)
             if blocks_tv:
                 print("[MediaApply] Applying text-to-video replacement blocks")
                 result = apply_search_replace_changes(result, blocks_tv)
             else:
                 print("[MediaApply] No t2v replacement blocks generated")
+            if is_multipage and entry_html_path:
+                multipage_files[entry_html_path] = result
+                return format_multipage_output(multipage_files)
             return result
 
         # If text-to-music is enabled, insert a generated audio player near the top of body and return.
         if enable_text_to_music and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             t2m_prompt = (text_to_music_prompt or user_prompt or "").strip()
             print(f"[MediaApply] Running text-to-music with prompt len={len(t2m_prompt)}")
-            blocks_tm = create_music_replacement_blocks_text_to_music(result, t2m_prompt, session_id=session_id)
+            try:
+                audio_html_tag = generate_music_from_text(t2m_prompt, session_id=session_id)
+                if not (audio_html_tag or "").startswith("Error"):
+                    blocks_tm = llm_place_media(result, audio_html_tag, media_kind="audio")
+                else:
+                    blocks_tm = ""
+            except Exception:
+                blocks_tm = ""
+            if not blocks_tm:
+                blocks_tm = create_music_replacement_blocks_text_to_music(result, t2m_prompt, session_id=session_id)
             if blocks_tm:
                 print("[MediaApply] Applying text-to-music replacement blocks")
                 result = apply_search_replace_changes(result, blocks_tm)
             else:
                 print("[MediaApply] No t2m replacement blocks generated")
+            if is_multipage and entry_html_path:
+                multipage_files[entry_html_path] = result
+                return format_multipage_output(multipage_files)
             return result
 
         # If an input image is provided and image-to-image is enabled, we only replace one image
         # and skip text-to-image to satisfy the requirement to replace exactly the number of uploaded images.
         if enable_image_to_image and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             i2i_prompt = (image_to_image_prompt or user_prompt or "").strip()
-            blocks2 = create_image_replacement_blocks_from_input_image(result, i2i_prompt, input_image_data, max_images=1)
+            try:
+                image_html_tag = generate_image_to_image(input_image_data, i2i_prompt)
+                if not (image_html_tag or "").startswith("Error"):
+                    blocks2 = llm_place_media(result, image_html_tag, media_kind="image")
+                else:
+                    blocks2 = ""
+            except Exception:
+                blocks2 = ""
+            if not blocks2:
+                blocks2 = create_image_replacement_blocks_from_input_image(result, i2i_prompt, input_image_data, max_images=1)
             if blocks2:
                 result = apply_search_replace_changes(result, blocks2)
+            if is_multipage and entry_html_path:
+                multipage_files[entry_html_path] = result
+                return format_multipage_output(multipage_files)
             return result
 
         if enable_text_to_image and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             t2i_prompt = (text_to_image_prompt or user_prompt or "").strip()
             print(f"[MediaApply] Running text-to-image with prompt len={len(t2i_prompt)}")
-            # Single-image flow for text-to-image
-            blocks = create_image_replacement_blocks_text_to_image_single(result, t2i_prompt)
+            # Single-image flow for text-to-image (LLM placement first, fallback deterministic)
+            try:
+                image_html_tag = generate_image_with_qwen(t2i_prompt, 0)
+                if not (image_html_tag or "").startswith("Error"):
+                    blocks = llm_place_media(result, image_html_tag, media_kind="image")
+                else:
+                    blocks = ""
+            except Exception:
+                blocks = ""
+            if not blocks:
+                blocks = create_image_replacement_blocks_text_to_image_single(result, t2i_prompt)
             if blocks:
                 print("[MediaApply] Applying text-to-image replacement blocks")
                 result = apply_search_replace_changes(result, blocks)
@@ -2561,6 +2704,9 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
         print("[MediaApply] Exception during media application:")
         traceback.print_exc()
         return html_content
+    if is_multipage and entry_html_path:
+        multipage_files[entry_html_path] = result
+        return format_multipage_output(multipage_files)
     return result
 
 def create_multimodal_message(text, image=None):
@@ -2990,7 +3136,6 @@ def demo_card_click(e: gr.EventData):
     except (KeyError, IndexError, AttributeError) as e:
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
-
 def extract_text_from_image(image_path):
     """Extract text from image using OCR"""
     try:
@@ -3535,7 +3680,7 @@ This will help me create a better design for you."""
         # Apply media generation (images/video/music)
         print("[Generate] Applying post-generation media to GLM-4.5 HTML output")
         final_content = apply_generated_media_to_html(
-            content,
+            clean_code,
             query,
             enable_text_to_image=enable_image_generation,
             enable_image_to_image=enable_image_to_image,
@@ -3747,9 +3892,10 @@ This will help me create a better design for you."""
                 
                 preview_val = None
                 if language == "html":
-                    _mpf2 = parse_multipage_html_output(final_content)
+                    safe_preview = extract_html_document(final_content)
+                    _mpf2 = parse_multipage_html_output(safe_preview)
                     _mpf2 = validate_and_autofix_files(_mpf2)
-                    preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf2)) if _mpf2.get('index.html') else send_to_sandbox(final_content)
+                    preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf2)) if _mpf2.get('index.html') else send_to_sandbox(safe_preview)
                 elif language == "python" and is_streamlit_code(final_content):
                     preview_val = send_streamlit_to_stlite(final_content)
                 yield {
@@ -4200,9 +4346,10 @@ This will help me create a better design for you."""
             _history.append([query, final_content])
             preview_val = None
             if language == "html":
-                _mpf = parse_multipage_html_output(final_content)
+                safe_preview = extract_html_document(final_content)
+                _mpf = parse_multipage_html_output(safe_preview)
                 _mpf = validate_and_autofix_files(_mpf)
-                preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf)) if _mpf.get('index.html') else send_to_sandbox(final_content)
+                preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf)) if _mpf.get('index.html') else send_to_sandbox(safe_preview)
             elif language == "python" and is_streamlit_code(final_content):
                 preview_val = send_streamlit_to_stlite(final_content)
             elif language == "gradio" or (language == "python" and is_gradio_code(final_content)):
@@ -4457,7 +4604,6 @@ def wrap_html_in_gradio_app(html_code):
         'if __name__ == "__main__":\n'
         '    demo.launch()\n'
     )
-
 def deploy_to_spaces(code):
     if not code or not code.strip():
         return  # Do nothing if code is empty
@@ -5406,6 +5552,8 @@ with gr.Blocks(
             visible=False
         )
 
+        # LLM-guided media placement is now always on (no toggle in UI)
+
         def on_image_to_image_toggle(toggled, beta_enabled):
             # Only show in classic mode (beta disabled)
             vis = bool(toggled) and not bool(beta_enabled)
@@ -5827,7 +5975,6 @@ with gr.Blocks(
         import re
         match = re.search(r"https?://[^\s]+", text or "")
         return match.group(0) if match else None
-
     def apply_chat_command(message, chat_messages):
         # Support plain text or dict from MultimodalTextbox
         text = message if isinstance(message, str) else (message.get("text", "") if isinstance(message, dict) else "")
@@ -6148,7 +6295,6 @@ with gr.Blocks(
             
             restart_message = f"""
 🎨 **Theme saved:** {theme_name}
-
 ⚠️ **Restart required** to fully apply the new theme.
 
 **Why restart is needed:** Gradio themes are set during application startup and cannot be changed dynamically at runtime. This ensures all components are properly styled with consistent theming.
