@@ -3610,6 +3610,108 @@ def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_ima
             '=== src/App.svelte ===' in last_assistant_msg):
             has_existing_content = True
 
+    # If this is a modification request, try to apply search/replace first
+    if has_existing_content and query.strip():
+        try:
+            # Use the current model to generate search/replace instructions
+            client = get_inference_client(_current_model['id'], provider)
+            
+            system_prompt = """You are a code editor assistant. Given existing code and modification instructions, generate EXACT search/replace blocks.
+
+CRITICAL REQUIREMENTS:
+1. Use EXACTLY these markers: <<<<<<< SEARCH, =======, >>>>>>> REPLACE
+2. The SEARCH block must match the existing code EXACTLY (including whitespace, indentation, line breaks)
+3. The REPLACE block should contain the modified version
+4. Only include the specific lines that need to change, with enough context to make them unique
+5. Generate multiple search/replace blocks if needed for different changes
+6. Do NOT include any explanations or comments outside the blocks
+
+Example format:
+<<<<<<< SEARCH
+    function oldFunction() {
+        return "old";
+    }
+=======
+    function newFunction() {
+        return "new";
+    }
+>>>>>>> REPLACE"""
+
+            user_prompt = f"""Existing code:
+{last_assistant_msg}
+
+Modification instructions:
+{query}
+
+Generate the exact search/replace blocks needed to make these changes."""
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            
+            # Generate search/replace instructions
+            if _current_model.get('type') == 'openai':
+                response = client.chat.completions.create(
+                    model=_current_model['id'],
+                    messages=messages,
+                    max_tokens=4000,
+                    temperature=0.1
+                )
+                changes_text = response.choices[0].message.content
+            elif _current_model.get('type') == 'mistral':
+                response = client.chat.complete(
+                    model=_current_model['id'],
+                    messages=messages,
+                    max_tokens=4000,
+                    temperature=0.1
+                )
+                changes_text = response.choices[0].message.content
+            else:  # Hugging Face or other
+                completion = client.chat.completions.create(
+                    model=_current_model['id'],
+                    messages=messages,
+                    max_tokens=4000,
+                    temperature=0.1
+                )
+                changes_text = completion.choices[0].message.content
+            
+            # Apply the search/replace changes
+            if language == "transformers.js" and ('=== index.html ===' in last_assistant_msg):
+                modified_content = apply_transformers_js_search_replace_changes(last_assistant_msg, changes_text)
+            else:
+                modified_content = apply_search_replace_changes(last_assistant_msg, changes_text)
+            
+            # If changes were successfully applied, return the modified content
+            if modified_content != last_assistant_msg:
+                _history.append([query, modified_content])
+                
+                # Generate preview based on language
+                preview_val = None
+                if language == "html":
+                    # Use full content for multipage detection, then extract for single-page rendering
+                    _mpf2 = parse_multipage_html_output(modified_content)
+                    _mpf2 = validate_and_autofix_files(_mpf2)
+                    if _mpf2 and _mpf2.get('index.html'):
+                        preview_val = send_to_sandbox_with_refresh(inline_multipage_into_single_preview(_mpf2))
+                    else:
+                        safe_preview = extract_html_document(modified_content)
+                        preview_val = send_to_sandbox_with_refresh(safe_preview)
+                elif language == "python" and is_streamlit_code(modified_content):
+                    preview_val = send_streamlit_to_stlite(modified_content)
+                
+                yield {
+                    code_output: modified_content,
+                    history: _history,
+                    sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview updated with your changes.</div>",
+                    history_output: history_to_chatbot_messages(_history),
+                }
+                return
+                
+        except Exception as e:
+            print(f"Search/replace failed, falling back to normal generation: {e}")
+            # If search/replace fails, continue with normal generation
+
     # Create/lookup a session id for temp-file tracking and cleanup
     if _setting is not None and isinstance(_setting, dict):
         session_id = _setting.get("__session_id__")
@@ -5696,6 +5798,9 @@ with gr.Blocks(
                     interactive=True,
                     label="Generated code"
                 )
+                
+
+                
                 # Transformers.js multi-file editors (hidden by default)
                 with gr.Group(visible=False) as tjs_group:
                     with gr.Tabs():
@@ -5961,6 +6066,10 @@ with gr.Blocks(
             load_project_btn,
         ],
     )
+
+
+
+
 
     def begin_generation_ui():
         # Collapse the sidebar when generation starts; keep status hidden
