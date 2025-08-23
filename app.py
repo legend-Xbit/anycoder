@@ -3035,6 +3035,54 @@ def send_to_sandbox(code):
     iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
     return iframe
 
+def send_to_sandbox_with_refresh(code):
+    """Render HTML in a sandboxed iframe with cache-busting for media generation updates."""
+    import time
+    html_doc = (code or "").strip()
+    # For preview only: inline local file URLs (e.g., file:///.../video.mp4) as data URIs so the
+    # data: iframe can load them. The original code (shown to the user) still contains file URLs.
+    try:
+        import re
+        import base64 as _b64
+        import mimetypes as _mtypes
+        import urllib.parse as _uparse
+        def _file_url_to_data_uri(file_url: str) -> str | None:
+            try:
+                parsed = _uparse.urlparse(file_url)
+                path = _uparse.unquote(parsed.path)
+                if not path:
+                    return None
+                with open(path, 'rb') as _f:
+                    raw = _f.read()
+                mime = _mtypes.guess_type(path)[0] or 'application/octet-stream'
+                b64 = _b64.b64encode(raw).decode()
+                return f"data:{mime};base64,{b64}"
+            except Exception:
+                return None
+        def _repl_double(m):
+            url = m.group(1)
+            data_uri = _file_url_to_data_uri(url)
+            return f'src="{data_uri}"' if data_uri else m.group(0)
+        def _repl_single(m):
+            url = m.group(1)
+            data_uri = _file_url_to_data_uri(url)
+            return f"src='{data_uri}'" if data_uri else m.group(0)
+        html_doc = re.sub(r'src="(file:[^"]+)"', _repl_double, html_doc)
+        html_doc = re.sub(r"src='(file:[^']+)'", _repl_single, html_doc)
+    except Exception:
+        # Best-effort; continue without inlining
+        pass
+    
+    # Add cache-busting timestamp to force iframe refresh when content changes
+    timestamp = str(int(time.time() * 1000))
+    cache_bust_comment = f"<!-- refresh-{timestamp} -->"
+    html_doc = cache_bust_comment + html_doc
+    
+    encoded_html = base64.b64encode(html_doc.encode('utf-8')).decode('utf-8')
+    data_uri = f"data:text/html;charset=utf-8;base64,{encoded_html}"
+    iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture" key="preview-{timestamp}"></iframe>'
+    return iframe
+
 def is_streamlit_code(code: str) -> bool:
     """Heuristic check to determine if Python code is a Streamlit app."""
     if not code:
@@ -3894,10 +3942,14 @@ This will help me create a better design for you."""
                 
                 preview_val = None
                 if language == "html":
-                    safe_preview = extract_html_document(final_content)
-                    _mpf2 = parse_multipage_html_output(safe_preview)
+                    # Use full content for multipage detection, then extract for single-page rendering
+                    _mpf2 = parse_multipage_html_output(final_content)
                     _mpf2 = validate_and_autofix_files(_mpf2)
-                    preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf2)) if _mpf2.get('index.html') else send_to_sandbox(safe_preview)
+                    if _mpf2 and _mpf2.get('index.html'):
+                        preview_val = send_to_sandbox_with_refresh(inline_multipage_into_single_preview(_mpf2))
+                    else:
+                        safe_preview = extract_html_document(final_content)
+                        preview_val = send_to_sandbox_with_refresh(safe_preview)
                 elif language == "python" and is_streamlit_code(final_content):
                     preview_val = send_streamlit_to_stlite(final_content)
                 yield {
@@ -4319,7 +4371,7 @@ This will help me create a better design for you."""
             yield {
                 code_output: clean_content,
                 history: _history,
-                sandbox: ((send_to_sandbox(inline_multipage_into_single_preview(parse_multipage_html_output(clean_content))) if parse_multipage_html_output(clean_content).get('index.html') else send_to_sandbox(clean_content)) if language == "html" else (send_streamlit_to_stlite(clean_content) if (language == "python" and is_streamlit_code(clean_content)) else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>")),
+                sandbox: ((send_to_sandbox_with_refresh(inline_multipage_into_single_preview(parse_multipage_html_output(clean_content))) if parse_multipage_html_output(clean_content).get('index.html') else send_to_sandbox_with_refresh(clean_content)) if language == "html" else (send_streamlit_to_stlite(clean_content) if (language == "python" and is_streamlit_code(clean_content)) else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>")),
                 history_output: history_to_chatbot_messages(_history),
             }
         else:
@@ -4348,10 +4400,14 @@ This will help me create a better design for you."""
             _history.append([query, final_content])
             preview_val = None
             if language == "html":
-                safe_preview = extract_html_document(final_content)
-                _mpf = parse_multipage_html_output(safe_preview)
+                # Use full content for multipage detection, then extract for single-page rendering
+                _mpf = parse_multipage_html_output(final_content)
                 _mpf = validate_and_autofix_files(_mpf)
-                preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mpf)) if _mpf.get('index.html') else send_to_sandbox(safe_preview)
+                if _mpf and _mpf.get('index.html'):
+                    preview_val = send_to_sandbox_with_refresh(inline_multipage_into_single_preview(_mpf))
+                else:
+                    safe_preview = extract_html_document(final_content)
+                    preview_val = send_to_sandbox_with_refresh(safe_preview)
             elif language == "python" and is_streamlit_code(final_content):
                 preview_val = send_streamlit_to_stlite(final_content)
             elif language == "gradio" or (language == "python" and is_gradio_code(final_content)):
