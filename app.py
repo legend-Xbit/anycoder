@@ -1502,23 +1502,20 @@ def validate_and_autofix_files(files: Dict[str, str]) -> Dict[str, str]:
                     continue
                 asset_refs.add(ref.lstrip('/'))
 
-    # Add minimal stubs for missing local references (CSS/JS/images/pages)
+    # Add minimal stubs for missing local references (CSS/JS/pages only, not images)
     for ref in list(asset_refs):
         if ref not in normalized:
             if ref.lower().endswith('.css'):
                 normalized[ref] = "/* generated stub */\n"
             elif ref.lower().endswith('.js'):
                 normalized[ref] = "// generated stub\n"
-            elif any(ref.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp']):
-                # Use a tiny inline SVG as placeholder content
-                normalized[ref] = (
-                    "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"></svg>\n"
-                )
             elif ref.lower().endswith('.html'):
                 normalized[ref] = (
                     "<!DOCTYPE html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>Page</title></head>\n"
                     "<body><main><h1>Placeholder page</h1><p>This page was auto-created to satisfy an internal link.</p></main></body>\n</html>"
                 )
+            # Note: We no longer create placeholder image files automatically
+            # This prevents unwanted SVG stub files from being generated during image generation
 
     return normalized
 
@@ -4418,106 +4415,8 @@ This will help me create a better design for you."""
         elif language == "svelte":
             files = parse_svelte_output(clean_code)
             if files['src/App.svelte'] and files['src/app.css']:
-                # Apply image generation if enabled (add image generation logic to Svelte)
-                if enable_image_generation:
-                    # For Svelte, we'll add a script section that generates images dynamically
-                    # This is more appropriate for Svelte than trying to inject static images
-                    image_generation_script = """
-<script>
-    import { onMount } from 'svelte';
-    
-    let generatedImages = [];
-    
-    onMount(async () => {
-        // Generate images using Qwen API based on the user prompt
-        const userPrompt = """ + repr(query) + """;
-        
-        // Create variations for multiple images
-        const imagePrompts = [
-            userPrompt,
-            `Visual representation of ${userPrompt}`,
-            `Illustration of ${userPrompt}`
-        ];
-        
-        for (const prompt of imagePrompts) {
-            try {
-                // This would need to be implemented with actual API calls
-                // For now, we'll create placeholder elements
-                generatedImages = [...generatedImages, {
-                    prompt: prompt,
-                    src: `data:image/svg+xml;base64,${btoa('<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200"><rect width="100%" height="100%" fill="#f0f0f0"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="#666">Generated: ${prompt}</text></svg>')}`,
-                    alt: prompt
-                }];
-            } catch (error) {
-                console.error('Error generating image:', error);
-            }
-        }
-    });
-</script>
-
-<!-- Generated Images Section -->
-{#if generatedImages.length > 0}
-    <div class="generated-images">
-        <h3>Generated Images</h3>
-        <div class="image-grid">
-            {#each generatedImages as image}
-                <img src={image.src} alt={image.alt} style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" />
-            {/each}
-        </div>
-    </div>
-{/if}"""
-                    
-                    # Add the image generation script to App.svelte
-                    if '<script>' in files['src/App.svelte']:
-                        # Find the end of the script section and add after it
-                        script_end = files['src/App.svelte'].find('</script>') + 8
-                        files['src/App.svelte'] = files['src/App.svelte'][:script_end] + '\n' + image_generation_script + files['src/App.svelte'][script_end:]
-                    else:
-                        # Add script section at the beginning
-                        files['src/App.svelte'] = image_generation_script + '\n\n' + files['src/App.svelte']
-                    
-                    # Add CSS for generated images
-                    image_css = """
-/* Generated Images Styling */
-.generated-images {
-    margin: 20px 0;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border: 1px solid #e9ecef;
-}
-
-.generated-images h3 {
-    margin: 0 0 15px 0;
-    color: #495057;
-    font-size: 1.2em;
-}
-
-.image-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 15px;
-    align-items: start;
-}
-
-.image-grid img {
-    width: 100%;
-    height: auto;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease;
-}
-
-.image-grid img:hover {
-    transform: scale(1.02);
-}
-"""
-                    
-                    # Add CSS to app.css
-                    if files['src/app.css']:
-                        files['src/app.css'] += '\n' + image_css
-                    else:
-                        files['src/app.css'] = image_css
+                # Note: Media generation (text-to-image, image-to-image, etc.) is not supported for Svelte apps
+                # Only static HTML apps support automatic image/video/audio generation
                 
                 formatted_output = format_svelte_output(files)
                 yield {
@@ -4566,24 +4465,29 @@ This will help me create a better design for you."""
                 }
             else:
                 # Apply media generation (images/video/music)
-                print("[Generate] Applying post-generation media to new HTML content")
-                final_content = apply_generated_media_to_html(
-                    clean_code,
-                    query,
-                    enable_text_to_image=enable_image_generation,
-                    enable_image_to_image=enable_image_to_image,
-                    input_image_data=gen_image,
-                    image_to_image_prompt=image_to_image_prompt,
-                    text_to_image_prompt=text_to_image_prompt,
-                    enable_image_to_video=enable_image_to_video,
-                    image_to_video_prompt=image_to_video_prompt,
-                    session_id=session_id,
-                    enable_text_to_video=enable_text_to_video,
-                    text_to_video_prompt=text_to_video_prompt,
-                    enable_text_to_music=enable_text_to_music,
-                    text_to_music_prompt=text_to_music_prompt,
-                    token=None,
-                )
+                # Only apply media generation to static HTML apps, not Svelte/React/other frameworks
+                if language == "html":
+                    print("[Generate] Applying post-generation media to static HTML content")
+                    final_content = apply_generated_media_to_html(
+                        clean_code,
+                        query,
+                        enable_text_to_image=enable_image_generation,
+                        enable_image_to_image=enable_image_to_image,
+                        input_image_data=gen_image,
+                        image_to_image_prompt=image_to_image_prompt,
+                        text_to_image_prompt=text_to_image_prompt,
+                        enable_image_to_video=enable_image_to_video,
+                        image_to_video_prompt=image_to_video_prompt,
+                        session_id=session_id,
+                        enable_text_to_video=enable_text_to_video,
+                        text_to_video_prompt=text_to_video_prompt,
+                        enable_text_to_music=enable_text_to_music,
+                        text_to_music_prompt=text_to_music_prompt,
+                        token=None,
+                    )
+                else:
+                    print(f"[Generate] Skipping media generation for {language} apps (only supported for static HTML)")
+                    final_content = clean_code
                 
                 preview_val = None
                 if language == "html":
