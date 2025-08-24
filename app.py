@@ -69,6 +69,35 @@ Always respond with code that can be executed or rendered directly.
 
 Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output."""
 
+def validate_video_html(video_html: str) -> bool:
+    """Validate that the video HTML is well-formed and safe to insert."""
+    try:
+        # Basic checks for video HTML structure
+        if not video_html or not video_html.strip():
+            return False
+        
+        # Check for required video elements
+        if '<video' not in video_html or '</video>' not in video_html:
+            return False
+        
+        # Check for proper source tag
+        if '<source' not in video_html:
+            return False
+        
+        # Check for data URI format
+        if 'data:video/mp4;base64,' not in video_html:
+            return False
+        
+        # Basic HTML structure validation
+        video_start = video_html.find('<video')
+        video_end = video_html.find('</video>') + 8
+        if video_start == -1 or video_end == 7:  # 7 means </video> not found
+            return False
+        
+        return True
+    except Exception:
+        return False
+
 def llm_place_media(html_content: str, media_html_tag: str, media_kind: str = "image") -> str:
     """Ask a lightweight model to produce search/replace blocks that insert media_html_tag in the best spot.
 
@@ -78,13 +107,30 @@ def llm_place_media(html_content: str, media_html_tag: str, media_kind: str = "i
         client = get_inference_client("Qwen/Qwen3-Coder-480B-A35B-Instruct", "auto")
         system_prompt = (
             "You are a code editor. Insert the provided media tag into the given HTML in the most semantically appropriate place.\n"
-            "Prefer replacing a placeholder <img> or a hero area; otherwise insert inside <body> near primary content.\n"
+            "For video elements: prefer replacing placeholder images or inserting in hero sections with proper container divs.\n"
+            "For image elements: prefer replacing placeholder images or inserting near related content.\n"
+            "CRITICAL: Ensure proper HTML structure - videos should be wrapped in appropriate containers.\n"
             "Return ONLY search/replace blocks using the exact markers: <<<<<<< SEARCH, =======, >>>>>>> REPLACE.\n"
             "Do NOT include any commentary. Ensure the SEARCH block matches exact lines from the input.\n"
+            "When inserting videos, ensure they are properly contained within semantic HTML elements.\n"
         )
+        # Truncate very long media tags for LLM prompt only to prevent token limits
+        truncated_media_tag_for_prompt = media_html_tag
+        if len(media_html_tag) > 2000:
+            # For very long data URIs, show structure but truncate the data for LLM prompt
+            if 'data:video/mp4;base64,' in media_html_tag:
+                start_idx = media_html_tag.find('data:video/mp4;base64,')
+                end_idx = media_html_tag.find('"', start_idx)
+                if start_idx != -1 and end_idx != -1:
+                    truncated_media_tag_for_prompt = (
+                        media_html_tag[:start_idx] + 
+                        'data:video/mp4;base64,[TRUNCATED_BASE64_DATA]' + 
+                        media_html_tag[end_idx:]
+                    )
+        
         user_payload = (
             "HTML Document:\n" + html_content + "\n\n" +
-            f"Media ({media_kind}):\n" + media_html_tag + "\n\n" +
+            f"Media ({media_kind}):\n" + truncated_media_tag_for_prompt + "\n\n" +
             "Produce search/replace blocks now."
         )
         messages = [
@@ -98,6 +144,16 @@ def llm_place_media(html_content: str, media_html_tag: str, media_kind: str = "i
             temperature=0.2,
         )
         text = (completion.choices[0].message.content or "") if completion and completion.choices else ""
+        
+        # Replace any truncated placeholders with the original full media HTML
+        if '[TRUNCATED_BASE64_DATA]' in text and 'data:video/mp4;base64,[TRUNCATED_BASE64_DATA]' in truncated_media_tag_for_prompt:
+            # Extract the original base64 data from the full media tag
+            original_start = media_html_tag.find('data:video/mp4;base64,')
+            original_end = media_html_tag.find('"', original_start)
+            if original_start != -1 and original_end != -1:
+                original_data_uri = media_html_tag[original_start:original_end]
+                text = text.replace('data:video/mp4;base64,[TRUNCATED_BASE64_DATA]', original_data_uri)
+        
         return text.strip()
     except Exception as e:
         print(f"[LLMPlaceMedia] Fallback due to error: {e}")
@@ -1631,6 +1687,115 @@ def process_image_for_model(image):
     image.save(buffer, format='PNG')
     img_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
     return f"data:image/png;base64,{img_str}"
+
+def compress_video_for_data_uri(video_bytes: bytes, max_size_mb: int = 8) -> bytes:
+    """Compress video bytes for data URI embedding with size limit"""
+    import subprocess
+    import tempfile
+    import os
+    
+    max_size = max_size_mb * 1024 * 1024
+    
+    # If already small enough, return as-is
+    if len(video_bytes) <= max_size:
+        return video_bytes
+    
+    print(f"[VideoCompress] Video size {len(video_bytes)} bytes exceeds {max_size_mb}MB limit, attempting compression")
+    
+    try:
+        # Create temp files
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_input:
+            temp_input.write(video_bytes)
+            temp_input_path = temp_input.name
+        
+        temp_output_path = temp_input_path.replace('.mp4', '_compressed.mp4')
+        
+        try:
+            # Compress with ffmpeg - aggressive settings for small size
+            subprocess.run([
+                'ffmpeg', '-i', temp_input_path, 
+                '-vcodec', 'libx264', '-crf', '30', '-preset', 'fast',
+                '-vf', 'scale=480:-1', '-r', '15',  # Lower resolution and frame rate
+                '-an',  # Remove audio to save space
+                '-y', temp_output_path
+            ], check=True, capture_output=True, stderr=subprocess.DEVNULL)
+            
+            # Read compressed video
+            with open(temp_output_path, 'rb') as f:
+                compressed_bytes = f.read()
+            
+            print(f"[VideoCompress] Compressed from {len(video_bytes)} to {len(compressed_bytes)} bytes")
+            return compressed_bytes
+            
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("[VideoCompress] ffmpeg compression failed, using original video")
+            return video_bytes
+        finally:
+            # Clean up temp files
+            for path in [temp_input_path, temp_output_path]:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except Exception:
+                    pass
+                    
+    except Exception as e:
+        print(f"[VideoCompress] Compression failed: {e}, using original video")
+        return video_bytes
+
+def compress_audio_for_data_uri(audio_bytes: bytes, max_size_mb: int = 4) -> bytes:
+    """Compress audio bytes for data URI embedding with size limit"""
+    import subprocess
+    import tempfile
+    import os
+    
+    max_size = max_size_mb * 1024 * 1024
+    
+    # If already small enough, return as-is
+    if len(audio_bytes) <= max_size:
+        return audio_bytes
+    
+    print(f"[AudioCompress] Audio size {len(audio_bytes)} bytes exceeds {max_size_mb}MB limit, attempting compression")
+    
+    try:
+        # Create temp files
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_input:
+            temp_input.write(audio_bytes)
+            temp_input_path = temp_input.name
+        
+        temp_output_path = temp_input_path.replace('.wav', '_compressed.mp3')
+        
+        try:
+            # Compress with ffmpeg - convert to MP3 with lower bitrate
+            subprocess.run([
+                'ffmpeg', '-i', temp_input_path,
+                '-codec:a', 'libmp3lame', '-b:a', '64k',  # Low bitrate MP3
+                '-y', temp_output_path
+            ], check=True, capture_output=True, stderr=subprocess.DEVNULL)
+            
+            # Read compressed audio
+            with open(temp_output_path, 'rb') as f:
+                compressed_bytes = f.read()
+            
+            print(f"[AudioCompress] Compressed from {len(audio_bytes)} to {len(compressed_bytes)} bytes")
+            return compressed_bytes
+            
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("[AudioCompress] ffmpeg compression failed, using original audio")
+            return audio_bytes
+        finally:
+            # Clean up temp files
+            for path in [temp_input_path, temp_output_path]:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except Exception:
+                    pass
+                    
+    except Exception as e:
+        print(f"[AudioCompress] Compression failed: {e}, using original audio")
+        return audio_bytes
+
 def generate_image_with_qwen(prompt: str, image_index: int = 0) -> str:
     """Generate image using Qwen image model via Hugging Face InferenceClient with optimized data URL"""
     try:
@@ -1841,52 +2006,33 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
         )
         print(f"[Image2Video] Received video bytes: {len(video_bytes) if hasattr(video_bytes, '__len__') else 'unknown length'}")
 
-        # Save to temp file for this session (for cleanup on next Generate)
-        try:
-            _ensure_video_dir_exists()
-            file_name = f"{uuid.uuid4()}.mp4"
-            file_path = os.path.join(VIDEO_TEMP_DIR, file_name)
-            with open(file_path, "wb") as f:
-                f.write(video_bytes)
-            _register_video_for_session(session_id, file_path)
-            try:
-                file_size = os.path.getsize(file_path)
-            except Exception:
-                file_size = -1
-            print(f"[Image2Video] Saved video to temp file: {file_path} (size={file_size} bytes)")
-        except Exception as save_exc:
-            print(f"[Image2Video] Warning: could not persist temp video file: {save_exc}")
-
-        # Always use a file URL for the video source.
-        video_html = ""
-        file_url = None
-        try:
-            if 'file_path' in locals() and file_path:
-                # Build a proper file:// URL for absolute paths (e.g., file:///var/.../uuid.mp4)
-                try:
-                    from pathlib import Path
-                    file_url = Path(file_path).as_uri()
-                except Exception:
-                    # Fallback to manual construction; ensure three slashes
-                    # Note: this may not be fully standards-compliant on Windows
-                    if file_path.startswith('/'):
-                        file_url = f"file:///{file_path.lstrip('/')}"  # file:///abs/path
-                    else:
-                        file_url = f"file:///{file_path}"
-        except Exception:
-            file_url = None
-
-        if file_url:
-            video_html = (
-                f"<video controls autoplay muted loop playsinline style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\">"
-                f"<source src=\"{file_url}\" type=\"video/mp4\" />"
-                f"Your browser does not support the video tag."
-                f"</video>"
-            )
-        else:
-            # If a file URL cannot be constructed, signal error to avoid embedding data URIs.
-            return "Error generating video (image-to-video): Could not persist video to a local file."
-        print("[Image2Video] Successfully generated video HTML tag")
+        # Convert video to compressed data URI for deployment compatibility
+        import base64
+        
+        # Compress video for data URI embedding
+        compressed_video_bytes = compress_video_for_data_uri(video_bytes, max_size_mb=8)
+        
+        # Create data URI
+        video_b64 = base64.b64encode(compressed_video_bytes).decode()
+        data_uri = f"data:video/mp4;base64,{video_b64}"
+        
+        video_html = (
+            f'<video controls autoplay muted loop playsinline '
+            f'style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block;" '
+            f'onloadstart="this.style.backgroundColor=\'#f0f0f0\'" '
+            f'onerror="this.style.display=\'none\'; console.error(\'Video failed to load\')">'
+            f'<source src="{data_uri}" type="video/mp4" />'
+            f'<p style="text-align: center; color: #666;">Your browser does not support the video tag.</p>'
+            f'</video>'
+        )
+        
+        print(f"[Image2Video] Successfully generated video HTML tag with data URI ({len(compressed_video_bytes)} bytes)")
+        
+        # Validate the generated video HTML
+        if not validate_video_html(video_html):
+            print("[Image2Video] Generated video HTML failed validation")
+            return "Error: Generated video HTML is malformed"
+        
         return video_html
     except Exception as e:
         import traceback
@@ -1898,7 +2044,7 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
 def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> str:
     """Generate a video from a text prompt using Hugging Face InferenceClient.
 
-    Returns an HTML <video> tag whose source points to a local file URL (file://...).
+    Returns an HTML <video> tag with compressed data URI for deployment compatibility.
     """
     try:
         print("[Text2Video] Starting video generation from text")
@@ -1932,41 +2078,33 @@ def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> s
         )
         print(f"[Text2Video] Received video bytes: {len(video_bytes) if hasattr(video_bytes, '__len__') else 'unknown length'}")
 
-        # Persist to a temp .mp4 and return a file URL based <video>
-        try:
-            _ensure_video_dir_exists()
-            file_name = f"{uuid.uuid4()}.mp4"
-            file_path = os.path.join(VIDEO_TEMP_DIR, file_name)
-            with open(file_path, "wb") as f:
-                f.write(video_bytes)
-            _register_video_for_session(session_id, file_path)
-            try:
-                file_size = os.path.getsize(file_path)
-            except Exception:
-                file_size = -1
-            print(f"[Text2Video] Saved video to temp file: {file_path} (size={file_size} bytes)")
-        except Exception as save_exc:
-            print(f"[Text2Video] Warning: could not persist temp video file: {save_exc}")
-
-        # Build file:// URL
-        file_url = None
-        try:
-            if 'file_path' in locals() and file_path:
-                from pathlib import Path
-                file_url = Path(file_path).as_uri()
-        except Exception:
-            file_url = None
-
-        if not file_url:
-            return "Error generating video (text-to-video): Could not persist video to a local file."
-
+        # Convert video to compressed data URI for deployment compatibility
+        import base64
+        
+        # Compress video for data URI embedding
+        compressed_video_bytes = compress_video_for_data_uri(video_bytes, max_size_mb=8)
+        
+        # Create data URI
+        video_b64 = base64.b64encode(compressed_video_bytes).decode()
+        data_uri = f"data:video/mp4;base64,{video_b64}"
+        
         video_html = (
-            f"<video controls autoplay muted loop playsinline style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\">"
-            f"<source src=\"{file_url}\" type=\"video/mp4\" />"
-            f"Your browser does not support the video tag."
-            f"</video>"
+            f'<video controls autoplay muted loop playsinline '
+            f'style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block;" '
+            f'onloadstart="this.style.backgroundColor=\'#f0f0f0\'" '
+            f'onerror="this.style.display=\'none\'; console.error(\'Video failed to load\')">'
+            f'<source src="{data_uri}" type="video/mp4" />'
+            f'<p style="text-align: center; color: #666;">Your browser does not support the video tag.</p>'
+            f'</video>'
         )
-        print("[Text2Video] Successfully generated video HTML tag from text")
+        
+        print(f"[Text2Video] Successfully generated video HTML tag with data URI ({len(compressed_video_bytes)} bytes)")
+        
+        # Validate the generated video HTML
+        if not validate_video_html(video_html):
+            print("[Text2Video] Generated video HTML failed validation")
+            return "Error: Generated video HTML is malformed"
+        
         return video_html
     except Exception as e:
         import traceback
@@ -1978,7 +2116,7 @@ def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> s
 def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_id: Optional[str] = None) -> str:
     """Generate music from a text prompt using ElevenLabs Music API and return an HTML <audio> tag.
 
-    Saves audio to a temp file and references it via file:// URL similar to videos.
+    Returns compressed data URI for deployment compatibility.
     Requires ELEVENLABS_API_KEY in the environment.
     """
     try:
@@ -2001,38 +2139,30 @@ def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_
         except Exception as e:
             return f"Error generating music: {getattr(e, 'response', resp).text if hasattr(e, 'response') else resp.text}"
 
-        # Persist audio to temp file and return an <audio> element using file:// URL
-        _ensure_audio_dir_exists()
-        file_name = f"{uuid.uuid4()}.wav"
-        file_path = os.path.join(AUDIO_TEMP_DIR, file_name)
-        try:
-            with open(file_path, 'wb') as f:
-                f.write(resp.content)
-            _register_audio_for_session(session_id, file_path)
-        except Exception as save_exc:
-            return f"Error generating music: could not save audio file ({save_exc})"
-
-        # Build file URI
-        try:
-            from pathlib import Path
-            file_url = Path(file_path).as_uri()
-        except Exception:
-            if file_path.startswith('/'):
-                file_url = f"file:///{file_path.lstrip('/')}"
-            else:
-                file_url = f"file:///{file_path}"
-
+        # Convert audio to compressed data URI for deployment compatibility
+        import base64
+        
+        # Compress audio for data URI embedding
+        compressed_audio_bytes = compress_audio_for_data_uri(resp.content, max_size_mb=4)
+        
+        # Create data URI - use appropriate MIME type based on compression
+        audio_format = "audio/mpeg" if len(compressed_audio_bytes) < len(resp.content) else "audio/wav"
+        audio_b64 = base64.b64encode(compressed_audio_bytes).decode()
+        data_uri = f"data:{audio_format};base64,{audio_b64}"
+        
         audio_html = (
             "<div class=\"anycoder-music\" style=\"max-width:420px;margin:16px auto;padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;background:linear-gradient(180deg,#fafafa,#f3f4f6);box-shadow:0 2px 8px rgba(0,0,0,0.06)\">"
             "  <div style=\"font-size:13px;color:#374151;margin-bottom:8px;display:flex;align-items:center;gap:6px\">"
             "    <span>🎵 Generated music</span>"
             "  </div>"
             f"  <audio controls autoplay loop style=\"width:100%;outline:none;\">"
-            f"    <source src=\"{file_url}\" type=\"audio/wav\" />"
+            f"    <source src=\"{data_uri}\" type=\"{audio_format}\" />"
             "    Your browser does not support the audio element."
             "  </audio>"
             "</div>"
         )
+        
+        print(f"[Music] Successfully generated music HTML tag with data URI ({len(compressed_audio_bytes)} bytes)")
         return audio_html
     except Exception as e:
         return f"Error generating music: {str(e)}"
@@ -2315,15 +2445,50 @@ def create_video_replacement_blocks_text_to_video(html_content: str, prompt: str
 {REPLACE_END}""")
         return '\n\n'.join(blocks)
 
-    # Otherwise insert after <body>
+    # Otherwise insert after <body> with proper container
     if '<body' in html_content:
-        body_end = html_content.find('>', html_content.find('<body')) + 1
-        insertion_point = html_content[:body_end] + '\n    '
-        return f"""{SEARCH_START}
+        body_start = html_content.find('<body')
+        body_end = html_content.find('>', body_start) + 1
+        opening_body_tag = html_content[body_start:body_end]
+        
+        # Look for existing container elements to insert into
+        body_content_start = body_end
+        
+        # Try to find a good insertion point within existing content structure
+        patterns_to_try = [
+            r'<main[^>]*>',
+            r'<section[^>]*class="[^"]*hero[^"]*"[^>]*>',
+            r'<div[^>]*class="[^"]*container[^"]*"[^>]*>',
+            r'<header[^>]*>',
+        ]
+        
+        insertion_point = None
+        for pattern in patterns_to_try:
+            import re
+            match = re.search(pattern, html_content[body_content_start:], re.IGNORECASE)
+            if match:
+                match_end = body_content_start + match.end()
+                # Find the end of this tag
+                tag_content = html_content[body_content_start + match.start():match_end]
+                insertion_point = html_content[:match_end] + '\n        '
+                break
+        
+        if not insertion_point:
+            # Fallback to right after body tag with container div
+            insertion_point = html_content[:body_end] + '\n    '
+            video_with_container = f'<div class="video-container" style="margin: 20px 0; text-align: center;">\n        {video_html}\n    </div>'
+            return f"""{SEARCH_START}
 {insertion_point}
 {DIVIDER}
 {insertion_point}
-    {video_html}
+    {video_with_container}
+{REPLACE_END}"""
+        else:
+            return f"""{SEARCH_START}
+{insertion_point}
+{DIVIDER}
+{insertion_point}
+        {video_html}
 {REPLACE_END}"""
 
     # If no <body>, just append
@@ -2586,10 +2751,17 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
             try:
                 video_html_tag = generate_video_from_image(input_image_data, i2v_prompt, session_id=session_id)
                 if not (video_html_tag or "").startswith("Error"):
-                    blocks_v = llm_place_media(result, video_html_tag, media_kind="video")
+                    # Validate video HTML before attempting placement
+                    if validate_video_html(video_html_tag):
+                        blocks_v = llm_place_media(result, video_html_tag, media_kind="video")
+                    else:
+                        print("[MediaApply] Generated video HTML failed validation, skipping LLM placement")
+                        blocks_v = ""
                 else:
+                    print(f"[MediaApply] Video generation failed: {video_html_tag}")
                     blocks_v = ""
-            except Exception:
+            except Exception as e:
+                print(f"[MediaApply] Exception during image-to-video generation: {str(e)}")
                 blocks_v = ""
             if not blocks_v:
                 blocks_v = create_video_replacement_blocks_from_input_image(result, i2v_prompt, input_image_data, session_id=session_id)
@@ -2622,10 +2794,17 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
             try:
                 video_html_tag = generate_video_from_text(t2v_prompt, session_id=session_id)
                 if not (video_html_tag or "").startswith("Error"):
-                    blocks_tv = llm_place_media(result, video_html_tag, media_kind="video")
+                    # Validate video HTML before attempting placement
+                    if validate_video_html(video_html_tag):
+                        blocks_tv = llm_place_media(result, video_html_tag, media_kind="video")
+                    else:
+                        print("[MediaApply] Generated video HTML failed validation, skipping LLM placement")
+                        blocks_tv = ""
                 else:
+                    print(f"[MediaApply] Video generation failed: {video_html_tag}")
                     blocks_tv = ""
-            except Exception:
+            except Exception as e:
+                print(f"[MediaApply] Exception during text-to-video generation: {str(e)}")
                 blocks_tv = ""
             if not blocks_tv:
                 blocks_tv = create_video_replacement_blocks_text_to_video(result, t2v_prompt, session_id=session_id)
