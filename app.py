@@ -34,6 +34,7 @@ import shutil
 import urllib.parse
 import mimetypes
 import threading
+import atexit
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
@@ -1803,16 +1804,130 @@ def compress_audio_for_data_uri(audio_bytes: bytes, max_size_mb: int = 4) -> byt
         print(f"[AudioCompress] Compression failed: {e}, using original audio")
         return audio_bytes
 
+# ---------------------------------------------------------------------------
+# General temp media file management (per-session tracking and cleanup)
+# ---------------------------------------------------------------------------
+MEDIA_TEMP_DIR = os.path.join(tempfile.gettempdir(), "anycoder_media")
+MEDIA_FILE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
+_SESSION_MEDIA_FILES: Dict[str, List[str]] = {}
+_MEDIA_FILES_LOCK = threading.Lock()
+
 # Global dictionary to store temporary media files for the session
 temp_media_files = {}
 
-def create_temp_media_url(media_bytes: bytes, filename: str, media_type: str = "image") -> str:
+def _ensure_media_dir_exists() -> None:
+    """Ensure the media temp directory exists."""
+    try:
+        os.makedirs(MEDIA_TEMP_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+def track_session_media_file(session_id: Optional[str], file_path: str) -> None:
+    """Track a media file for session-based cleanup."""
+    if not session_id or not file_path:
+        return
+    with _MEDIA_FILES_LOCK:
+        if session_id not in _SESSION_MEDIA_FILES:
+            _SESSION_MEDIA_FILES[session_id] = []
+        _SESSION_MEDIA_FILES[session_id].append(file_path)
+
+def cleanup_session_media(session_id: Optional[str]) -> None:
+    """Clean up media files for a specific session."""
+    if not session_id:
+        return
+    with _MEDIA_FILES_LOCK:
+        files_to_clean = _SESSION_MEDIA_FILES.pop(session_id, [])
+    
+    for path in files_to_clean:
+        try:
+            if path and os.path.exists(path):
+                os.unlink(path)
+        except Exception:
+            # Best-effort cleanup
+            pass
+
+def reap_old_media(ttl_seconds: int = MEDIA_FILE_TTL_SECONDS) -> None:
+    """Delete old media files in the temp directory based on modification time."""
+    try:
+        _ensure_media_dir_exists()
+        now_ts = time.time()
+        for name in os.listdir(MEDIA_TEMP_DIR):
+            path = os.path.join(MEDIA_TEMP_DIR, name)
+            if os.path.isfile(path):
+                try:
+                    mtime = os.path.getmtime(path)
+                    if (now_ts - mtime) > ttl_seconds:
+                        os.unlink(path)
+                except Exception:
+                    pass
+    except Exception:
+        # Temp dir might not exist or be accessible; ignore
+        pass
+
+def cleanup_all_temp_media_on_startup() -> None:
+    """Clean up all temporary media files on app startup."""
+    try:
+        # Clean up temp_media_files registry
+        temp_media_files.clear()
+        
+        # Clean up actual files from disk (assume all are orphaned on startup)
+        _ensure_media_dir_exists()
+        for name in os.listdir(MEDIA_TEMP_DIR):
+            path = os.path.join(MEDIA_TEMP_DIR, name)
+            if os.path.isfile(path):
+                try:
+                    os.unlink(path)
+                except Exception:
+                    pass
+        
+        # Clear session tracking
+        with _MEDIA_FILES_LOCK:
+            _SESSION_MEDIA_FILES.clear()
+            
+        print("[StartupCleanup] Cleaned up orphaned temporary media files")
+    except Exception as e:
+        print(f"[StartupCleanup] Error during media cleanup: {str(e)}")
+
+def cleanup_all_temp_media_on_shutdown() -> None:
+    """Clean up all temporary media files on app shutdown."""
+    try:
+        print("[ShutdownCleanup] Cleaning up temporary media files...")
+        
+        # Clean up temp_media_files registry and remove files
+        for file_id, file_info in temp_media_files.items():
+            try:
+                if os.path.exists(file_info['path']):
+                    os.unlink(file_info['path'])
+            except Exception:
+                pass
+        temp_media_files.clear()
+        
+        # Clean up all session files
+        with _MEDIA_FILES_LOCK:
+            for session_id, file_paths in _SESSION_MEDIA_FILES.items():
+                for path in file_paths:
+                    try:
+                        if path and os.path.exists(path):
+                            os.unlink(path)
+                    except Exception:
+                        pass
+            _SESSION_MEDIA_FILES.clear()
+        
+        print("[ShutdownCleanup] Temporary media cleanup completed")
+    except Exception as e:
+        print(f"[ShutdownCleanup] Error during cleanup: {str(e)}")
+
+# Register shutdown cleanup handler
+atexit.register(cleanup_all_temp_media_on_shutdown)
+
+def create_temp_media_url(media_bytes: bytes, filename: str, media_type: str = "image", session_id: Optional[str] = None) -> str:
     """Create a temporary file and return a local URL for preview.
     
     Args:
         media_bytes: Raw bytes of the media file
         filename: Name for the file (will be made unique)
         media_type: Type of media ('image', 'video', 'audio')
+        session_id: Session ID for tracking cleanup
     
     Returns:
         Temporary file URL for preview or error message
@@ -1824,14 +1939,17 @@ def create_temp_media_url(media_bytes: bytes, filename: str, media_type: str = "
         base_name, ext = os.path.splitext(filename)
         unique_filename = f"{media_type}_{timestamp}_{unique_id}_{base_name}{ext}"
         
-        # Create temporary file in a dedicated directory
-        temp_dir = os.path.join(tempfile.gettempdir(), "anycoder_media")
-        os.makedirs(temp_dir, exist_ok=True)
-        temp_path = os.path.join(temp_dir, unique_filename)
+        # Create temporary file in the dedicated directory
+        _ensure_media_dir_exists()
+        temp_path = os.path.join(MEDIA_TEMP_DIR, unique_filename)
         
         # Write media bytes to temporary file
         with open(temp_path, 'wb') as f:
             f.write(media_bytes)
+        
+        # Track file for session-based cleanup
+        if session_id:
+            track_session_media_file(session_id, temp_path)
         
         # Store the file info for later upload
         file_id = f"{media_type}_{unique_id}"
@@ -4146,8 +4264,10 @@ Generate the exact search/replace blocks needed to make these changes."""
     try:
         cleanup_session_videos(session_id)
         cleanup_session_audio(session_id)
+        cleanup_session_media(session_id)
         reap_old_videos()
         reap_old_audio()
+        reap_old_media()
     except Exception:
         pass
 
@@ -7459,6 +7579,9 @@ with gr.Blocks(
     # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.
 
 if __name__ == "__main__":
+    # Clean up any orphaned temporary files from previous runs
+    cleanup_all_temp_media_on_startup()
+    
     demo.queue(api_open=False, default_concurrency_limit=20).launch(
         show_api=False, 
         ssr_mode=True, 
