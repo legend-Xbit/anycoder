@@ -6335,6 +6335,8 @@ with gr.Blocks(
 
     with gr.Column() as main_column:
         with gr.Tabs():
+            with gr.Tab("Preview"):
+                sandbox = gr.HTML(label="Live preview")
             with gr.Tab("Code"):
                 code_output = gr.Code(
                     language="html", 
@@ -6343,7 +6345,7 @@ with gr.Blocks(
                     label="Generated code"
                 )
                 
-
+                
                 
                 # Transformers.js multi-file editors (hidden by default)
                 with gr.Group(visible=False) as tjs_group:
@@ -6354,8 +6356,47 @@ with gr.Blocks(
                             tjs_js_code = gr.Code(language="javascript", lines=20, interactive=True, label="index.js")
                         with gr.Tab("style.css"):
                             tjs_css_code = gr.Code(language="css", lines=20, interactive=True, label="style.css")
-            with gr.Tab("Preview"):
-                sandbox = gr.HTML(label="Live preview")
+                
+                # Static HTML multi-file editors (hidden by default). Use separate tab groups for different file counts.
+                with gr.Group(visible=False) as static_group_2:
+                    with gr.Tabs():
+                        with gr.Tab("index.html") as static_tab_2_1:
+                            static_code_2_1 = gr.Code(language="html", lines=20, interactive=True, label="index.html")
+                        with gr.Tab("file 2") as static_tab_2_2:
+                            static_code_2_2 = gr.Code(language="html", lines=18, interactive=True, label="file 2")
+                
+                with gr.Group(visible=False) as static_group_3:
+                    with gr.Tabs():
+                        with gr.Tab("index.html") as static_tab_3_1:
+                            static_code_3_1 = gr.Code(language="html", lines=20, interactive=True, label="index.html")
+                        with gr.Tab("file 2") as static_tab_3_2:
+                            static_code_3_2 = gr.Code(language="html", lines=18, interactive=True, label="file 2")
+                        with gr.Tab("file 3") as static_tab_3_3:
+                            static_code_3_3 = gr.Code(language="html", lines=18, interactive=True, label="file 3")
+                
+                with gr.Group(visible=False) as static_group_4:
+                    with gr.Tabs():
+                        with gr.Tab("index.html") as static_tab_4_1:
+                            static_code_4_1 = gr.Code(language="html", lines=20, interactive=True, label="index.html")
+                        with gr.Tab("file 2") as static_tab_4_2:
+                            static_code_4_2 = gr.Code(language="html", lines=18, interactive=True, label="file 2")
+                        with gr.Tab("file 3") as static_tab_4_3:
+                            static_code_4_3 = gr.Code(language="html", lines=18, interactive=True, label="file 3")
+                        with gr.Tab("file 4") as static_tab_4_4:
+                            static_code_4_4 = gr.Code(language="html", lines=18, interactive=True, label="file 4")
+                
+                with gr.Group(visible=False) as static_group_5plus:
+                    with gr.Tabs():
+                        with gr.Tab("index.html") as static_tab_5_1:
+                            static_code_5_1 = gr.Code(language="html", lines=20, interactive=True, label="index.html")
+                        with gr.Tab("file 2") as static_tab_5_2:
+                            static_code_5_2 = gr.Code(language="html", lines=18, interactive=True, label="file 2")
+                        with gr.Tab("file 3") as static_tab_5_3:
+                            static_code_5_3 = gr.Code(language="html", lines=18, interactive=True, label="file 3")
+                        with gr.Tab("file 4") as static_tab_5_4:
+                            static_code_5_4 = gr.Code(language="html", lines=18, interactive=True, label="file 4")
+                        with gr.Tab("file 5") as static_tab_5_5:
+                            static_code_5_5 = gr.Code(language="html", lines=18, interactive=True, label="file 5")
             # Removed Import Logs tab for cleaner UI
             # History tab hidden per user request
             # with gr.Tab("History"):
@@ -6497,6 +6538,165 @@ with gr.Blocks(
         toggle_editors,
         inputs=[language_dropdown, code_output],
         outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code],
+    )
+
+    # Static HTML multi-file toggling and population
+    def toggle_static_editors(language, code_text):
+        # If not static HTML language, ensure single editor visible and all static groups hidden
+        if language != "html":
+            return [
+                gr.update(visible=True),     # code_output
+                gr.update(visible=False),    # static_group_2
+                gr.update(visible=False),    # static_group_3  
+                gr.update(visible=False),    # static_group_4
+                gr.update(visible=False),    # static_group_5plus
+                # All tab and code components get empty updates (tab, code, tab, code, ...)
+                gr.update(), gr.update(), gr.update(), gr.update(),  # 2-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 3-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 4-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()  # 5-file group
+            ]
+
+        files = parse_multipage_html_output(code_text or "")
+        files = validate_and_autofix_files(files)
+
+        if not isinstance(files, dict) or len(files) <= 1:
+            # No multi-file content; keep single editor
+            return [
+                gr.update(visible=True),     # code_output
+                gr.update(visible=False),    # static_group_2
+                gr.update(visible=False),    # static_group_3  
+                gr.update(visible=False),    # static_group_4
+                gr.update(visible=False),    # static_group_5plus
+                # All tab and code components get empty updates (tab, code, tab, code, ...)
+                gr.update(), gr.update(), gr.update(), gr.update(),  # 2-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 3-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 4-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()  # 5-file group
+            ]
+
+        # We have multi-file static output: hide single editor, show appropriate static group
+        # Order: index.html first, then others sorted by path
+        ordered_paths = []
+        if 'index.html' in files:
+            ordered_paths.append('index.html')
+        for p in sorted(files.keys()):
+            if p == 'index.html':
+                continue
+            ordered_paths.append(p)
+
+        # Map extension to language
+        def _lang_for(path: str):
+            p = (path or '').lower()
+            if p.endswith('.html'):
+                return 'html'
+            if p.endswith('.css'):
+                return 'css'
+            if p.endswith('.js'):
+                return 'javascript'
+            if p.endswith('.json'):
+                return 'json'
+            if p.endswith('.md') or p.endswith('.markdown'):
+                return 'markdown'
+            return 'html'
+
+        num_files = len(ordered_paths)
+        
+        # Hide single editor, show appropriate group based on file count
+        updates = [gr.update(visible=False)]  # code_output
+        
+        if num_files == 2:
+            updates.extend([
+                gr.update(visible=True),     # static_group_2
+                gr.update(visible=False),    # static_group_3  
+                gr.update(visible=False),    # static_group_4
+                gr.update(visible=False),    # static_group_5plus
+            ])
+            # Populate 2-file group (tab labels + code content)
+            path1, path2 = ordered_paths[0], ordered_paths[1]
+            updates.extend([
+                gr.update(label=path1), gr.update(value=files.get(path1, ''), label=path1, language=_lang_for(path1)),
+                gr.update(label=path2), gr.update(value=files.get(path2, ''), label=path2, language=_lang_for(path2)),
+                # Empty updates for unused groups
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+            ])
+        elif num_files == 3:
+            updates.extend([
+                gr.update(visible=False),    # static_group_2
+                gr.update(visible=True),     # static_group_3  
+                gr.update(visible=False),    # static_group_4
+                gr.update(visible=False),    # static_group_5plus
+            ])
+            # Populate 3-file group (tab labels + code content)
+            path1, path2, path3 = ordered_paths[0], ordered_paths[1], ordered_paths[2]
+            updates.extend([
+                # Empty updates for 2-file group
+                gr.update(), gr.update(), gr.update(), gr.update(),
+                # Populate 3-file group
+                gr.update(label=path1), gr.update(value=files.get(path1, ''), label=path1, language=_lang_for(path1)),
+                gr.update(label=path2), gr.update(value=files.get(path2, ''), label=path2, language=_lang_for(path2)),
+                gr.update(label=path3), gr.update(value=files.get(path3, ''), label=path3, language=_lang_for(path3)),
+                # Empty updates for unused groups
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+            ])
+        elif num_files == 4:
+            updates.extend([
+                gr.update(visible=False),    # static_group_2
+                gr.update(visible=False),    # static_group_3  
+                gr.update(visible=True),     # static_group_4
+                gr.update(visible=False),    # static_group_5plus
+            ])
+            # Populate 4-file group (tab labels + code content)
+            paths = ordered_paths[:4]
+            updates.extend([
+                # Empty updates for 2-file and 3-file groups
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                # Populate 4-file group
+                gr.update(label=paths[0]), gr.update(value=files.get(paths[0], ''), label=paths[0], language=_lang_for(paths[0])),
+                gr.update(label=paths[1]), gr.update(value=files.get(paths[1], ''), label=paths[1], language=_lang_for(paths[1])),
+                gr.update(label=paths[2]), gr.update(value=files.get(paths[2], ''), label=paths[2], language=_lang_for(paths[2])),
+                gr.update(label=paths[3]), gr.update(value=files.get(paths[3], ''), label=paths[3], language=_lang_for(paths[3])),
+                # Empty updates for 5+ group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+            ])
+        else:  # 5+ files
+            updates.extend([
+                gr.update(visible=False),    # static_group_2
+                gr.update(visible=False),    # static_group_3  
+                gr.update(visible=False),    # static_group_4
+                gr.update(visible=True),     # static_group_5plus
+            ])
+            # Populate 5+ file group (show first 5) (tab labels + code content)
+            paths = ordered_paths[:5]
+            updates.extend([
+                # Empty updates for 2-file, 3-file, and 4-file groups
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                # Populate 5+ file group
+                gr.update(label=paths[0]), gr.update(value=files.get(paths[0], ''), label=paths[0], language=_lang_for(paths[0])),
+                gr.update(label=paths[1]), gr.update(value=files.get(paths[1], ''), label=paths[1], language=_lang_for(paths[1])),
+                gr.update(label=paths[2]), gr.update(value=files.get(paths[2], ''), label=paths[2], language=_lang_for(paths[2])),
+                gr.update(label=paths[3]), gr.update(value=files.get(paths[3], ''), label=paths[3], language=_lang_for(paths[3])),
+                gr.update(label=paths[4]), gr.update(value=files.get(paths[4], ''), label=paths[4], language=_lang_for(paths[4]))
+            ])
+
+        return updates
+
+    # Respond to language change to show/hide static multi-file editors appropriately
+    language_dropdown.change(
+        toggle_static_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[
+            code_output, 
+            static_group_2, static_group_3, static_group_4, static_group_5plus,
+            static_tab_2_1, static_code_2_1, static_tab_2_2, static_code_2_2,
+            static_tab_3_1, static_code_3_1, static_tab_3_2, static_code_3_2, static_tab_3_3, static_code_3_3,
+            static_tab_4_1, static_code_4_1, static_tab_4_2, static_code_4_2, static_tab_4_3, static_code_4_3, static_tab_4_4, static_code_4_4,
+            static_tab_5_1, static_code_5_1, static_tab_5_2, static_code_5_2, static_tab_5_3, static_code_5_3, static_tab_5_4, static_code_5_4, static_tab_5_5, static_code_5_5,
+        ],
     )
 
     def sync_tjs_from_code(code_text, language):
@@ -6641,6 +6841,18 @@ with gr.Blocks(
         toggle_editors,
         inputs=[language_dropdown, code_output],
         outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code]
+    ).then(
+        # After generation, toggle static multi-file editors for HTML
+        toggle_static_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[
+            code_output, 
+            static_group_2, static_group_3, static_group_4, static_group_5plus,
+            static_tab_2_1, static_code_2_1, static_tab_2_2, static_code_2_2,
+            static_tab_3_1, static_code_3_1, static_tab_3_2, static_code_3_2, static_tab_3_3, static_code_3_3,
+            static_tab_4_1, static_code_4_1, static_tab_4_2, static_code_4_2, static_tab_4_3, static_code_4_3, static_tab_4_4, static_code_4_4,
+            static_tab_5_1, static_code_5_1, static_tab_5_2, static_code_5_2, static_tab_5_3, static_code_5_3, static_tab_5_4, static_code_5_4, static_tab_5_5, static_code_5_5,
+        ]
     ).then(
         show_deploy_components,
         None,
@@ -6896,6 +7108,17 @@ with gr.Blocks(
         toggle_editors,
         inputs=[language_dropdown, code_output],
         outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code]
+    ).then(
+        toggle_static_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[
+            code_output, 
+            static_group_2, static_group_3, static_group_4, static_group_5plus,
+            static_tab_2_1, static_code_2_1, static_tab_2_2, static_code_2_2,
+            static_tab_3_1, static_code_3_1, static_tab_3_2, static_code_3_2, static_tab_3_3, static_code_3_3,
+            static_tab_4_1, static_code_4_1, static_tab_4_2, static_code_4_2, static_tab_4_3, static_code_4_3, static_tab_4_4, static_code_4_4,
+            static_tab_5_1, static_code_5_1, static_tab_5_2, static_code_5_2, static_tab_5_3, static_code_5_3, static_tab_5_4, static_code_5_4, static_tab_5_5, static_code_5_5,
+        ]
     ).then(
         show_deploy_components,
         None,
