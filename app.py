@@ -27,8 +27,12 @@ from tavily import TavilyClient
 from huggingface_hub import HfApi
 import tempfile
 from openai import OpenAI
-from mistralai import Mistral
 import uuid
+import datetime
+from mistralai import Mistral
+import shutil
+import urllib.parse
+import mimetypes
 import threading
 
 # Gradio supported languages for syntax highlighting
@@ -84,8 +88,11 @@ def validate_video_html(video_html: str) -> bool:
         if '<source' not in video_html:
             return False
         
-        # Check for data URI format
-        if 'data:video/mp4;base64,' not in video_html:
+        # Check for valid video source (data URI, HF URL, or file URL)
+        has_data_uri = 'data:video/mp4;base64,' in video_html
+        has_hf_url = 'https://huggingface.co/datasets/' in video_html and '/resolve/main/' in video_html
+        has_file_url = 'file://' in video_html
+        if not (has_data_uri or has_hf_url or has_file_url):
             return False
         
         # Basic HTML structure validation
@@ -1796,8 +1803,217 @@ def compress_audio_for_data_uri(audio_bytes: bytes, max_size_mb: int = 4) -> byt
         print(f"[AudioCompress] Compression failed: {e}, using original audio")
         return audio_bytes
 
-def generate_image_with_qwen(prompt: str, image_index: int = 0) -> str:
-    """Generate image using Qwen image model via Hugging Face InferenceClient with optimized data URL"""
+# Global dictionary to store temporary media files for the session
+temp_media_files = {}
+
+def create_temp_media_url(media_bytes: bytes, filename: str, media_type: str = "image") -> str:
+    """Create a temporary file and return a local URL for preview.
+    
+    Args:
+        media_bytes: Raw bytes of the media file
+        filename: Name for the file (will be made unique)
+        media_type: Type of media ('image', 'video', 'audio')
+    
+    Returns:
+        Temporary file URL for preview or error message
+    """
+    try:
+        # Create unique filename with timestamp and UUID
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        base_name, ext = os.path.splitext(filename)
+        unique_filename = f"{media_type}_{timestamp}_{unique_id}_{base_name}{ext}"
+        
+        # Create temporary file in a dedicated directory
+        temp_dir = os.path.join(tempfile.gettempdir(), "anycoder_media")
+        os.makedirs(temp_dir, exist_ok=True)
+        temp_path = os.path.join(temp_dir, unique_filename)
+        
+        # Write media bytes to temporary file
+        with open(temp_path, 'wb') as f:
+            f.write(media_bytes)
+        
+        # Store the file info for later upload
+        file_id = f"{media_type}_{unique_id}"
+        temp_media_files[file_id] = {
+            'path': temp_path,
+            'filename': filename,
+            'media_type': media_type,
+            'media_bytes': media_bytes
+        }
+        
+        # Return file:// URL for preview
+        file_url = f"file://{temp_path}"
+        print(f"[TempMedia] Created temporary {media_type} file: {file_url}")
+        return file_url
+        
+    except Exception as e:
+        print(f"[TempMedia] Failed to create temporary file: {str(e)}")
+        return f"Error creating temporary {media_type} file: {str(e)}"
+
+def upload_media_to_hf(media_bytes: bytes, filename: str, media_type: str = "image", token: gr.OAuthToken | None = None, use_temp: bool = True) -> str:
+    """Upload media file to user's Hugging Face account or create temporary file.
+    
+    Args:
+        media_bytes: Raw bytes of the media file
+        filename: Name for the file (will be made unique)
+        media_type: Type of media ('image', 'video', 'audio')
+        token: OAuth token from gr.login (takes priority over env var)
+        use_temp: If True, create temporary file for preview; if False, upload to HF
+    
+    Returns:
+        Permanent URL to the uploaded file, temporary URL, or error message
+    """
+    try:
+        # If use_temp is True, create temporary file for preview
+        if use_temp:
+            return create_temp_media_url(media_bytes, filename, media_type)
+        
+        # Otherwise, upload to Hugging Face for permanent URL
+        # Try to get token from OAuth first, then fall back to environment variable
+        hf_token = None
+        if token and token.token:
+            hf_token = token.token
+        else:
+            hf_token = os.getenv('HF_TOKEN')
+        
+        if not hf_token:
+            return "Error: Please log in with your Hugging Face account to upload media, or set HF_TOKEN environment variable."
+        
+        # Initialize HF API
+        api = HfApi(token=hf_token)
+        
+        # Get current user info to determine username
+        try:
+            user_info = api.whoami()
+            username = user_info.get('name', 'unknown-user')
+        except Exception as e:
+            print(f"[HFUpload] Could not get user info: {e}")
+            username = 'anycoder-user'
+        
+        # Create repository name for media storage
+        repo_name = f"{username}/anycoder-media"
+        
+        # Try to create the repository if it doesn't exist
+        try:
+            api.create_repo(
+                repo_id=repo_name,
+                repo_type="dataset",
+                private=False,
+                exist_ok=True
+            )
+            print(f"[HFUpload] Repository {repo_name} ready")
+        except Exception as e:
+            print(f"[HFUpload] Repository creation/access issue: {e}")
+            # Continue anyway, repo might already exist
+        
+        # Create unique filename with timestamp and UUID
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = str(uuid.uuid4())[:8]
+        base_name, ext = os.path.splitext(filename)
+        unique_filename = f"{media_type}/{timestamp}_{unique_id}_{base_name}{ext}"
+        
+        # Create temporary file for upload
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
+            temp_file.write(media_bytes)
+            temp_path = temp_file.name
+        
+        try:
+            # Upload file to HF repository
+            api.upload_file(
+                path_or_fileobj=temp_path,
+                path_in_repo=unique_filename,
+                repo_id=repo_name,
+                repo_type="dataset",
+                commit_message=f"Upload {media_type} generated by AnyCoder"
+            )
+            
+            # Generate permanent URL
+            permanent_url = f"https://huggingface.co/datasets/{repo_name}/resolve/main/{unique_filename}"
+            print(f"[HFUpload] Successfully uploaded {media_type} to {permanent_url}")
+            return permanent_url
+            
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_path)
+            except Exception:
+                pass
+                
+    except Exception as e:
+        print(f"[HFUpload] Upload failed: {str(e)}")
+        return f"Error uploading {media_type} to Hugging Face: {str(e)}"
+
+def upload_temp_files_to_hf_and_replace_urls(html_content: str, token: gr.OAuthToken | None = None) -> str:
+    """Upload all temporary media files to HF and replace their URLs in HTML content.
+    
+    Args:
+        html_content: HTML content containing temporary file URLs
+        token: OAuth token for HF authentication
+    
+    Returns:
+        Updated HTML content with permanent HF URLs
+    """
+    try:
+        if not temp_media_files:
+            print("[DeployUpload] No temporary media files to upload")
+            return html_content
+        
+        print(f"[DeployUpload] Uploading {len(temp_media_files)} temporary media files to HF")
+        updated_content = html_content
+        
+        for file_id, file_info in temp_media_files.items():
+            try:
+                # Upload to HF with permanent URL
+                permanent_url = upload_media_to_hf(
+                    file_info['media_bytes'],
+                    file_info['filename'], 
+                    file_info['media_type'],
+                    token,
+                    use_temp=False  # Force permanent upload
+                )
+                
+                if not permanent_url.startswith("Error"):
+                    # Replace the temporary file URL with permanent URL
+                    temp_url = f"file://{file_info['path']}"
+                    updated_content = updated_content.replace(temp_url, permanent_url)
+                    print(f"[DeployUpload] Replaced {temp_url} with {permanent_url}")
+                else:
+                    print(f"[DeployUpload] Failed to upload {file_id}: {permanent_url}")
+            
+            except Exception as e:
+                print(f"[DeployUpload] Error uploading {file_id}: {str(e)}")
+                continue
+        
+        # Clean up temporary files after upload
+        cleanup_temp_media_files()
+        
+        return updated_content
+        
+    except Exception as e:
+        print(f"[DeployUpload] Failed to upload temporary files: {str(e)}")
+        return html_content
+
+def cleanup_temp_media_files():
+    """Clean up temporary media files from disk and memory."""
+    try:
+        for file_id, file_info in temp_media_files.items():
+            try:
+                if os.path.exists(file_info['path']):
+                    os.remove(file_info['path'])
+                    print(f"[TempCleanup] Removed {file_info['path']}")
+            except Exception as e:
+                print(f"[TempCleanup] Failed to remove {file_info['path']}: {str(e)}")
+        
+        # Clear the global dictionary
+        temp_media_files.clear()
+        print("[TempCleanup] Cleared temporary media files registry")
+        
+    except Exception as e:
+        print(f"[TempCleanup] Error during cleanup: {str(e)}")
+
+def generate_image_with_qwen(prompt: str, image_index: int = 0, token: gr.OAuthToken | None = None) -> str:
+    """Generate image using Qwen image model via Hugging Face InferenceClient and upload to HF for permanent URL"""
     try:
         # Check if HF_TOKEN is available
         if not os.getenv('HF_TOKEN'):
@@ -1817,27 +2033,33 @@ def generate_image_with_qwen(prompt: str, image_index: int = 0) -> str:
         )
         
         # Resize image to reduce size while maintaining quality
-        max_size = 512
+        max_size = 1024  # Increased size since we're not using data URIs
         if image.width > max_size or image.height > max_size:
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
         
-        # Convert PIL Image to optimized base64 for HTML embedding
+        # Convert PIL Image to bytes for upload
         import io
-        import base64
-        
         buffer = io.BytesIO()
-        # Save as JPEG with compression for smaller file size
-        image.convert('RGB').save(buffer, format='JPEG', quality=85, optimize=True)
-        img_str = base64.b64encode(buffer.getvalue()).decode()
+        # Save as JPEG with good quality since we're not embedding
+        image.convert('RGB').save(buffer, format='JPEG', quality=90, optimize=True)
+        image_bytes = buffer.getvalue()
         
-        # Return HTML img tag with optimized data URL
-        return f'<img src="data:image/jpeg;base64,{img_str}" alt="{prompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" loading="lazy" />'
+        # Create temporary URL for preview (will be uploaded to HF during deploy)
+        filename = f"generated_image_{image_index}.jpg"
+        temp_url = upload_media_to_hf(image_bytes, filename, "image", token, use_temp=True)
+        
+        # Check if creation was successful
+        if temp_url.startswith("Error"):
+            return temp_url
+        
+        # Return HTML img tag with temporary URL
+        return f'<img src="{temp_url}" alt="{prompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" loading="lazy" />'
         
     except Exception as e:
         print(f"Image generation error: {str(e)}")
         return f"Error generating image: {str(e)}"
 
-def generate_image_to_image(input_image_data, prompt: str) -> str:
+def generate_image_to_image(input_image_data, prompt: str, token: gr.OAuthToken | None = None) -> str:
     """Generate an image using image-to-image with Qwen-Image-Edit via Hugging Face InferenceClient.
 
     Returns an HTML <img> tag with optimized base64 JPEG data, similar to text-to-image output.
@@ -1897,22 +2119,29 @@ def generate_image_to_image(input_image_data, prompt: str) -> str:
             model="Qwen/Qwen-Image-Edit",
         )
 
-        # Resize/optimize
-        max_size = 512
+        # Resize/optimize (larger since not using data URIs)
+        max_size = 1024
         if image.width > max_size or image.height > max_size:
             image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
 
         out_buf = io.BytesIO()
-        image.convert('RGB').save(out_buf, format='JPEG', quality=85, optimize=True)
+        image.convert('RGB').save(out_buf, format='JPEG', quality=90, optimize=True)
+        image_bytes = out_buf.getvalue()
 
-        import base64
-        img_str = base64.b64encode(out_buf.getvalue()).decode()
-        return f"<img src=\"data:image/jpeg;base64,{img_str}\" alt=\"{prompt}\" style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\" loading=\"lazy\" />"
+        # Create temporary URL for preview (will be uploaded to HF during deploy)
+        filename = "image_to_image_result.jpg"
+        temp_url = upload_media_to_hf(image_bytes, filename, "image", token, use_temp=True)
+        
+        # Check if creation was successful
+        if temp_url.startswith("Error"):
+            return temp_url
+
+        return f"<img src=\"{temp_url}\" alt=\"{prompt}\" style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\" loading=\"lazy\" />"
     except Exception as e:
         print(f"Image-to-image generation error: {str(e)}")
         return f"Error generating image (image-to-image): {str(e)}"
 
-def generate_video_from_image(input_image_data, prompt: str, session_id: Optional[str] = None) -> str:
+def generate_video_from_image(input_image_data, prompt: str, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
     """Generate a video from an input image and prompt using Hugging Face InferenceClient.
 
     Returns an HTML <video> tag whose source points to a local file URL (file://...).
@@ -2006,27 +2235,25 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
         )
         print(f"[Image2Video] Received video bytes: {len(video_bytes) if hasattr(video_bytes, '__len__') else 'unknown length'}")
 
-        # Convert video to compressed data URI for deployment compatibility
-        import base64
+        # Create temporary URL for preview (will be uploaded to HF during deploy)
+        filename = "image_to_video_result.mp4"
+        temp_url = upload_media_to_hf(video_bytes, filename, "video", token, use_temp=True)
         
-        # Compress video for data URI embedding
-        compressed_video_bytes = compress_video_for_data_uri(video_bytes, max_size_mb=8)
-        
-        # Create data URI
-        video_b64 = base64.b64encode(compressed_video_bytes).decode()
-        data_uri = f"data:video/mp4;base64,{video_b64}"
+        # Check if creation was successful
+        if temp_url.startswith("Error"):
+            return temp_url
         
         video_html = (
             f'<video controls autoplay muted loop playsinline '
             f'style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block;" '
             f'onloadstart="this.style.backgroundColor=\'#f0f0f0\'" '
             f'onerror="this.style.display=\'none\'; console.error(\'Video failed to load\')">'
-            f'<source src="{data_uri}" type="video/mp4" />'
+            f'<source src="{temp_url}" type="video/mp4" />'
             f'<p style="text-align: center; color: #666;">Your browser does not support the video tag.</p>'
             f'</video>'
         )
         
-        print(f"[Image2Video] Successfully generated video HTML tag with data URI ({len(compressed_video_bytes)} bytes)")
+        print(f"[Image2Video] Successfully generated video HTML tag with temporary URL: {temp_url}")
         
         # Validate the generated video HTML
         if not validate_video_html(video_html):
@@ -2041,7 +2268,7 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
         print(f"Image-to-video generation error: {str(e)}")
         return f"Error generating video (image-to-video): {str(e)}"
 
-def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> str:
+def generate_video_from_text(prompt: str, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
     """Generate a video from a text prompt using Hugging Face InferenceClient.
 
     Returns an HTML <video> tag with compressed data URI for deployment compatibility.
@@ -2069,7 +2296,7 @@ def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> s
                 "`pip install -U huggingface_hub` and try again."
             )
 
-        model_id = "Wan-AI/Wan2.2-TI2V-5B"
+        model_id = "Wan-AI/Wan2.2-T2V-A14B"
         prompt_str = (prompt or "").strip()
         print(f"[Text2Video] Calling text_to_video with model={model_id}, prompt length={len(prompt_str)}")
         video_bytes = text_to_video_method(
@@ -2078,27 +2305,25 @@ def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> s
         )
         print(f"[Text2Video] Received video bytes: {len(video_bytes) if hasattr(video_bytes, '__len__') else 'unknown length'}")
 
-        # Convert video to compressed data URI for deployment compatibility
-        import base64
+        # Create temporary URL for preview (will be uploaded to HF during deploy)
+        filename = "text_to_video_result.mp4"
+        temp_url = upload_media_to_hf(video_bytes, filename, "video", token, use_temp=True)
         
-        # Compress video for data URI embedding
-        compressed_video_bytes = compress_video_for_data_uri(video_bytes, max_size_mb=8)
-        
-        # Create data URI
-        video_b64 = base64.b64encode(compressed_video_bytes).decode()
-        data_uri = f"data:video/mp4;base64,{video_b64}"
+        # Check if creation was successful
+        if temp_url.startswith("Error"):
+            return temp_url
         
         video_html = (
             f'<video controls autoplay muted loop playsinline '
             f'style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block;" '
             f'onloadstart="this.style.backgroundColor=\'#f0f0f0\'" '
             f'onerror="this.style.display=\'none\'; console.error(\'Video failed to load\')">'
-            f'<source src="{data_uri}" type="video/mp4" />'
+            f'<source src="{temp_url}" type="video/mp4" />'
             f'<p style="text-align: center; color: #666;">Your browser does not support the video tag.</p>'
             f'</video>'
         )
         
-        print(f"[Text2Video] Successfully generated video HTML tag with data URI ({len(compressed_video_bytes)} bytes)")
+        print(f"[Text2Video] Successfully generated video HTML tag with temporary URL: {temp_url}")
         
         # Validate the generated video HTML
         if not validate_video_html(video_html):
@@ -2113,7 +2338,7 @@ def generate_video_from_text(prompt: str, session_id: Optional[str] = None) -> s
         print(f"Text-to-video generation error: {str(e)}")
         return f"Error generating video (text-to-video): {str(e)}"
 
-def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_id: Optional[str] = None) -> str:
+def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
     """Generate music from a text prompt using ElevenLabs Music API and return an HTML <audio> tag.
 
     Returns compressed data URI for deployment compatibility.
@@ -2139,16 +2364,13 @@ def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_
         except Exception as e:
             return f"Error generating music: {getattr(e, 'response', resp).text if hasattr(e, 'response') else resp.text}"
 
-        # Convert audio to compressed data URI for deployment compatibility
-        import base64
+        # Create temporary URL for preview (will be uploaded to HF during deploy)
+        filename = "generated_music.mp3"
+        temp_url = upload_media_to_hf(resp.content, filename, "audio", token, use_temp=True)
         
-        # Compress audio for data URI embedding
-        compressed_audio_bytes = compress_audio_for_data_uri(resp.content, max_size_mb=4)
-        
-        # Create data URI - use appropriate MIME type based on compression
-        audio_format = "audio/mpeg" if len(compressed_audio_bytes) < len(resp.content) else "audio/wav"
-        audio_b64 = base64.b64encode(compressed_audio_bytes).decode()
-        data_uri = f"data:{audio_format};base64,{audio_b64}"
+        # Check if creation was successful
+        if temp_url.startswith("Error"):
+            return temp_url
         
         audio_html = (
             "<div class=\"anycoder-music\" style=\"max-width:420px;margin:16px auto;padding:12px 16px;border:1px solid #e5e7eb;border-radius:12px;background:linear-gradient(180deg,#fafafa,#f3f4f6);box-shadow:0 2px 8px rgba(0,0,0,0.06)\">"
@@ -2156,13 +2378,13 @@ def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_
             "    <span>🎵 Generated music</span>"
             "  </div>"
             f"  <audio controls autoplay loop style=\"width:100%;outline:none;\">"
-            f"    <source src=\"{data_uri}\" type=\"{audio_format}\" />"
+            f"    <source src=\"{temp_url}\" type=\"audio/mpeg\" />"
             "    Your browser does not support the audio element."
             "  </audio>"
             "</div>"
         )
         
-        print(f"[Music] Successfully generated music HTML tag with data URI ({len(compressed_audio_bytes)} bytes)")
+        print(f"[Music] Successfully generated music HTML tag with temporary URL: {temp_url}")
         return audio_html
     except Exception as e:
         return f"Error generating music: {str(e)}"
@@ -2236,6 +2458,9 @@ def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
         matches = re.findall(pattern, html_content, re.IGNORECASE)
         placeholder_images.extend(matches)
     
+    # Filter out HF URLs from placeholders (they are real generated content)
+    placeholder_images = [img for img in placeholder_images if 'huggingface.co/datasets/' not in img]
+    
     # If no placeholder images found, look for any img tags
     if not placeholder_images:
         img_pattern = r'<img[^>]*>'
@@ -2264,7 +2489,7 @@ def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
     # Generate images for each prompt
     generated_images = []
     for i, prompt in enumerate(image_prompts):
-        image_html = generate_image_with_qwen(prompt, i)
+        image_html = generate_image_with_qwen(prompt, i, token=None)  # TODO: Pass token from parent context
         if not image_html.startswith("Error"):
             generated_images.append((i, image_html))
     
@@ -2341,6 +2566,12 @@ def create_image_replacement_blocks_text_to_image_single(html_content: str, prom
         matches = re.findall(pattern, html_content, re.IGNORECASE)
         if matches:
             placeholder_images.extend(matches)
+    
+    # Filter out HF URLs from placeholders (they are real generated content)
+    placeholder_images = [img for img in placeholder_images if 'huggingface.co/datasets/' not in img]
+    
+    # Filter out HF URLs from placeholders (they are real generated content)
+    placeholder_images = [img for img in placeholder_images if 'huggingface.co/datasets/' not in img]
 
     # Fallback to any <img> if no placeholders
     if not placeholder_images:
@@ -2348,7 +2579,7 @@ def create_image_replacement_blocks_text_to_image_single(html_content: str, prom
         placeholder_images = re.findall(img_pattern, html_content)
 
     # Generate a single image
-    image_html = generate_image_with_qwen(prompt, 0)
+    image_html = generate_image_with_qwen(prompt, 0, token=None)  # TODO: Pass token from parent context
     if image_html.startswith("Error"):
         return ""
 
@@ -2415,12 +2646,15 @@ def create_video_replacement_blocks_text_to_video(html_content: str, prompt: str
         matches = re.findall(pattern, html_content, re.IGNORECASE)
         if matches:
             placeholder_images.extend(matches)
+    
+    # Filter out HF URLs from placeholders (they are real generated content)
+    placeholder_images = [img for img in placeholder_images if 'huggingface.co/datasets/' not in img]
 
     if not placeholder_images:
         img_pattern = r'<img[^>]*>'
         placeholder_images = re.findall(img_pattern, html_content)
 
-    video_html = generate_video_from_text(prompt, session_id=session_id)
+    video_html = generate_video_from_text(prompt, session_id=session_id, token=None)  # TODO: Pass token from parent context
     if video_html.startswith("Error"):
         return ""
 
@@ -2503,7 +2737,7 @@ def create_music_replacement_blocks_text_to_music(html_content: str, prompt: str
     if not prompt or not prompt.strip():
         return ""
 
-    audio_html = generate_music_from_text(prompt, session_id=session_id)
+    audio_html = generate_music_from_text(prompt, session_id=session_id, token=None)  # TODO: Pass token from parent context
     if audio_html.startswith("Error"):
         return ""
 
@@ -2567,10 +2801,15 @@ def create_image_replacement_blocks_from_input_image(html_content: str, user_pro
     for pattern in placeholder_patterns:
         matches = re.findall(pattern, html_content, re.IGNORECASE)
         placeholder_images.extend(matches)
+    
+    # Filter out HF URLs from placeholders (they are real generated content)
+    placeholder_images = [img for img in placeholder_images if 'huggingface.co/datasets/' not in img]
 
     if not placeholder_images:
         img_pattern = r'<img[^>]*>'
         placeholder_images = re.findall(img_pattern, html_content)
+        # Filter HF URLs from fallback images too
+        placeholder_images = [img for img in placeholder_images if 'huggingface.co/datasets/' not in img]
 
     div_placeholder_patterns = [
         r'<div[^>]*class=["\'][^"\']*(?:image|img|photo|picture)[^"\']*["\'][^>]*>.*?</div>',
@@ -2589,7 +2828,7 @@ def create_image_replacement_blocks_from_input_image(html_content: str, user_pro
         prompts = extract_image_prompts_from_text(user_prompt, 1)
         if not prompts:
             return ""
-        image_html = generate_image_to_image(input_image_data, prompts[0])
+        image_html = generate_image_to_image(input_image_data, prompts[0], token=None)  # TODO: Pass token from parent context
         if image_html.startswith("Error"):
             return ""
         return f"{SEARCH_START}\n\n{DIVIDER}\n<div class=\"generated-images\">{image_html}</div>\n{REPLACE_END}"
@@ -2600,7 +2839,7 @@ def create_image_replacement_blocks_from_input_image(html_content: str, user_pro
 
     generated_images = []
     for i, prompt in enumerate(image_prompts):
-        image_html = generate_image_to_image(input_image_data, prompt)
+        image_html = generate_image_to_image(input_image_data, prompt, token=None)  # TODO: Pass token from parent context
         if not image_html.startswith("Error"):
             generated_images.append((i, image_html))
 
@@ -2658,13 +2897,16 @@ def create_video_replacement_blocks_from_input_image(html_content: str, user_pro
         matches = re.findall(pattern, html_content, re.IGNORECASE)
         if matches:
             placeholder_images.extend(matches)
+    
+    # Filter out HF URLs from placeholders (they are real generated content)
+    placeholder_images = [img for img in placeholder_images if 'huggingface.co/datasets/' not in img]
 
     if not placeholder_images:
         img_pattern = r'<img[^>]*>'
         placeholder_images = re.findall(img_pattern, html_content)
     print(f"[Image2Video] Found {len(placeholder_images)} candidate <img> elements")
 
-    video_html = generate_video_from_image(input_image_data, user_prompt, session_id=session_id)
+    video_html = generate_video_from_image(input_image_data, user_prompt, session_id=session_id, token=None)  # TODO: Pass token from parent context
     try:
         has_file_src = 'src="' in video_html and video_html.count('src="') >= 1 and 'data:video/mp4;base64' not in video_html.split('src="', 1)[1]
         print(f"[Image2Video] Generated video HTML length={len(video_html)}; has_file_src={has_file_src}")
@@ -2712,7 +2954,7 @@ def create_video_replacement_blocks_from_input_image(html_content: str, user_pro
     print("[Image2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None) -> str:
+def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
     """Apply text/image/video/music replacements to HTML content.
 
     - Works with single-document HTML strings
@@ -2749,7 +2991,7 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
             i2v_prompt = (image_to_video_prompt or user_prompt or "").strip()
             print(f"[MediaApply] Running image-to-video with prompt len={len(i2v_prompt)}")
             try:
-                video_html_tag = generate_video_from_image(input_image_data, i2v_prompt, session_id=session_id)
+                video_html_tag = generate_video_from_image(input_image_data, i2v_prompt, session_id=session_id, token=token)
                 if not (video_html_tag or "").startswith("Error"):
                     # Validate video HTML before attempting placement
                     if validate_video_html(video_html_tag):
@@ -2792,7 +3034,7 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
             t2v_prompt = (text_to_video_prompt or user_prompt or "").strip()
             print(f"[MediaApply] Running text-to-video with prompt len={len(t2v_prompt)}")
             try:
-                video_html_tag = generate_video_from_text(t2v_prompt, session_id=session_id)
+                video_html_tag = generate_video_from_text(t2v_prompt, session_id=session_id, token=token)
                 if not (video_html_tag or "").startswith("Error"):
                     # Validate video HTML before attempting placement
                     if validate_video_html(video_html_tag):
@@ -2823,7 +3065,7 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
             t2m_prompt = (text_to_music_prompt or user_prompt or "").strip()
             print(f"[MediaApply] Running text-to-music with prompt len={len(t2m_prompt)}")
             try:
-                audio_html_tag = generate_music_from_text(t2m_prompt, session_id=session_id)
+                audio_html_tag = generate_music_from_text(t2m_prompt, session_id=session_id, token=token)
                 if not (audio_html_tag or "").startswith("Error"):
                     blocks_tm = llm_place_media(result, audio_html_tag, media_kind="audio")
                 else:
@@ -2847,7 +3089,7 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
         if enable_image_to_image and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             i2i_prompt = (image_to_image_prompt or user_prompt or "").strip()
             try:
-                image_html_tag = generate_image_to_image(input_image_data, i2i_prompt)
+                image_html_tag = generate_image_to_image(input_image_data, i2i_prompt, token=token)
                 if not (image_html_tag or "").startswith("Error"):
                     blocks2 = llm_place_media(result, image_html_tag, media_kind="image")
                 else:
@@ -2868,7 +3110,7 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
             print(f"[MediaApply] Running text-to-image with prompt len={len(t2i_prompt)}")
             # Single-image flow for text-to-image (LLM placement first, fallback deterministic)
             try:
-                image_html_tag = generate_image_with_qwen(t2i_prompt, 0)
+                image_html_tag = generate_image_with_qwen(t2i_prompt, 0, token=token)
                 if not (image_html_tag or "").startswith("Error"):
                     blocks = llm_place_media(result, image_html_tag, media_kind="image")
                 else:
@@ -4193,6 +4435,7 @@ This will help me create a better design for you."""
                     text_to_video_prompt=text_to_video_prompt,
                     enable_text_to_music=enable_text_to_music,
                     text_to_music_prompt=text_to_music_prompt,
+                    token=None,
                 )
                 
                 yield {
@@ -4219,6 +4462,7 @@ This will help me create a better design for you."""
                     text_to_video_prompt=text_to_video_prompt,
                     enable_text_to_music=enable_text_to_music,
                     text_to_music_prompt=text_to_music_prompt,
+                    token=None,
                 )
                 
                 preview_val = None
@@ -4645,6 +4889,7 @@ This will help me create a better design for you."""
                 text_to_video_prompt=text_to_video_prompt,
                 enable_text_to_music=enable_text_to_music,
                 text_to_music_prompt=text_to_music_prompt,
+                token=None,
             )
             
             # Update history with the cleaned content
@@ -6294,7 +6539,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, text_to_music_toggle, text_to_music_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -7060,6 +7305,13 @@ with gr.Blocks(
                 import tempfile
                 import os
                 
+                # Upload temporary media files to HF and replace URLs (only for Static HTML, not Transformers.js)
+                if sdk == "static" and sdk_name == "Static (HTML)":
+                    print("[Deploy] Uploading temporary media files to HF and updating URLs for multi-file static HTML app")
+                    # Update the index.html file with permanent media URLs
+                    if 'index.html' in files:
+                        files['index.html'] = upload_temp_files_to_hf_and_replace_urls(files['index.html'], token)
+                
                 try:
                     with tempfile.TemporaryDirectory() as tmpdir:
                         # Write each file preserving subdirectories if any
@@ -7088,6 +7340,12 @@ with gr.Blocks(
             
             # Fallback: single-file static HTML (upload index.html only)
             file_name = "index.html"
+            
+            # Upload temporary media files to HF and replace URLs (only for Static HTML, not Transformers.js)
+            if sdk == "static" and sdk_name == "Static (HTML)":
+                print("[Deploy] Uploading temporary media files to HF and updating URLs for single-file static HTML app")
+                code = upload_temp_files_to_hf_and_replace_urls(code, token)
+            
             max_attempts = 3
             for attempt in range(max_attempts):
                 import tempfile
