@@ -6256,7 +6256,7 @@ with gr.Blocks(
             label="🎨 Generate Images (text → image)",
             value=False,
             visible=True,
-            info="Include generated images in your outputs using Qwen image model"
+            info="Include generated images in your outputs using Nano Banana"
         )
         text_to_image_prompt = gr.Textbox(
             label="Text-to-Image Prompt",
