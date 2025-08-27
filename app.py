@@ -2175,46 +2175,41 @@ def generate_image_with_qwen(prompt: str, image_index: int = 0, token: gr.OAuthT
         return f"Error generating image: {str(e)}"
 
 def generate_image_to_image(input_image_data, prompt: str, token: gr.OAuthToken | None = None) -> str:
-    """Generate an image using image-to-image with Qwen-Image-Edit via Hugging Face InferenceClient.
+    """Generate an image using image-to-image via OpenRouter.
 
-    Returns an HTML <img> tag with optimized base64 JPEG data, similar to text-to-image output.
+    Uses Google Gemini 2.5 Flash Image Preview via OpenRouter chat completions API.
+
+    Returns an HTML <img> tag whose src is an uploaded temporary URL.
     """
     try:
-        # Check token
-        if not os.getenv('HF_TOKEN'):
-            return "Error: HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token."
-
-        # Prepare client
-        client = InferenceClient(
-            provider="auto",
-            api_key=os.getenv('HF_TOKEN'),
-            bill_to="huggingface",
-        )
+        # Check for OpenRouter API key
+        openrouter_key = os.getenv('OPENROUTER_API_KEY')
+        if not openrouter_key:
+            return "Error: OPENROUTER_API_KEY environment variable is not set. Please set it to your OpenRouter API key."
 
         # Normalize input image to bytes
         import io
         from PIL import Image
+        import base64
+        import requests
+        import json as _json
         try:
             import numpy as np
         except Exception:
             np = None
 
         if hasattr(input_image_data, 'read'):
-            # File-like object
             raw = input_image_data.read()
             pil_image = Image.open(io.BytesIO(raw))
         elif hasattr(input_image_data, 'mode') and hasattr(input_image_data, 'size'):
-            # PIL Image
             pil_image = input_image_data
         elif np is not None and isinstance(input_image_data, np.ndarray):
             pil_image = Image.fromarray(input_image_data)
         elif isinstance(input_image_data, (bytes, bytearray)):
             pil_image = Image.open(io.BytesIO(input_image_data))
         else:
-            # Fallback: try to convert via bytes
             pil_image = Image.open(io.BytesIO(bytes(input_image_data)))
 
-        # Ensure RGB
         if pil_image.mode != 'RGB':
             pil_image = pil_image.convert('RGB')
 
@@ -2223,34 +2218,84 @@ def generate_image_to_image(input_image_data, prompt: str, token: gr.OAuthToken 
         if pil_image.width > max_input_size or pil_image.height > max_input_size:
             pil_image.thumbnail((max_input_size, max_input_size), Image.Resampling.LANCZOS)
 
-        buf = io.BytesIO()
-        pil_image.save(buf, format='JPEG', quality=85, optimize=True)
-        input_bytes = buf.getvalue()
+        # Convert to base64
+        import io as _io
+        buffered = _io.BytesIO()
+        pil_image.save(buffered, format='PNG')
+        img_b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-        # Call image-to-image
-        image = client.image_to_image(
-            input_bytes,
-            prompt=prompt,
-            model="Qwen/Qwen-Image-Edit",
-        )
+        # Call OpenRouter API
+        headers = {
+            "Authorization": f"Bearer {openrouter_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": os.getenv("YOUR_SITE_URL", "https://example.com"),
+            "X-Title": os.getenv("YOUR_SITE_NAME", "AnyCoder Image I2I"),
+        }
+        payload = {
+            "model": "google/gemini-2.5-flash-image-preview:free",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}},
+                    ],
+                }
+            ],
+            "max_tokens": 2048,
+        }
+        
+        try:
+            resp = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                data=_json.dumps(payload),
+                timeout=60,
+            )
+            resp.raise_for_status()
+            result_data = resp.json()
+            
+            # Corrected response parsing logic
+            message = result_data.get('choices', [{}])[0].get('message', {})
+            
+            if message and 'images' in message and message['images']:
+                # Get the first image from the 'images' list
+                image_data = message['images'][0]
+                base64_string = image_data.get('image_url', {}).get('url', '')
+                
+                if base64_string and ',' in base64_string:
+                    # Remove the "data:image/png;base64," prefix
+                    base64_content = base64_string.split(',')[1]
+                    
+                    # Decode the base64 string and create a PIL image
+                    img_bytes = base64.b64decode(base64_content)
+                    edited_image = Image.open(_io.BytesIO(img_bytes))
+                    
+                    # Convert PIL image to JPEG bytes for upload
+                    out_buf = _io.BytesIO()
+                    edited_image.convert('RGB').save(out_buf, format='JPEG', quality=90, optimize=True)
+                    image_bytes = out_buf.getvalue()
+                else:
+                    raise RuntimeError(f"API returned an invalid image format. Response: {_json.dumps(result_data, indent=2)}")
+            else:
+                raise RuntimeError(f"API did not return an image. Full Response: {_json.dumps(result_data, indent=2)}")
+                
+        except requests.exceptions.HTTPError as err:
+            error_body = err.response.text
+            if err.response.status_code == 401:
+                return "Error: Authentication failed. Check your OpenRouter API key."
+            elif err.response.status_code == 429:
+                return "Error: Rate limit exceeded or insufficient credits. Check your OpenRouter account."
+            else:
+                return f"Error: An API error occurred: {error_body}"
+        except Exception as e:
+            return f"Error: An unexpected error occurred: {str(e)}"
 
-        # Resize/optimize (larger since not using data URIs)
-        max_size = 1024
-        if image.width > max_size or image.height > max_size:
-            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-
-        out_buf = io.BytesIO()
-        image.convert('RGB').save(out_buf, format='JPEG', quality=90, optimize=True)
-        image_bytes = out_buf.getvalue()
-
-        # Create temporary URL for preview (will be uploaded to HF during deploy)
+        # Upload and return HTML tag
         filename = "image_to_image_result.jpg"
         temp_url = upload_media_to_hf(image_bytes, filename, "image", token, use_temp=True)
-        
-        # Check if creation was successful
         if temp_url.startswith("Error"):
             return temp_url
-
         return f"<img src=\"{temp_url}\" alt=\"{prompt}\" style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\" loading=\"lazy\" />"
     except Exception as e:
         print(f"Image-to-image generation error: {str(e)}")
