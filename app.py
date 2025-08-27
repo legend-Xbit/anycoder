@@ -6162,7 +6162,7 @@ with gr.Blocks(
             label="🖼️ Image to Image (uses input image)",
             value=False,
             visible=True,
-            info="Transform your uploaded image using Qwen-Image-Edit"
+            info="Transform your uploaded image using Nano Banana"
         )
         image_to_video_toggle = gr.Checkbox(
             label="🎞️ Image to Video (uses input image)",
