@@ -46,7 +46,7 @@ pip install -r requirements.txt
 export HF_TOKEN="your_huggingface_token"
 export TAVILY_API_KEY="your_tavily_api_key"  # Optional, for web search feature
 export DASHSCOPE_API_KEY="your_dashscope_api_key"  # Required for Qwen3-30B models via DashScope
-export POE_API_KEY="your_poe_api_key"  # Required for GPT-5 and Grok-4 via Poe
+export POE_API_KEY="your_poe_api_key"  # Required for GPT-5, Grok-4, and Grok-Code-Fast-1 via Poe
 export GEMINI_API_KEY="your_gemini_api_key"  # Required for Gemini models
 export MOONSHOT_API_KEY="your_moonshot_api_key"  # Required for Kimi models
 ```

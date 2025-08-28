@@ -877,6 +877,11 @@ AVAILABLE_MODELS = [
         "description": "Grok-4 model via Poe (OpenAI-compatible) for advanced tasks"
     },
     {
+        "name": "Grok-Code-Fast-1",
+        "id": "Grok-Code-Fast-1",
+        "description": "Grok-Code-Fast-1 model via Poe (OpenAI-compatible) for fast code generation"
+    },
+    {
         "name": "Claude-Opus-4.1",
         "id": "claude-opus-4.1",
         "description": "Anthropic Claude Opus 4.1 via Poe (OpenAI-compatible)"
@@ -988,6 +993,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "grok-4":
         # Use Poe (OpenAI-compatible) client for Grok-4 model
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
+    elif model_id == "Grok-Code-Fast-1":
+        # Use Poe (OpenAI-compatible) client for Grok-Code-Fast-1 model
         return OpenAI(
             api_key=os.getenv("POE_API_KEY"),
             base_url="https://api.poe.com/v1"
