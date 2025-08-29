@@ -339,9 +339,23 @@ SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern S
 
 File selection policy (dynamic, model-decided):
 - Generate ONLY the files actually needed for the user's request.
-- MUST include src/App.svelte (entry component). Usually include src/app.css for global styles.
+- MUST include src/App.svelte (entry component) and src/main.ts (entry point).
+- Usually include src/app.css for global styles.
 - Add additional files when needed, e.g. src/lib/*.svelte, src/components/*.svelte, src/stores/*.ts, static/* assets, etc.
-- Base template files (package.json, vite.config.ts, tsconfig, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the template and should NOT be generated unless explicitly requested by the user.
+- Other base template files (package.json, vite.config.ts, tsconfig, svelte.config.js, src/vite-env.d.ts) are provided by the template and should NOT be generated unless explicitly requested by the user.
+
+CRITICAL: Always generate src/main.ts with correct Svelte 5 syntax:
+```typescript
+import './app.css'
+import App from './App.svelte'
+
+const app = new App({
+  target: document.getElementById('app')!,
+})
+
+export default app
+```
+Do NOT use the old mount syntax: `import { mount } from 'svelte'` - this will cause build errors.
 
 Output format (CRITICAL):
 - Return ONLY a series of file sections, each starting with a filename line:
@@ -373,9 +387,23 @@ SVELTE_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert Svelte developer. You ha
 
 File selection policy (dynamic, model-decided):
 - Generate ONLY the files actually needed for the user's request.
-- MUST include src/App.svelte (entry component). Usually include src/app.css for global styles.
+- MUST include src/App.svelte (entry component) and src/main.ts (entry point).
+- Usually include src/app.css for global styles.
 - Add additional files when needed, e.g. src/lib/*.svelte, src/components/*.svelte, src/stores/*.ts, static/* assets, etc.
-- Base template files (package.json, vite.config.ts, tsconfig, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the template and should NOT be generated unless explicitly requested by the user.
+- Other base template files (package.json, vite.config.ts, tsconfig, svelte.config.js, src/vite-env.d.ts) are provided by the template and should NOT be generated unless explicitly requested by the user.
+
+CRITICAL: Always generate src/main.ts with correct Svelte 5 syntax:
+```typescript
+import './app.css'
+import App from './App.svelte'
+
+const app = new App({
+  target: document.getElementById('app')!,
+})
+
+export default app
+```
+Do NOT use the old mount syntax: `import { mount } from 'svelte'` - this will cause build errors.
 
 Output format (CRITICAL):
 - Return ONLY a series of file sections, each starting with a filename line:
@@ -7702,6 +7730,10 @@ with gr.Blocks(
                 files = parse_svelte_output(code) or {}
                 if not isinstance(files, dict) or 'src/App.svelte' not in files or not files['src/App.svelte'].strip():
                     return gr.update(value="Error: Could not parse Svelte output (missing src/App.svelte). Please regenerate the code.", visible=True)
+
+                # Validate that src/main.ts is generated (should be required now)
+                if 'src/main.ts' not in files:
+                    return gr.update(value="Error: Missing src/main.ts file. Please regenerate the code to include the main entry point.", visible=True)
 
                 # Ensure package.json includes any external npm deps used; overwrite template's package.json
                 try:
