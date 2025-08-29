@@ -354,6 +354,9 @@ Output format (CRITICAL):
   (repeat for all files you decide to create)
 - Do NOT wrap files in Markdown code fences.
 
+Dependency policy:
+- If you import any third-party npm packages (e.g., "@gradio/dataframe"), include a package.json at the project root with a "dependencies" section listing them. Keep scripts and devDependencies compatible with the default Svelte + Vite template.
+
 Requirements:
 1. Create a modern, responsive Svelte application based on the user's specific request
 2. Prefer TypeScript where applicable for better type safety
@@ -384,6 +387,9 @@ Output format (CRITICAL):
 
   (repeat for all files you decide to create)
 - Do NOT wrap files in Markdown code fences.
+
+Dependency policy:
+- If you import any third-party npm packages, include a package.json at the project root with a "dependencies" section listing them. Keep scripts and devDependencies compatible with the default Svelte + Vite template.
 
 Requirements:
 1. Create a modern, responsive Svelte application
@@ -1649,6 +1655,100 @@ def parse_svelte_output(text):
 def format_svelte_output(files):
     """Format Svelte files into === filename === sections (generic)."""
     return format_multipage_output(files)
+
+def infer_svelte_dependencies(files: Dict[str, str]) -> Dict[str, str]:
+    """Infer npm dependencies from Svelte/TS imports across generated files.
+
+    Returns mapping of package name -> semver (string). Uses conservative defaults
+    when versions aren't known. Adds special-cased versions when known.
+    """
+    import re as _re
+    deps: Dict[str, str] = {}
+    import_from = _re.compile(r"import\s+[^;]*?from\s+['\"]([^'\"]+)['\"]", _re.IGNORECASE)
+    bare_import = _re.compile(r"import\s+['\"]([^'\"]+)['\"]", _re.IGNORECASE)
+
+    def maybe_add(pkg: str):
+        if not pkg or pkg.startswith('.') or pkg.startswith('/') or pkg.startswith('http'):
+            return
+        if pkg.startswith('svelte'):
+            return
+        if pkg not in deps:
+            # Default to wildcard; adjust known packages below
+            deps[pkg] = "*"
+
+    for path, content in (files or {}).items():
+        if not isinstance(content, str):
+            continue
+        for m in import_from.finditer(content):
+            maybe_add(m.group(1))
+        for m in bare_import.finditer(content):
+            maybe_add(m.group(1))
+
+    # Pin known versions when sensible
+    if '@gradio/dataframe' in deps:
+        deps['@gradio/dataframe'] = '^0.19.1'
+
+    return deps
+
+def build_svelte_package_json(existing_json_text: Optional[str], detected_dependencies: Dict[str, str]) -> str:
+    """Create or merge a package.json for Svelte spaces.
+
+    - If existing_json_text is provided, merge detected deps into its dependencies.
+    - Otherwise, start from the template defaults provided by the user and add deps.
+    - Always preserve template scripts and devDependencies.
+    """
+    import json as _json
+    # Template from the user's Svelte space scaffold
+    template = {
+        "name": "svelte",
+        "private": True,
+        "version": "0.0.0",
+        "type": "module",
+        "scripts": {
+            "dev": "vite",
+            "build": "vite build",
+            "preview": "vite preview",
+            "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
+        },
+        "devDependencies": {
+            "@sveltejs/vite-plugin-svelte": "^5.0.3",
+            "@tsconfig/svelte": "^5.0.4",
+            "svelte": "^5.28.1",
+            "svelte-check": "^4.1.6",
+            "typescript": "~5.8.3",
+            "vite": "^6.3.5"
+        }
+    }
+
+    result = template
+    if existing_json_text:
+        try:
+            parsed = _json.loads(existing_json_text)
+            # Merge with template as base, keeping template scripts/devDependencies if missing in parsed
+            result = {
+                **template,
+                **{k: v for k, v in parsed.items() if k not in ("scripts", "devDependencies")},
+            }
+            # If parsed contains its own scripts/devDependencies, prefer parsed to respect user's file
+            if isinstance(parsed.get("scripts"), dict):
+                result["scripts"] = parsed["scripts"]
+            if isinstance(parsed.get("devDependencies"), dict):
+                result["devDependencies"] = parsed["devDependencies"]
+        except Exception:
+            # Fallback to template if parse fails
+            result = template
+
+    # Merge dependencies
+    existing_deps = result.get("dependencies", {})
+    if not isinstance(existing_deps, dict):
+        existing_deps = {}
+    merged = {**existing_deps, **(detected_dependencies or {})}
+    if merged:
+        result["dependencies"] = merged
+    else:
+        result.pop("dependencies", None)
+
+    return _json.dumps(result, indent=2, ensure_ascii=False) + "\n"
 
 def history_render(history: History):
     return gr.update(visible=True), history
@@ -7602,6 +7702,18 @@ with gr.Blocks(
                 files = parse_svelte_output(code) or {}
                 if not isinstance(files, dict) or 'src/App.svelte' not in files or not files['src/App.svelte'].strip():
                     return gr.update(value="Error: Could not parse Svelte output (missing src/App.svelte). Please regenerate the code.", visible=True)
+
+                # Ensure package.json includes any external npm deps used; overwrite template's package.json
+                try:
+                    detected = infer_svelte_dependencies(files)
+                    existing_pkg_text = files.get('package.json')
+                    pkg_text = build_svelte_package_json(existing_pkg_text, detected)
+                    # Only write if we have either detected deps or user provided a package.json
+                    if pkg_text and (detected or existing_pkg_text is not None):
+                        files['package.json'] = pkg_text
+                except Exception as e:
+                    # Non-fatal: proceed without generating package.json
+                    print(f"[Svelte Deploy] package.json synthesis skipped: {e}")
 
                 # Write all files to a temp directory and upload folder in one commit
                 import tempfile, os
