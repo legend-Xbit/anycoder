@@ -7707,6 +7707,7 @@ with gr.Blocks(
                 # For new spaces, duplicate the template first
                 if not is_update:
                     from huggingface_hub import duplicate_space
+                    import time
                     duplicated_repo = duplicate_space(
                         from_id="static-templates/svelte",
                         to_id=repo_id,
@@ -7724,6 +7725,11 @@ with gr.Blocks(
                     except Exception as e:
                         print(f"Error extracting repo ID from duplicated_repo: {e}")
                         actual_repo_id = repo_id
+                    
+                    # Small delay to allow the duplication to fully complete and reduce race conditions
+                    print("Waiting for template duplication to complete...")
+                    time.sleep(3)
+                    
                 print("Actual repo ID for Svelte uploads:", actual_repo_id)
 
                 # Parse all generated Svelte files (dynamic multi-file)
@@ -7748,7 +7754,7 @@ with gr.Blocks(
                     print(f"[Svelte Deploy] package.json synthesis skipped: {e}")
 
                 # Write all files to a temp directory and upload folder in one commit
-                import tempfile, os
+                import tempfile, os, time
                 with tempfile.TemporaryDirectory() as tmpdir:
                     for rel_path, content in files.items():
                         safe_rel = (rel_path or '').strip().lstrip('/')
@@ -7756,14 +7762,40 @@ with gr.Blocks(
                         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
                         with open(abs_path, 'w') as fh:
                             fh.write(content or '')
-                    api.upload_folder(
-                        folder_path=tmpdir,
-                        repo_id=actual_repo_id,
-                        repo_type="space"
-                    )
+                    
+                    # Retry logic for upload_folder to handle race conditions
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            api.upload_folder(
+                                folder_path=tmpdir,
+                                repo_id=actual_repo_id,
+                                repo_type="space"
+                            )
+                            break  # Success, exit retry loop
+                        except Exception as upload_error:
+                            if "commit has happened since" in str(upload_error).lower() and attempt < max_retries - 1:
+                                print(f"Svelte upload attempt {attempt + 1} failed due to race condition, retrying in 2 seconds...")
+                                time.sleep(2)  # Wait before retry
+                                continue
+                            else:
+                                raise upload_error  # Re-raise if not a race condition or max retries reached
 
-                # Add anycoder tag to existing README
-                add_anycoder_tag_to_readme(api, actual_repo_id)
+                # Add anycoder tag to existing README (with retry logic)
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        add_anycoder_tag_to_readme(api, actual_repo_id)
+                        break  # Success, exit retry loop
+                    except Exception as readme_error:
+                        if "commit has happened since" in str(readme_error).lower() and attempt < max_retries - 1:
+                            print(f"README tag attempt {attempt + 1} failed due to race condition, retrying in 2 seconds...")
+                            time.sleep(2)  # Wait before retry
+                            continue
+                        else:
+                            # Non-fatal: README tagging is not critical, just log and continue
+                            print(f"Failed to add anycoder tag to README after {max_retries} attempts: {readme_error}")
+                            break
 
                 # Success
                 space_url = f"https://huggingface.co/spaces/{actual_repo_id}"
