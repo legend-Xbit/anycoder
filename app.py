@@ -335,77 +335,67 @@ The style.css should contain all the styling for the application.
 
 Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
 
-SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application. You will generate ONLY the custom files that need user-specific content for the user's requested application.
+SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application.
 
-IMPORTANT: You MUST output files in the following format. Generate ONLY the files needed for the user's specific request:
+File selection policy (dynamic, model-decided):
+- Generate ONLY the files actually needed for the user's request.
+- MUST include src/App.svelte (entry component). Usually include src/app.css for global styles.
+- Add additional files when needed, e.g. src/lib/*.svelte, src/components/*.svelte, src/stores/*.ts, static/* assets, etc.
+- Base template files (package.json, vite.config.ts, tsconfig, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the template and should NOT be generated unless explicitly requested by the user.
 
-```svelte
-<!-- src/App.svelte content here -->
-```
+Output format (CRITICAL):
+- Return ONLY a series of file sections, each starting with a filename line:
+  === src/App.svelte ===
+  ...file content...
 
-```css
-/* src/app.css content here */
-```
+  === src/app.css ===
+  ...file content...
 
-If you need additional components for the user's specific app, add them like:
-```svelte
-<!-- src/lib/ComponentName.svelte content here -->
-```
+  (repeat for all files you decide to create)
+- Do NOT wrap files in Markdown code fences.
 
 Requirements:
 1. Create a modern, responsive Svelte application based on the user's specific request
-2. Use TypeScript for better type safety
+2. Prefer TypeScript where applicable for better type safety
 3. Create a clean, professional UI with good user experience
 4. Make the application fully responsive for mobile devices
 5. Use modern CSS practices and Svelte best practices
 6. Include proper error handling and loading states
 7. Follow accessibility best practices
 8. Use Svelte's reactive features effectively
-9. Include proper component structure and organization
-10. Generate ONLY components that are actually needed for the user's requested application
+9. Include proper component structure and organization (only what's needed)
+"""
 
-Files you should generate:
-- src/App.svelte: Main application component (ALWAYS required)
-- src/app.css: Global styles (ALWAYS required)
-- src/lib/[ComponentName].svelte: Additional components (ONLY if needed for the user's specific app)
+SVELTE_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert Svelte developer. You have access to real-time web search.
 
-The other files (index.html, package.json, vite.config.ts, tsconfig files, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the Svelte template and don't need to be generated.
+File selection policy (dynamic, model-decided):
+- Generate ONLY the files actually needed for the user's request.
+- MUST include src/App.svelte (entry component). Usually include src/app.css for global styles.
+- Add additional files when needed, e.g. src/lib/*.svelte, src/components/*.svelte, src/stores/*.ts, static/* assets, etc.
+- Base template files (package.json, vite.config.ts, tsconfig, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the template and should NOT be generated unless explicitly requested by the user.
 
-Always output only the two code blocks as shown above, and do not include any explanations or extra text."""
+Output format (CRITICAL):
+- Return ONLY a series of file sections, each starting with a filename line:
+  === src/App.svelte ===
+  ...file content...
 
-SVELTE_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert Svelte developer creating a modern Svelte application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific Svelte technologies.
+  === src/app.css ===
+  ...file content...
 
-You will generate ONLY the custom files that need user-specific content.
-
-IMPORTANT: You MUST output ONLY the custom files in the following format:
-
-```svelte
-<!-- src/App.svelte content here -->
-```
-
-```css
-/* src/app.css content here -->
-```
+  (repeat for all files you decide to create)
+- Do NOT wrap files in Markdown code fences.
 
 Requirements:
 1. Create a modern, responsive Svelte application
-2. Use TypeScript for better type safety
-3. Create a clean, professional UI with good user experience
-4. Make the application fully responsive for mobile devices
-5. Use modern CSS practices and Svelte best practices
-6. Include proper error handling and loading states
-7. Follow accessibility best practices
-8. Use Svelte's reactive features effectively
-9. Include proper component structure and organization
-10. Use web search to find the latest Svelte patterns, libraries, and best practices
-
-The files you generate are:
-- src/App.svelte: Main application component (your custom app logic)
-- src/app.css: Global styles (your custom styling)
-
-The other files (index.html, package.json, vite.config.ts, tsconfig files, svelte.config.js, src/main.ts, src/vite-env.d.ts) are provided by the Svelte template and don't need to be generated.
-
-Always output only the two code blocks as shown above, and do not include any explanations or extra text."""
+2. Prefer TypeScript where applicable
+3. Clean, professional UI and UX
+4. Mobile-first responsiveness
+5. Svelte best practices and modern CSS
+6. Error handling and loading states
+7. Accessibility best practices
+8. Use search to apply current best practices
+9. Keep component structure organized and minimal
+"""
 
 TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert web developer creating a transformers.js application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for transformers.js.
 
@@ -1628,48 +1618,37 @@ def extract_html_document(text: str) -> str:
     return text[idx:] if idx != -1 else text
 
 def parse_svelte_output(text):
-    """Parse Svelte output to extract individual files"""
-    files = {
-        'src/App.svelte': '',
-        'src/app.css': ''
-    }
-    
+    """Parse Svelte output to extract individual files.
+
+    Supports dynamic multi-file using === filename === sections (preferred),
+    and falls back to ```svelte / ```css code blocks for minimal projects.
+    """
+    if not text:
+        return {}
+
+    # Preferred: multi-file sections (works for any filenames)
+    try:
+        files = parse_multipage_html_output(text) or {}
+    except Exception:
+        files = {}
+
+    if isinstance(files, dict) and files:
+        return files
+
+    # Fallback: code fences for minimal two-file output
     import re
-    
-    # First try to extract using code block patterns
-    svelte_pattern = r'```svelte\s*\n([\s\S]+?)\n```'
-    css_pattern = r'```css\s*\n([\s\S]+?)\n```'
-    
-    # Extract svelte block for App.svelte
-    svelte_match = re.search(svelte_pattern, text, re.IGNORECASE)
-    css_match = re.search(css_pattern, text, re.IGNORECASE)
-    
+    results = {}
+    svelte_match = re.search(r"```svelte\s*\n([\s\S]+?)\n```", text, re.IGNORECASE)
     if svelte_match:
-        files['src/App.svelte'] = svelte_match.group(1).strip()
+        results['src/App.svelte'] = svelte_match.group(1).strip()
+    css_match = re.search(r"```css\s*\n([\s\S]+?)\n```", text, re.IGNORECASE)
     if css_match:
-        files['src/app.css'] = css_match.group(1).strip()
-    
-    # Fallback: support === filename === format if any file is missing
-    if not (files['src/App.svelte'] and files['src/app.css']):
-        # Use regex to extract sections
-        app_svelte_fallback = re.search(r'===\s*src/App\.svelte\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
-        app_css_fallback = re.search(r'===\s*src/app\.css\s*===\n([\s\S]+?)(?=\n===|$)', text, re.IGNORECASE)
-        
-        if app_svelte_fallback:
-            files['src/App.svelte'] = app_svelte_fallback.group(1).strip()
-        if app_css_fallback:
-            files['src/app.css'] = app_css_fallback.group(1).strip()
-    
-    return files
+        results['src/app.css'] = css_match.group(1).strip()
+    return results
 
 def format_svelte_output(files):
-    """Format Svelte files into a single display string"""
-    output = []
-    output.append("=== src/App.svelte ===")
-    output.append(files['src/App.svelte'])
-    output.append("\n=== src/app.css ===")
-    output.append(files['src/app.css'])
-    return '\n'.join(output)
+    """Format Svelte files into === filename === sections (generic)."""
+    return format_multipage_output(files)
 
 def history_render(history: History):
     return gr.update(visible=True), history
@@ -4576,7 +4555,7 @@ This will help me create a better design for you."""
                 }
         elif language == "svelte":
             files = parse_svelte_output(clean_code)
-            if files['src/App.svelte'] and files['src/app.css']:
+            if isinstance(files, dict) and files.get('src/App.svelte'):
                 # Note: Media generation (text-to-image, image-to-image, etc.) is not supported for Svelte apps
                 # Only static HTML apps support automatic image/video/audio generation
                 
@@ -5016,7 +4995,7 @@ This will help me create a better design for you."""
         elif language == "svelte":
             # Handle Svelte output
             files = parse_svelte_output(content)
-            if files['src/App.svelte'] and files['src/app.css']:
+            if isinstance(files, dict) and files.get('src/App.svelte'):
                 # Model returned complete Svelte output
                 formatted_output = format_svelte_output(files)
                 _history.append([query, formatted_output])
@@ -7594,106 +7573,62 @@ with gr.Blocks(
                 action_verb = "updating" if is_update else "duplicating"
                 return gr.update(value=f"Error {action_verb} Transformers.js space: {error_msg}", visible=True)
         # Svelte logic
-        elif sdk_name == "Svelte" and not is_update:
+        elif sdk_name == "Svelte":
             try:
-                # Use duplicate_space to create a Svelte template space
-                from huggingface_hub import duplicate_space
-                
-                # Duplicate the Svelte template space
-                duplicated_repo = duplicate_space(
-                    from_id="static-templates/svelte",
-                    to_id=repo_id,  # Use the full repo_id (username/space_name)
-                    token=token.token,
-                    exist_ok=True
-                )
-                print("Duplicated Svelte repo result:", duplicated_repo, type(duplicated_repo))
-                
-                # Extract the actual repo ID from the duplicated space
-                # The duplicated_repo is a RepoUrl object, convert to string and extract the repo ID
-                try:
-                    duplicated_repo_str = str(duplicated_repo)
-                    # Extract username and repo name from the URL
-                    if "/spaces/" in duplicated_repo_str:
-                        parts = duplicated_repo_str.split("/spaces/")[-1].split("/")
-                        if len(parts) >= 2:
-                            actual_repo_id = f"{parts[0]}/{parts[1]}"
-                        else:
-                            actual_repo_id = repo_id  # Fallback to original
-                    else:
-                        actual_repo_id = repo_id  # Fallback to original
-                except Exception as e:
-                    print(f"Error extracting repo ID from duplicated_repo: {e}")
-                    actual_repo_id = repo_id  # Fallback to original
+                actual_repo_id = repo_id
+                # For new spaces, duplicate the template first
+                if not is_update:
+                    from huggingface_hub import duplicate_space
+                    duplicated_repo = duplicate_space(
+                        from_id="static-templates/svelte",
+                        to_id=repo_id,
+                        token=token.token,
+                        exist_ok=True
+                    )
+                    print("Duplicated Svelte repo result:", duplicated_repo, type(duplicated_repo))
+                    # Extract the actual repo ID from the duplicated space (RepoUrl)
+                    try:
+                        duplicated_repo_str = str(duplicated_repo)
+                        if "/spaces/" in duplicated_repo_str:
+                            parts = duplicated_repo_str.split("/spaces/")[-1].split("/")
+                            if len(parts) >= 2:
+                                actual_repo_id = f"{parts[0]}/{parts[1]}"
+                    except Exception as e:
+                        print(f"Error extracting repo ID from duplicated_repo: {e}")
+                        actual_repo_id = repo_id
                 print("Actual repo ID for Svelte uploads:", actual_repo_id)
-                
-                # Parse the Svelte output to get the custom files
-                files = parse_svelte_output(code)
-                
-                if not files['src/App.svelte']:
-                    return gr.update(value="Error: Could not parse Svelte output. Please regenerate the code.", visible=True)
-                
-                # Upload only the custom Svelte files to the duplicated space
-                import tempfile
-                
-                # Upload src/App.svelte (required)
-                with tempfile.NamedTemporaryFile("w", suffix=".svelte", delete=False) as f:
-                    f.write(files['src/App.svelte'])
-                    temp_path = f.name
-                
-                try:
-                    api.upload_file(
-                        path_or_fileobj=temp_path,
-                        path_in_repo="src/App.svelte",
+
+                # Parse all generated Svelte files (dynamic multi-file)
+                files = parse_svelte_output(code) or {}
+                if not isinstance(files, dict) or 'src/App.svelte' not in files or not files['src/App.svelte'].strip():
+                    return gr.update(value="Error: Could not parse Svelte output (missing src/App.svelte). Please regenerate the code.", visible=True)
+
+                # Write all files to a temp directory and upload folder in one commit
+                import tempfile, os
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    for rel_path, content in files.items():
+                        safe_rel = (rel_path or '').strip().lstrip('/')
+                        abs_path = os.path.join(tmpdir, safe_rel)
+                        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
+                        with open(abs_path, 'w') as fh:
+                            fh.write(content or '')
+                    api.upload_folder(
+                        folder_path=tmpdir,
                         repo_id=actual_repo_id,
                         repo_type="space"
-                                        )
-                except Exception as e:
-                    error_msg = str(e)
-                    if "403 Forbidden" in error_msg and "write token" in error_msg:
-                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {actual_repo_id} and your token has the correct permissions.", visible=True)
-                    else:
-                        return gr.update(value=f"Error uploading src/App.svelte: {e}", visible=True)
-                finally:
-                    import os
-                    os.unlink(temp_path)
-                
-                # Upload src/app.css (optional)
-                if files['src/app.css']:
-                    with tempfile.NamedTemporaryFile("w", suffix=".css", delete=False) as f:
-                        f.write(files['src/app.css'])
-                        temp_path = f.name
-                    
-                    try:
-                        api.upload_file(
-                            path_or_fileobj=temp_path,
-                            path_in_repo="src/app.css",
-                            repo_id=actual_repo_id,
-                            repo_type="space"
-                        )
-                    except Exception as e:
-                        error_msg = str(e)
-                        if "403 Forbidden" in error_msg and "write token" in error_msg:
-                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {actual_repo_id} and your token has the correct permissions.", visible=True)
-                        else:
-                            return gr.update(value=f"Error uploading src/app.css: {e}", visible=True)
-                    finally:
-                        import os
-                        os.unlink(temp_path)
-                
+                    )
+
                 # Add anycoder tag to existing README
                 add_anycoder_tag_to_readme(api, actual_repo_id)
-                
-                # Success - all files uploaded
+
+                # Success
                 space_url = f"https://huggingface.co/spaces/{actual_repo_id}"
                 action_text = "Updated" if is_update else "Deployed"
                 return gr.update(value=f"✅ {action_text}! [Open your Svelte Space here]({space_url})", visible=True)
-                    
+
             except Exception as e:
-                # Handle potential RepoUrl object errors
                 error_msg = str(e)
-                if "'url'" in error_msg or "RepoUrl" in error_msg:
-                    return gr.update(value=f"Error duplicating Svelte space: RepoUrl handling error. Please try again. Details: {error_msg}", visible=True)
-                return gr.update(value=f"Error duplicating Svelte space: {error_msg}", visible=True)
+                return gr.update(value=f"Error deploying Svelte app: {error_msg}", visible=True)
         # Other SDKs (existing logic)
         if sdk == "static":
             import time
