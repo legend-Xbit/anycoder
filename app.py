@@ -329,6 +329,12 @@ Library import (required): Add the following snippet to index.html to import tra
     import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2';
 </script>
 
+Device Options: By default, transformers.js runs on CPU (via WASM). For better performance, you can run models on GPU using WebGPU:
+- CPU (default): const pipe = await pipeline('task', 'model-name');
+- GPU (WebGPU): const pipe = await pipeline('task', 'model-name', { device: 'webgpu' });
+
+Consider providing users with a toggle option to choose between CPU and GPU execution based on their browser's WebGPU support.
+
 The index.html should contain the basic HTML structure and link to the CSS and JS files.
 The index.js should contain all the JavaScript logic including transformers.js integration.
 The style.css should contain all the styling for the application.
@@ -463,6 +469,12 @@ Library import (required): Add the following snippet to index.html to import tra
 <script type="module">
     import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2';
 </script>
+
+Device Options: By default, transformers.js runs on CPU (via WASM). For better performance, you can run models on GPU using WebGPU:
+- CPU (default): const pipe = await pipeline('task', 'model-name');
+- GPU (WebGPU): const pipe = await pipeline('task', 'model-name', { device: 'webgpu' });
+
+Consider providing users with a toggle option to choose between CPU and GPU execution based on their browser's WebGPU support.
 
 The index.html should contain the basic HTML structure and link to the CSS and JS files.
 The index.js should contain all the JavaScript logic including transformers.js integration.
