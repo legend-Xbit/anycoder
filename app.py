@@ -5549,6 +5549,63 @@ def check_hf_space_url(url: str) -> Tuple[bool, Optional[str], Optional[str]]:
         return True, username, project_name
     return False, None, None
 
+def detect_transformers_js_space(api, username: str, project_name: str) -> bool:
+    """Check if a space is a transformers.js app by looking for the three key files"""
+    try:
+        from huggingface_hub import list_repo_files
+        files = list_repo_files(repo_id=f"{username}/{project_name}", repo_type="space")
+        
+        # Check for the three transformers.js files
+        has_index_html = any('index.html' in f for f in files)
+        has_index_js = any('index.js' in f for f in files)
+        has_style_css = any('style.css' in f for f in files)
+        
+        return has_index_html and has_index_js and has_style_css
+    except:
+        return False
+
+def fetch_transformers_js_files(api, username: str, project_name: str) -> dict:
+    """Fetch all three transformers.js files from a space"""
+    files = {}
+    file_names = ['index.html', 'index.js', 'style.css']
+    
+    for file_name in file_names:
+        try:
+            content_path = api.hf_hub_download(
+                repo_id=f"{username}/{project_name}",
+                filename=file_name,
+                repo_type="space"
+            )
+            
+            with open(content_path, 'r', encoding='utf-8') as f:
+                files[file_name] = f.read()
+        except:
+            files[file_name] = ""
+    
+    return files
+
+def combine_transformers_js_files(files: dict, username: str, project_name: str) -> str:
+    """Combine transformers.js files into the expected format for the LLM"""
+    combined = f"""IMPORTED PROJECT FROM HUGGING FACE SPACE
+==============================================
+
+Space: {username}/{project_name}
+SDK: static (transformers.js)
+Type: Transformers.js Application
+
+"""
+    
+    if files.get('index.html'):
+        combined += f"=== index.html ===\n{files['index.html']}\n\n"
+    
+    if files.get('index.js'):
+        combined += f"=== index.js ===\n{files['index.js']}\n\n"
+    
+    if files.get('style.css'):
+        combined += f"=== style.css ===\n{files['style.css']}\n\n"
+    
+    return combined
+
 def fetch_hf_space_content(username: str, project_name: str) -> str:
     """Fetch content from a Hugging Face Space"""
     try:
@@ -5558,6 +5615,11 @@ def fetch_hf_space_content(username: str, project_name: str) -> str:
         # Try to get space info first
         api = HfApi()
         space_info = api.space_info(f"{username}/{project_name}")
+        
+        # Check if this is a transformers.js space first
+        if space_info.sdk == "static" and detect_transformers_js_space(api, username, project_name):
+            files = fetch_transformers_js_files(api, username, project_name)
+            return combine_transformers_js_files(files, username, project_name)
         
         # Try to fetch the main file based on SDK
         sdk = space_info.sdk
@@ -6606,7 +6668,8 @@ with gr.Blocks(
                 gr.update(value="", visible=False),
                 gr.update(value="🚀 Deploy App", visible=False),
                 gr.update(),  # keep import header as-is
-                gr.update()   # keep import button as-is
+                gr.update(),  # keep import button as-is
+                gr.update()   # language dropdown - no change
             ]
 
         kind, meta = _parse_repo_or_model_url(url)
@@ -6616,11 +6679,22 @@ with gr.Blocks(
             is_valid, username, project_name = check_hf_space_url(url)
             space_info = f"{username}/{project_name}" if is_valid else ""
             loaded_history = [[f"Imported Space from {url}", code]]
-            # Preview not auto-rendered for imported content
-            code_lang = "python" if (is_streamlit_code(code) or is_gradio_code(code)) else "html"
+            
+            # Determine the correct language/framework based on the imported content
+            code_lang = "html"  # default
+            framework_type = "html"  # for language dropdown
+            if is_streamlit_code(code) or is_gradio_code(code):
+                code_lang = "python"
+                framework_type = "python"
+            elif "=== index.html ===" in code and "=== index.js ===" in code and "=== style.css ===" in code:
+                # This is a transformers.js app with the combined format
+                code_lang = "html"  # Use html for code display
+                framework_type = "transformers.js"  # But set dropdown to transformers.js
+            
+            # Return the updates with proper language settings
             return [
                 gr.update(value=status, visible=True),
-                gr.update(value=code, language=code_lang),
+                gr.update(value=code, language=code_lang),  # Use html for transformers.js display
                 gr.update(value=""),
                 gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
@@ -6628,18 +6702,22 @@ with gr.Blocks(
                 gr.update(value=space_info, visible=True),
                 gr.update(value="Update Existing Space", visible=True),
                 gr.update(visible=False),  # hide import header
-                gr.update(visible=False)   # hide import button
+                gr.update(visible=False),  # hide import button
+                gr.update(value=framework_type)  # set language dropdown to framework type
             ]
         else:
             # GitHub or HF model → return raw snippet for LLM starting point
             status, code, _ = import_repo_to_app(url)
             loaded_history = [[f"Imported Repo/Model from {url}", code]]
             code_lang = "python"
+            framework_type = "python"
             lower = (code or "").lower()
             if code.strip().startswith("<!doctype html>") or code.strip().startswith("<html"):
                 code_lang = "html"
+                framework_type = "html"
             elif "```json" in lower:
                 code_lang = "json"
+                framework_type = "json"
             return [
                 gr.update(value=status, visible=True),
                 gr.update(value=code, language=code_lang),
@@ -6650,7 +6728,8 @@ with gr.Blocks(
                 gr.update(value="", visible=False),
                 gr.update(value="🚀 Deploy App", visible=False),
                 gr.update(visible=False),  # hide import header
-                gr.update(visible=False)   # hide import button
+                gr.update(visible=False),  # hide import button
+                gr.update(value=framework_type)  # set language dropdown to detected language
             ]
 
     # Import repo/model handler
@@ -6993,6 +7072,7 @@ with gr.Blocks(
             deploy_btn,
             import_header_md,
             load_project_btn,
+            language_dropdown,
         ],
     )
 
@@ -7608,14 +7688,8 @@ with gr.Blocks(
                             return gr.update(value=f"Error: Could not access space {repo_id} for update.", visible=True)
                     except Exception as e:
                         return gr.update(value=f"Error: Cannot update space {repo_id}. {str(e)}", visible=True)
-                # Build files from multi-file editors if available; fallback to parsing single editor value
-                files = {
-                    'index.html': tjs_html_code.value if 'tjs_html_code' in locals() else '',
-                    'index.js': tjs_js_code.value if 'tjs_js_code' in locals() else '',
-                    'style.css': tjs_css_code.value if 'tjs_css_code' in locals() else '',
-                }
-                if not (files['index.html'] and files['index.js'] and files['style.css']):
-                    files = parse_transformers_js_output(code)
+                # Parse the code parameter which should contain the formatted transformers.js output
+                files = parse_transformers_js_output(code)
                 
                 if not files['index.html'] or not files['index.js'] or not files['style.css']:
                     return gr.update(value="Error: Could not parse transformers.js output. Please regenerate the code.", visible=True)
