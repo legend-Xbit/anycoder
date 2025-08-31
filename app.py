@@ -7604,34 +7604,56 @@ with gr.Blocks(
                         exist_ok=True
                     )
                 
-                # Generate and upload requirements.txt for Streamlit apps
+                # Generate requirements.txt for Streamlit apps and upload only if needed
                 import_statements = extract_import_statements(code)
                 requirements_content = generate_requirements_txt_with_llm(import_statements)
                 
                 import tempfile
                 
-                # Upload requirements.txt first
-                try:
-                    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
-                        f.write(requirements_content)
-                        requirements_temp_path = f.name
-                    
-                    api.upload_file(
-                        path_or_fileobj=requirements_temp_path,
-                        path_in_repo="requirements.txt",
-                        repo_id=repo_id,
-                        repo_type="space"
-                    )
-                except Exception as e:
-                    error_msg = str(e)
-                    if "403 Forbidden" in error_msg and "write token" in error_msg:
-                        return gr.update(value=f"Error uploading requirements.txt: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
-                    else:
-                        return gr.update(value=f"Error uploading requirements.txt: {e}", visible=True)
-                finally:
-                    import os
-                    if 'requirements_temp_path' in locals():
-                        os.unlink(requirements_temp_path)
+                # Check if we need to upload requirements.txt
+                should_upload_requirements = True
+                if is_update:
+                    try:
+                        # Try to get existing requirements.txt content
+                        existing_requirements = api.hf_hub_download(
+                            repo_id=repo_id,
+                            filename="requirements.txt",
+                            repo_type="space"
+                        )
+                        with open(existing_requirements, 'r') as f:
+                            existing_content = f.read().strip()
+                        
+                        # Compare with new content
+                        if existing_content == requirements_content.strip():
+                            should_upload_requirements = False
+                            
+                    except Exception:
+                        # File doesn't exist or can't be accessed, so we should upload
+                        should_upload_requirements = True
+                
+                # Upload requirements.txt only if needed
+                if should_upload_requirements:
+                    try:
+                        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
+                            f.write(requirements_content)
+                            requirements_temp_path = f.name
+                        
+                        api.upload_file(
+                            path_or_fileobj=requirements_temp_path,
+                            path_in_repo="requirements.txt",
+                            repo_id=repo_id,
+                            repo_type="space"
+                        )
+                    except Exception as e:
+                        error_msg = str(e)
+                        if "403 Forbidden" in error_msg and "write token" in error_msg:
+                            return gr.update(value=f"Error uploading requirements.txt: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                        else:
+                            return gr.update(value=f"Error uploading requirements.txt: {e}", visible=True)
+                    finally:
+                        import os
+                        if 'requirements_temp_path' in locals():
+                            os.unlink(requirements_temp_path)
                 
                 # Add anycoder tag to existing README
                 add_anycoder_tag_to_readme(api, repo_id)
@@ -7980,34 +8002,56 @@ with gr.Blocks(
                     import os
                     os.unlink(temp_path)
         else:
-            # Generate and upload requirements.txt for Gradio apps
+            # Generate requirements.txt for Gradio apps and upload only if needed
             import_statements = extract_import_statements(code)
             requirements_content = generate_requirements_txt_with_llm(import_statements)
             
             import tempfile
             
-            # Upload requirements.txt first
-            try:
-                with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
-                    f.write(requirements_content)
-                    requirements_temp_path = f.name
-                
-                api.upload_file(
-                    path_or_fileobj=requirements_temp_path,
-                    path_in_repo="requirements.txt",
-                    repo_id=repo_id,
-                    repo_type="space"
-                )
-            except Exception as e:
-                error_msg = str(e)
-                if "403 Forbidden" in error_msg and "write token" in error_msg:
-                    return gr.update(value=f"Error uploading requirements.txt: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
-                else:
-                    return gr.update(value=f"Error uploading requirements.txt: {e}", visible=True)
-            finally:
-                import os
-                if 'requirements_temp_path' in locals():
-                    os.unlink(requirements_temp_path)
+            # Check if we need to upload requirements.txt
+            should_upload_requirements = True
+            if is_update:
+                try:
+                    # Try to get existing requirements.txt content
+                    existing_requirements = api.hf_hub_download(
+                        repo_id=repo_id,
+                        filename="requirements.txt",
+                        repo_type="space"
+                    )
+                    with open(existing_requirements, 'r') as f:
+                        existing_content = f.read().strip()
+                    
+                    # Compare with new content
+                    if existing_content == requirements_content.strip():
+                        should_upload_requirements = False
+                        
+                except Exception:
+                    # File doesn't exist or can't be accessed, so we should upload
+                    should_upload_requirements = True
+            
+            # Upload requirements.txt only if needed
+            if should_upload_requirements:
+                try:
+                    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
+                        f.write(requirements_content)
+                        requirements_temp_path = f.name
+                    
+                    api.upload_file(
+                        path_or_fileobj=requirements_temp_path,
+                        path_in_repo="requirements.txt",
+                        repo_id=repo_id,
+                        repo_type="space"
+                    )
+                except Exception as e:
+                    error_msg = str(e)
+                    if "403 Forbidden" in error_msg and "write token" in error_msg:
+                        return gr.update(value=f"Error uploading requirements.txt: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                    else:
+                        return gr.update(value=f"Error uploading requirements.txt: {e}", visible=True)
+                finally:
+                    import os
+                    if 'requirements_temp_path' in locals():
+                        os.unlink(requirements_temp_path)
             
             # Add anycoder tag to existing README
             add_anycoder_tag_to_readme(api, repo_id)
