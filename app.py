@@ -35,6 +35,9 @@ import urllib.parse
 import mimetypes
 import threading
 import atexit
+import asyncio
+from datetime import datetime, timedelta
+from typing import Optional
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
@@ -53,6 +56,165 @@ def get_gradio_language(language):
 SEARCH_START = "<<<<<<< SEARCH"
 DIVIDER = "======="
 REPLACE_END = ">>>>>>> REPLACE"
+
+# Gradio Documentation Auto-Update System
+GRADIO_LLMS_TXT_URL = "https://www.gradio.app/llms.txt"
+GRADIO_DOCS_CACHE_FILE = ".gradio_docs_cache.txt"
+GRADIO_DOCS_LAST_UPDATE_FILE = ".gradio_docs_last_update.txt"
+GRADIO_DOCS_UPDATE_ON_APP_UPDATE = True  # Only update when app is updated, not on a timer
+
+# Global variable to store the current Gradio documentation
+_gradio_docs_content: Optional[str] = None
+_gradio_docs_last_fetched: Optional[datetime] = None
+
+def fetch_gradio_docs() -> Optional[str]:
+    """Fetch the latest Gradio documentation from llms.txt"""
+    try:
+        response = requests.get(GRADIO_LLMS_TXT_URL, timeout=10)
+        response.raise_for_status()
+        return response.text
+    except Exception as e:
+        print(f"Warning: Failed to fetch Gradio docs from {GRADIO_LLMS_TXT_URL}: {e}")
+        return None
+
+def load_cached_gradio_docs() -> Optional[str]:
+    """Load cached Gradio documentation from file"""
+    try:
+        if os.path.exists(GRADIO_DOCS_CACHE_FILE):
+            with open(GRADIO_DOCS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return f.read()
+    except Exception as e:
+        print(f"Warning: Failed to load cached Gradio docs: {e}")
+    return None
+
+def save_gradio_docs_cache(content: str):
+    """Save Gradio documentation to cache file"""
+    try:
+        with open(GRADIO_DOCS_CACHE_FILE, 'w', encoding='utf-8') as f:
+            f.write(content)
+        with open(GRADIO_DOCS_LAST_UPDATE_FILE, 'w', encoding='utf-8') as f:
+            f.write(datetime.now().isoformat())
+    except Exception as e:
+        print(f"Warning: Failed to save Gradio docs cache: {e}")
+
+def get_last_update_time() -> Optional[datetime]:
+    """Get the last update time from file"""
+    try:
+        if os.path.exists(GRADIO_DOCS_LAST_UPDATE_FILE):
+            with open(GRADIO_DOCS_LAST_UPDATE_FILE, 'r', encoding='utf-8') as f:
+                return datetime.fromisoformat(f.read().strip())
+    except Exception as e:
+        print(f"Warning: Failed to read last update time: {e}")
+    return None
+
+def should_update_gradio_docs() -> bool:
+    """Check if Gradio documentation should be updated"""
+    # Only update if we don't have cached content (first run or cache deleted)
+    return not os.path.exists(GRADIO_DOCS_CACHE_FILE)
+
+def force_update_gradio_docs():
+    """
+    Force an update of Gradio documentation (useful when app is updated).
+    
+    To manually refresh docs, you can call this function or simply delete the cache file:
+    rm .gradio_docs_cache.txt && restart the app
+    """
+    global _gradio_docs_content, _gradio_docs_last_fetched
+    
+    print("🔄 Forcing Gradio documentation update...")
+    latest_content = fetch_gradio_docs()
+    
+    if latest_content:
+        _gradio_docs_content = latest_content
+        _gradio_docs_last_fetched = datetime.now()
+        save_gradio_docs_cache(latest_content)
+        update_gradio_system_prompts()
+        print("✅ Gradio documentation updated successfully")
+        return True
+    else:
+        print("❌ Failed to update Gradio documentation")
+        return False
+
+def get_gradio_docs_content() -> str:
+    """Get the current Gradio documentation content, updating if necessary"""
+    global _gradio_docs_content, _gradio_docs_last_fetched
+    
+    # Check if we need to update
+    if (_gradio_docs_content is None or 
+        _gradio_docs_last_fetched is None or 
+        should_update_gradio_docs()):
+        
+        print("Updating Gradio documentation...")
+        
+        # Try to fetch latest content
+        latest_content = fetch_gradio_docs()
+        
+        if latest_content:
+            _gradio_docs_content = latest_content
+            _gradio_docs_last_fetched = datetime.now()
+            save_gradio_docs_cache(latest_content)
+            print("✅ Gradio documentation updated successfully")
+        else:
+            # Fallback to cached content
+            cached_content = load_cached_gradio_docs()
+            if cached_content:
+                _gradio_docs_content = cached_content
+                _gradio_docs_last_fetched = datetime.now()
+                print("⚠️ Using cached Gradio documentation (network fetch failed)")
+            else:
+                # Fallback to minimal content
+                _gradio_docs_content = """
+                # Gradio API Reference (Offline Fallback)
+                
+                This is a minimal fallback when documentation cannot be fetched.
+                Please check your internet connection for the latest API reference.
+                
+                Basic Gradio components: Button, Textbox, Slider, Image, Audio, Video, File, etc.
+                Use gr.Blocks() for custom layouts and gr.Interface() for simple apps.
+                """
+                print("❌ Using minimal fallback documentation")
+    
+    return _gradio_docs_content or ""
+
+def update_gradio_system_prompts():
+    """Update the global Gradio system prompts with latest documentation"""
+    global GRADIO_SYSTEM_PROMPT, GRADIO_SYSTEM_PROMPT_WITH_SEARCH
+    
+    docs_content = get_gradio_docs_content()
+    
+    # Base system prompt
+    base_prompt = """You are an expert Gradio developer. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible. Do NOT add the language name at the top of the code output.
+
+## Complete Gradio API Reference
+
+This reference is automatically synced from https://www.gradio.app/llms.txt to ensure accuracy.
+
+"""
+    
+    # Search-enabled prompt
+    search_prompt = """You are an expert Gradio developer with access to real-time web search. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. When needed, use web search to find current best practices or verify latest Gradio features. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible. Do NOT add the language name at the top of the code output.
+
+## Complete Gradio API Reference
+
+This reference is automatically synced from https://www.gradio.app/llms.txt to ensure accuracy.
+
+"""
+    
+    # Update the prompts
+    GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns."
+    GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns."
+
+# Initialize Gradio documentation on startup
+def initialize_gradio_docs():
+    """Initialize Gradio documentation on application startup"""
+    try:
+        update_gradio_system_prompts()
+        if should_update_gradio_docs():
+            print("🚀 Gradio documentation system initialized (fetched fresh content)")
+        else:
+            print("🚀 Gradio documentation system initialized (using cached content)")
+    except Exception as e:
+        print(f"Warning: Failed to initialize Gradio documentation: {e}")
 
 # Configuration
 HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
@@ -481,6 +643,14 @@ The index.js should contain all the JavaScript logic including transformers.js i
 The style.css should contain all the styling for the application.
 
 Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+
+# Gradio system prompts will be dynamically populated by update_gradio_system_prompts()
+GRADIO_SYSTEM_PROMPT = ""
+GRADIO_SYSTEM_PROMPT_WITH_SEARCH = ""
+
+# GRADIO_SYSTEM_PROMPT_WITH_SEARCH will be dynamically populated by update_gradio_system_prompts()
+
+# All Gradio API documentation is now dynamically loaded from https://www.gradio.app/llms.txt
 
 GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output."""
 
@@ -4567,6 +4737,8 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH if enable_search else TRANSFORMERS_JS_SYSTEM_PROMPT
         elif language == "svelte":
             system_prompt = SVELTE_SYSTEM_PROMPT_WITH_SEARCH if enable_search else SVELTE_SYSTEM_PROMPT
+        elif language == "gradio":
+            system_prompt = GRADIO_SYSTEM_PROMPT_WITH_SEARCH if enable_search else GRADIO_SYSTEM_PROMPT
         else:
             system_prompt = GENERIC_SYSTEM_PROMPT_WITH_SEARCH.format(language=language) if enable_search else GENERIC_SYSTEM_PROMPT.format(language=language)
 
@@ -8109,6 +8281,9 @@ with gr.Blocks(
     # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.
 
 if __name__ == "__main__":
+    # Initialize Gradio documentation system
+    initialize_gradio_docs()
+    
     # Clean up any orphaned temporary files from previous runs
     cleanup_all_temp_media_on_startup()
     
