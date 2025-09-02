@@ -234,18 +234,54 @@ Functions that typically need @spaces.GPU:
 
 ## Advanced ZeroGPU Optimization (Recommended)
 
-For production Spaces with heavy models, consider ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
+For production Spaces with heavy models, use ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
 
+### Basic AoT Compilation
 ```python
 import spaces
 import torch
 from diffusers import DiffusionPipeline
 
-pipe = DiffusionPipeline.from_pretrained(..., torch_dtype=torch.bfloat16)
+MODEL_ID = 'black-forest-labs/FLUX.1-dev'
+pipe = DiffusionPipeline.from_pretrained(MODEL_ID, torch_dtype=torch.bfloat16)
 pipe.to('cuda')
 
-@spaces.GPU(duration=1500)  # Max duration for compilation
+@spaces.GPU(duration=1500)  # Maximum duration allowed during startup
 def compile_transformer():
+    # 1. Capture example inputs
+    with spaces.aoti_capture(pipe.transformer) as call:
+        pipe("arbitrary example prompt")
+    
+    # 2. Export the model
+    exported = torch.export.export(
+        pipe.transformer,
+        args=call.args,
+        kwargs=call.kwargs,
+    )
+    
+    # 3. Compile the exported model
+    return spaces.aoti_compile(exported)
+
+# 4. Apply compiled model to pipeline
+compiled_transformer = compile_transformer()
+spaces.aoti_apply(compiled_transformer, pipe.transformer)
+
+@spaces.GPU
+def generate(prompt):
+    return pipe(prompt).images
+```
+
+### Advanced Optimizations
+
+#### FP8 Quantization (Additional 1.2x speedup on H200)
+```python
+from torchao.quantization import quantize_, Float8DynamicActivationFloat8WeightConfig
+
+@spaces.GPU(duration=1500)
+def compile_transformer_with_quantization():
+    # Quantize before export for FP8 speedup
+    quantize_(pipe.transformer, Float8DynamicActivationFloat8WeightConfig())
+    
     with spaces.aoti_capture(pipe.transformer) as call:
         pipe("arbitrary example prompt")
     
@@ -255,8 +291,126 @@ def compile_transformer():
         kwargs=call.kwargs,
     )
     return spaces.aoti_compile(exported)
+```
 
-compiled_transformer = compile_transformer()
+#### Dynamic Shapes (Variable input sizes)
+```python
+from torch.utils._pytree import tree_map
+
+@spaces.GPU(duration=1500)
+def compile_transformer_dynamic():
+    with spaces.aoti_capture(pipe.transformer) as call:
+        pipe("arbitrary example prompt")
+    
+    # Define dynamic dimension ranges (model-dependent)
+    transformer_hidden_dim = torch.export.Dim('hidden', min=4096, max=8212)
+    
+    # Map argument names to dynamic dimensions
+    transformer_dynamic_shapes = {
+        "hidden_states": {1: transformer_hidden_dim}, 
+        "img_ids": {0: transformer_hidden_dim},
+    }
+    
+    # Create dynamic shapes structure
+    dynamic_shapes = tree_map(lambda v: None, call.kwargs)
+    dynamic_shapes.update(transformer_dynamic_shapes)
+    
+    exported = torch.export.export(
+        pipe.transformer,
+        args=call.args,
+        kwargs=call.kwargs,
+        dynamic_shapes=dynamic_shapes,
+    )
+    return spaces.aoti_compile(exported)
+```
+
+#### Multi-Compile for Different Resolutions
+```python
+@spaces.GPU(duration=1500)
+def compile_multiple_resolutions():
+    compiled_models = {}
+    resolutions = [(512, 512), (768, 768), (1024, 1024)]
+    
+    for width, height in resolutions:
+        # Capture inputs for specific resolution
+        with spaces.aoti_capture(pipe.transformer) as call:
+            pipe(f"test prompt {width}x{height}", width=width, height=height)
+        
+        exported = torch.export.export(
+            pipe.transformer,
+            args=call.args,
+            kwargs=call.kwargs,
+        )
+        compiled_models[f"{width}x{height}"] = spaces.aoti_compile(exported)
+    
+    return compiled_models
+
+# Usage with resolution dispatch
+compiled_models = compile_multiple_resolutions()
+
+@spaces.GPU
+def generate_with_resolution(prompt, width=1024, height=1024):
+    resolution_key = f"{width}x{height}"
+    if resolution_key in compiled_models:
+        # Temporarily apply the right compiled model
+        spaces.aoti_apply(compiled_models[resolution_key], pipe.transformer)
+    return pipe(prompt, width=width, height=height).images
+```
+
+#### FlashAttention-3 Integration
+```python
+from kernels import get_kernel
+
+# Load pre-built FA3 kernel compatible with H200
+try:
+    vllm_flash_attn3 = get_kernel("kernels-community/vllm-flash-attn3")
+    print("✅ FlashAttention-3 kernel loaded successfully")
+except Exception as e:
+    print(f"⚠️ FlashAttention-3 not available: {e}")
+
+# Custom attention processor example
+class FlashAttention3Processor:
+    def __call__(self, attn, hidden_states, encoder_hidden_states=None, attention_mask=None):
+        # Use FA3 kernel for attention computation
+        return vllm_flash_attn3(hidden_states, encoder_hidden_states, attention_mask)
+
+# Apply FA3 processor to model
+if 'vllm_flash_attn3' in locals():
+    for name, module in pipe.transformer.named_modules():
+        if hasattr(module, 'processor'):
+            module.processor = FlashAttention3Processor()
+```
+
+### Complete Optimized Example
+```python
+import spaces
+import torch
+from diffusers import DiffusionPipeline
+from torchao.quantization import quantize_, Float8DynamicActivationFloat8WeightConfig
+
+MODEL_ID = 'black-forest-labs/FLUX.1-dev'
+pipe = DiffusionPipeline.from_pretrained(MODEL_ID, torch_dtype=torch.bfloat16)
+pipe.to('cuda')
+
+@spaces.GPU(duration=1500)
+def compile_optimized_transformer():
+    # Apply FP8 quantization
+    quantize_(pipe.transformer, Float8DynamicActivationFloat8WeightConfig())
+    
+    # Capture inputs
+    with spaces.aoti_capture(pipe.transformer) as call:
+        pipe("optimization test prompt")
+    
+    # Export and compile
+    exported = torch.export.export(
+        pipe.transformer,
+        args=call.args,
+        kwargs=call.kwargs,
+    )
+    return spaces.aoti_compile(exported)
+
+# Compile during startup
+compiled_transformer = compile_optimized_transformer()
 spaces.aoti_apply(compiled_transformer, pipe.transformer)
 
 @spaces.GPU
@@ -264,10 +418,16 @@ def generate(prompt):
     return pipe(prompt).images
 ```
 
-Optional enhancements:
-- FP8 quantization with torchao for additional 1.2x speedup (H200 compatible)
-- Dynamic shapes for variable input sizes
-- FlashAttention-3 via kernels library for attention speedups
+**Expected Performance Gains:**
+- Basic AoT: 1.3x-1.8x speedup
+- + FP8 Quantization: Additional 1.2x speedup  
+- + FlashAttention-3: Additional attention speedup
+- Total potential: 2x-3x faster inference
+
+**Hardware Requirements:**
+- FP8 quantization requires CUDA compute capability ≥ 9.0 (H200 ✅)
+- FlashAttention-3 works on H200 hardware via kernels library
+- Dynamic shapes add flexibility for variable input sizes
 
 ## Complete Gradio API Reference
 
@@ -327,18 +487,54 @@ Functions that typically need @spaces.GPU:
 
 ## Advanced ZeroGPU Optimization (Recommended)
 
-For production Spaces with heavy models, consider ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
+For production Spaces with heavy models, use ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
 
+### Basic AoT Compilation
 ```python
 import spaces
 import torch
 from diffusers import DiffusionPipeline
 
-pipe = DiffusionPipeline.from_pretrained(..., torch_dtype=torch.bfloat16)
+MODEL_ID = 'black-forest-labs/FLUX.1-dev'
+pipe = DiffusionPipeline.from_pretrained(MODEL_ID, torch_dtype=torch.bfloat16)
 pipe.to('cuda')
 
-@spaces.GPU(duration=1500)  # Max duration for compilation
+@spaces.GPU(duration=1500)  # Maximum duration allowed during startup
 def compile_transformer():
+    # 1. Capture example inputs
+    with spaces.aoti_capture(pipe.transformer) as call:
+        pipe("arbitrary example prompt")
+    
+    # 2. Export the model
+    exported = torch.export.export(
+        pipe.transformer,
+        args=call.args,
+        kwargs=call.kwargs,
+    )
+    
+    # 3. Compile the exported model
+    return spaces.aoti_compile(exported)
+
+# 4. Apply compiled model to pipeline
+compiled_transformer = compile_transformer()
+spaces.aoti_apply(compiled_transformer, pipe.transformer)
+
+@spaces.GPU
+def generate(prompt):
+    return pipe(prompt).images
+```
+
+### Advanced Optimizations
+
+#### FP8 Quantization (Additional 1.2x speedup on H200)
+```python
+from torchao.quantization import quantize_, Float8DynamicActivationFloat8WeightConfig
+
+@spaces.GPU(duration=1500)
+def compile_transformer_with_quantization():
+    # Quantize before export for FP8 speedup
+    quantize_(pipe.transformer, Float8DynamicActivationFloat8WeightConfig())
+    
     with spaces.aoti_capture(pipe.transformer) as call:
         pipe("arbitrary example prompt")
     
@@ -348,8 +544,126 @@ def compile_transformer():
         kwargs=call.kwargs,
     )
     return spaces.aoti_compile(exported)
+```
 
-compiled_transformer = compile_transformer()
+#### Dynamic Shapes (Variable input sizes)
+```python
+from torch.utils._pytree import tree_map
+
+@spaces.GPU(duration=1500)
+def compile_transformer_dynamic():
+    with spaces.aoti_capture(pipe.transformer) as call:
+        pipe("arbitrary example prompt")
+    
+    # Define dynamic dimension ranges (model-dependent)
+    transformer_hidden_dim = torch.export.Dim('hidden', min=4096, max=8212)
+    
+    # Map argument names to dynamic dimensions
+    transformer_dynamic_shapes = {
+        "hidden_states": {1: transformer_hidden_dim}, 
+        "img_ids": {0: transformer_hidden_dim},
+    }
+    
+    # Create dynamic shapes structure
+    dynamic_shapes = tree_map(lambda v: None, call.kwargs)
+    dynamic_shapes.update(transformer_dynamic_shapes)
+    
+    exported = torch.export.export(
+        pipe.transformer,
+        args=call.args,
+        kwargs=call.kwargs,
+        dynamic_shapes=dynamic_shapes,
+    )
+    return spaces.aoti_compile(exported)
+```
+
+#### Multi-Compile for Different Resolutions
+```python
+@spaces.GPU(duration=1500)
+def compile_multiple_resolutions():
+    compiled_models = {}
+    resolutions = [(512, 512), (768, 768), (1024, 1024)]
+    
+    for width, height in resolutions:
+        # Capture inputs for specific resolution
+        with spaces.aoti_capture(pipe.transformer) as call:
+            pipe(f"test prompt {width}x{height}", width=width, height=height)
+        
+        exported = torch.export.export(
+            pipe.transformer,
+            args=call.args,
+            kwargs=call.kwargs,
+        )
+        compiled_models[f"{width}x{height}"] = spaces.aoti_compile(exported)
+    
+    return compiled_models
+
+# Usage with resolution dispatch
+compiled_models = compile_multiple_resolutions()
+
+@spaces.GPU
+def generate_with_resolution(prompt, width=1024, height=1024):
+    resolution_key = f"{width}x{height}"
+    if resolution_key in compiled_models:
+        # Temporarily apply the right compiled model
+        spaces.aoti_apply(compiled_models[resolution_key], pipe.transformer)
+    return pipe(prompt, width=width, height=height).images
+```
+
+#### FlashAttention-3 Integration
+```python
+from kernels import get_kernel
+
+# Load pre-built FA3 kernel compatible with H200
+try:
+    vllm_flash_attn3 = get_kernel("kernels-community/vllm-flash-attn3")
+    print("✅ FlashAttention-3 kernel loaded successfully")
+except Exception as e:
+    print(f"⚠️ FlashAttention-3 not available: {e}")
+
+# Custom attention processor example
+class FlashAttention3Processor:
+    def __call__(self, attn, hidden_states, encoder_hidden_states=None, attention_mask=None):
+        # Use FA3 kernel for attention computation
+        return vllm_flash_attn3(hidden_states, encoder_hidden_states, attention_mask)
+
+# Apply FA3 processor to model
+if 'vllm_flash_attn3' in locals():
+    for name, module in pipe.transformer.named_modules():
+        if hasattr(module, 'processor'):
+            module.processor = FlashAttention3Processor()
+```
+
+### Complete Optimized Example
+```python
+import spaces
+import torch
+from diffusers import DiffusionPipeline
+from torchao.quantization import quantize_, Float8DynamicActivationFloat8WeightConfig
+
+MODEL_ID = 'black-forest-labs/FLUX.1-dev'
+pipe = DiffusionPipeline.from_pretrained(MODEL_ID, torch_dtype=torch.bfloat16)
+pipe.to('cuda')
+
+@spaces.GPU(duration=1500)
+def compile_optimized_transformer():
+    # Apply FP8 quantization
+    quantize_(pipe.transformer, Float8DynamicActivationFloat8WeightConfig())
+    
+    # Capture inputs
+    with spaces.aoti_capture(pipe.transformer) as call:
+        pipe("optimization test prompt")
+    
+    # Export and compile
+    exported = torch.export.export(
+        pipe.transformer,
+        args=call.args,
+        kwargs=call.kwargs,
+    )
+    return spaces.aoti_compile(exported)
+
+# Compile during startup
+compiled_transformer = compile_optimized_transformer()
 spaces.aoti_apply(compiled_transformer, pipe.transformer)
 
 @spaces.GPU
@@ -357,10 +671,16 @@ def generate(prompt):
     return pipe(prompt).images
 ```
 
-Optional enhancements:
-- FP8 quantization with torchao for additional 1.2x speedup (H200 compatible)
-- Dynamic shapes for variable input sizes
-- FlashAttention-3 via kernels library for attention speedups
+**Expected Performance Gains:**
+- Basic AoT: 1.3x-1.8x speedup
+- + FP8 Quantization: Additional 1.2x speedup  
+- + FlashAttention-3: Additional attention speedup
+- Total potential: 2x-3x faster inference
+
+**Hardware Requirements:**
+- FP8 quantization requires CUDA compute capability ≥ 9.0 (H200 ✅)
+- FlashAttention-3 works on H200 hardware via kernels library
+- Dynamic shapes add flexibility for variable input sizes
 
 ## Complete Gradio API Reference
 
