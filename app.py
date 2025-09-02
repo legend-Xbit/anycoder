@@ -191,7 +191,11 @@ ALWAYS use ZeroGPU for GPU-dependent functions in Gradio apps:
 
 1. Import the spaces module: `import spaces`
 2. Decorate GPU-dependent functions with `@spaces.GPU`
-3. For functions that may take longer than 60 seconds, specify duration: `@spaces.GPU(duration=120)`
+3. Specify appropriate duration based on expected runtime:
+   - Quick inference (< 30s): `@spaces.GPU(duration=30)`
+   - Standard generation (30-60s): `@spaces.GPU` (default 60s)
+   - Complex generation (60-120s): `@spaces.GPU(duration=120)`
+   - Heavy processing (120-180s): `@spaces.GPU(duration=180)`
 
 Example usage:
 ```python
@@ -201,7 +205,7 @@ from diffusers import DiffusionPipeline
 pipe = DiffusionPipeline.from_pretrained(...)
 pipe.to('cuda')
 
-@spaces.GPU
+@spaces.GPU(duration=120)
 def generate(prompt):
     return pipe(prompt).images
 
@@ -211,6 +215,14 @@ gr.Interface(
     outputs=gr.Gallery(),
 ).launch()
 ```
+
+Duration Guidelines:
+- Shorter durations improve queue priority for users
+- Text-to-image: typically 30-60 seconds
+- Image-to-image: typically 20-40 seconds  
+- Video generation: typically 60-180 seconds
+- Audio/music generation: typically 30-90 seconds
+- Model loading + inference: add 10-30s buffer
 
 Functions that typically need @spaces.GPU:
 - Image generation (text-to-image, image-to-image)
@@ -234,7 +246,11 @@ ALWAYS use ZeroGPU for GPU-dependent functions in Gradio apps:
 
 1. Import the spaces module: `import spaces`
 2. Decorate GPU-dependent functions with `@spaces.GPU`
-3. For functions that may take longer than 60 seconds, specify duration: `@spaces.GPU(duration=120)`
+3. Specify appropriate duration based on expected runtime:
+   - Quick inference (< 30s): `@spaces.GPU(duration=30)`
+   - Standard generation (30-60s): `@spaces.GPU` (default 60s)
+   - Complex generation (60-120s): `@spaces.GPU(duration=120)`
+   - Heavy processing (120-180s): `@spaces.GPU(duration=180)`
 
 Example usage:
 ```python
@@ -244,7 +260,7 @@ from diffusers import DiffusionPipeline
 pipe = DiffusionPipeline.from_pretrained(...)
 pipe.to('cuda')
 
-@spaces.GPU
+@spaces.GPU(duration=120)
 def generate(prompt):
     return pipe(prompt).images
 
@@ -254,6 +270,14 @@ gr.Interface(
     outputs=gr.Gallery(),
 ).launch()
 ```
+
+Duration Guidelines:
+- Shorter durations improve queue priority for users
+- Text-to-image: typically 30-60 seconds
+- Image-to-image: typically 20-40 seconds  
+- Video generation: typically 60-180 seconds
+- Audio/music generation: typically 30-90 seconds
+- Model loading + inference: add 10-30s buffer
 
 Functions that typically need @spaces.GPU:
 - Image generation (text-to-image, image-to-image)
