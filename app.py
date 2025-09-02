@@ -223,6 +223,7 @@ Duration Guidelines:
 - Video generation: typically 60-180 seconds
 - Audio/music generation: typically 30-90 seconds
 - Model loading + inference: add 10-30s buffer
+- AoT compilation during startup: use @spaces.GPU(duration=1500) for maximum allowed duration
 
 Functions that typically need @spaces.GPU:
 - Image generation (text-to-image, image-to-image)
@@ -230,6 +231,43 @@ Functions that typically need @spaces.GPU:
 - Audio/music generation
 - Model inference with transformers, diffusers
 - Any function using .to('cuda') or GPU operations
+
+## Advanced ZeroGPU Optimization (Recommended)
+
+For production Spaces with heavy models, consider ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
+
+```python
+import spaces
+import torch
+from diffusers import DiffusionPipeline
+
+pipe = DiffusionPipeline.from_pretrained(..., torch_dtype=torch.bfloat16)
+pipe.to('cuda')
+
+@spaces.GPU(duration=1500)  # Max duration for compilation
+def compile_transformer():
+    with spaces.aoti_capture(pipe.transformer) as call:
+        pipe("arbitrary example prompt")
+    
+    exported = torch.export.export(
+        pipe.transformer,
+        args=call.args,
+        kwargs=call.kwargs,
+    )
+    return spaces.aoti_compile(exported)
+
+compiled_transformer = compile_transformer()
+spaces.aoti_apply(compiled_transformer, pipe.transformer)
+
+@spaces.GPU
+def generate(prompt):
+    return pipe(prompt).images
+```
+
+Optional enhancements:
+- FP8 quantization with torchao for additional 1.2x speedup (H200 compatible)
+- Dynamic shapes for variable input sizes
+- FlashAttention-3 via kernels library for attention speedups
 
 ## Complete Gradio API Reference
 
@@ -278,6 +316,7 @@ Duration Guidelines:
 - Video generation: typically 60-180 seconds
 - Audio/music generation: typically 30-90 seconds
 - Model loading + inference: add 10-30s buffer
+- AoT compilation during startup: use @spaces.GPU(duration=1500) for maximum allowed duration
 
 Functions that typically need @spaces.GPU:
 - Image generation (text-to-image, image-to-image)
@@ -285,6 +324,43 @@ Functions that typically need @spaces.GPU:
 - Audio/music generation
 - Model inference with transformers, diffusers
 - Any function using .to('cuda') or GPU operations
+
+## Advanced ZeroGPU Optimization (Recommended)
+
+For production Spaces with heavy models, consider ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
+
+```python
+import spaces
+import torch
+from diffusers import DiffusionPipeline
+
+pipe = DiffusionPipeline.from_pretrained(..., torch_dtype=torch.bfloat16)
+pipe.to('cuda')
+
+@spaces.GPU(duration=1500)  # Max duration for compilation
+def compile_transformer():
+    with spaces.aoti_capture(pipe.transformer) as call:
+        pipe("arbitrary example prompt")
+    
+    exported = torch.export.export(
+        pipe.transformer,
+        args=call.args,
+        kwargs=call.kwargs,
+    )
+    return spaces.aoti_compile(exported)
+
+compiled_transformer = compile_transformer()
+spaces.aoti_apply(compiled_transformer, pipe.transformer)
+
+@spaces.GPU
+def generate(prompt):
+    return pipe(prompt).images
+```
+
+Optional enhancements:
+- FP8 quantization with torchao for additional 1.2x speedup (H200 compatible)
+- Dynamic shapes for variable input sizes
+- FlashAttention-3 via kernels library for attention speedups
 
 ## Complete Gradio API Reference
 
