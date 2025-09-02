@@ -185,7 +185,9 @@ def update_gradio_system_prompts():
     # Base system prompt
     base_prompt = """You are an expert Gradio developer. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible. Do NOT add the language name at the top of the code output.
 
-## ZeroGPU Integration (REQUIRED)
+🚨 CRITICAL REQUIREMENT: If the user provides ANY diffusion model code (FLUX, Stable Diffusion, etc.), you MUST implement ZeroGPU ahead-of-time (AoT) compilation. This is mandatory and provides 1.3x-1.8x performance improvements. Do not create basic Gradio apps without AoT optimization for diffusion models.
+
+## ZeroGPU Integration (MANDATORY)
 
 ALWAYS use ZeroGPU for GPU-dependent functions in Gradio apps:
 
@@ -232,11 +234,23 @@ Functions that typically need @spaces.GPU:
 - Model inference with transformers, diffusers
 - Any function using .to('cuda') or GPU operations
 
-## Advanced ZeroGPU Optimization (Recommended)
+## CRITICAL: Use ZeroGPU AoT Compilation for ALL Diffusion Models
 
-For production Spaces with heavy models, use ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
+FOR ANY DIFFUSION MODEL (FLUX, Stable Diffusion, etc.), YOU MUST IMPLEMENT AHEAD-OF-TIME COMPILATION.
+This is NOT optional - it provides 1.3x-1.8x speedup and is essential for production ZeroGPU Spaces.
 
-### Basic AoT Compilation
+ALWAYS implement this pattern for diffusion models:
+
+### MANDATORY: Basic AoT Compilation Pattern
+YOU MUST USE THIS EXACT PATTERN for any diffusion model (FLUX, Stable Diffusion, etc.):
+
+1. ALWAYS add AoT compilation function with @spaces.GPU(duration=1500)
+2. ALWAYS use spaces.aoti_capture to capture inputs
+3. ALWAYS use torch.export.export to export the transformer
+4. ALWAYS use spaces.aoti_compile to compile
+5. ALWAYS use spaces.aoti_apply to apply to pipeline
+
+### Required AoT Implementation
 ```python
 import spaces
 import torch
@@ -438,7 +452,9 @@ This reference is automatically synced from https://www.gradio.app/llms.txt to e
     # Search-enabled prompt
     search_prompt = """You are an expert Gradio developer with access to real-time web search. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. When needed, use web search to find current best practices or verify latest Gradio features. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible. Do NOT add the language name at the top of the code output.
 
-## ZeroGPU Integration (REQUIRED)
+🚨 CRITICAL REQUIREMENT: If the user provides ANY diffusion model code (FLUX, Stable Diffusion, etc.), you MUST implement ZeroGPU ahead-of-time (AoT) compilation. This is mandatory and provides 1.3x-1.8x performance improvements. Do not create basic Gradio apps without AoT optimization for diffusion models.
+
+## ZeroGPU Integration (MANDATORY)
 
 ALWAYS use ZeroGPU for GPU-dependent functions in Gradio apps:
 
@@ -485,7 +501,23 @@ Functions that typically need @spaces.GPU:
 - Model inference with transformers, diffusers
 - Any function using .to('cuda') or GPU operations
 
-## Advanced ZeroGPU Optimization (Recommended)
+## CRITICAL: Use ZeroGPU AoT Compilation for ALL Diffusion Models
+
+FOR ANY DIFFUSION MODEL (FLUX, Stable Diffusion, etc.), YOU MUST IMPLEMENT AHEAD-OF-TIME COMPILATION.
+This is NOT optional - it provides 1.3x-1.8x speedup and is essential for production ZeroGPU Spaces.
+
+ALWAYS implement this pattern for diffusion models:
+
+### MANDATORY: Basic AoT Compilation Pattern
+YOU MUST USE THIS EXACT PATTERN for any diffusion model (FLUX, Stable Diffusion, etc.):
+
+1. ALWAYS add AoT compilation function with @spaces.GPU(duration=1500)
+2. ALWAYS use spaces.aoti_capture to capture inputs
+3. ALWAYS use torch.export.export to export the transformer
+4. ALWAYS use spaces.aoti_compile to compile
+5. ALWAYS use spaces.aoti_apply to apply to pipeline
+
+### Required AoT Implementation
 
 For production Spaces with heavy models, use ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
 
