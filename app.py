@@ -6094,7 +6094,9 @@ Instructions:
 - Use correct PyPI package names (e.g., cv2 -> opencv-python, PIL -> Pillow, sklearn -> scikit-learn)
 - IMPORTANT: For diffusers, ALWAYS use: git+https://github.com/huggingface/diffusers
 - IMPORTANT: For transformers, ALWAYS use: git+https://github.com/huggingface/transformers
+- IMPORTANT: If diffusers is installed, also include transformers and sentencepiece as they usually go together
 - Examples of comprehensive dependencies:
+  * diffusers often needs: git+https://github.com/huggingface/transformers, sentencepiece, accelerate, torch, tokenizers
   * transformers often needs: accelerate, torch, tokenizers, datasets
   * gradio often needs: requests, Pillow for image handling
   * pandas often needs: numpy, openpyxl for Excel files
