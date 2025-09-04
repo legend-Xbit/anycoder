@@ -1462,6 +1462,11 @@ AVAILABLE_MODELS = [
         "description": "Moonshot AI Kimi K2 Turbo via OpenAI-compatible API"
     },
     {
+        "name": "Carrot",
+        "id": "stealth-model-1",
+        "description": "High-performance AI model for code generation and complex reasoning tasks"
+    },
+    {
         "name": "DeepSeek V3",
         "id": "deepseek-ai/DeepSeek-V3-0324",
         "description": "DeepSeek V3 model for code generation"
@@ -1619,7 +1624,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Qwen3-Coder-480B-A35B-Instruct"
+DEFAULT_MODEL_NAME = "Carrot"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1766,6 +1771,20 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("MOONSHOT_API_KEY"),
             base_url="https://api.moonshot.ai/v1",
         )
+    elif model_id == "stealth-model-1":
+        # Use stealth model with generic configuration
+        api_key = os.getenv("STEALTH_MODEL_1_API_KEY")
+        if not api_key:
+            raise ValueError("STEALTH_MODEL_1_API_KEY environment variable is required for Carrot model")
+        
+        base_url = os.getenv("STEALTH_MODEL_1_BASE_URL")
+        if not base_url:
+            raise ValueError("STEALTH_MODEL_1_BASE_URL environment variable is required for Carrot model")
+        
+        return OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+        )
     elif model_id == "openai/gpt-oss-120b":
         provider = "groq"
     elif model_id == "openai/gpt-oss-20b":
@@ -1791,6 +1810,18 @@ def get_inference_client(model_id, provider="auto"):
         api_key=HF_TOKEN,
         bill_to="huggingface"
     )
+
+# Helper function to get real model ID for stealth models
+def get_real_model_id(model_id: str) -> str:
+    """Get the real model ID, checking environment variables for stealth models"""
+    if model_id == "stealth-model-1":
+        # Get the real model ID from environment variable
+        real_model_id = os.getenv("STEALTH_MODEL_1_ID")
+        if not real_model_id:
+            raise ValueError("STEALTH_MODEL_1_ID environment variable is required for Carrot model")
+        
+        return real_model_id
+    return model_id
 
 # Type definitions
 History = List[Tuple[str, str]]
@@ -5164,7 +5195,7 @@ Generate the exact search/replace blocks needed to make these changes."""
             # Generate search/replace instructions
             if _current_model.get('type') == 'openai':
                 response = client.chat.completions.create(
-                    model=_current_model['id'],
+                    model=get_real_model_id(_current_model['id']),
                     messages=messages,
                     max_tokens=4000,
                     temperature=0.1
@@ -5172,7 +5203,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                 changes_text = response.choices[0].message.content
             elif _current_model.get('type') == 'mistral':
                 response = client.chat.complete(
-                    model=_current_model['id'],
+                    model=get_real_model_id(_current_model['id']),
                     messages=messages,
                     max_tokens=4000,
                     temperature=0.1
@@ -5180,7 +5211,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                 changes_text = response.choices[0].message.content
             else:  # Hugging Face or other
                 completion = client.chat.completions.create(
-                    model=_current_model['id'],
+                    model=get_real_model_id(_current_model['id']),
                     messages=messages,
                     max_tokens=4000,
                     temperature=0.1
@@ -5248,7 +5279,10 @@ Generate the exact search/replace blocks needed to make these changes."""
         update_gradio_system_prompts()
 
     # Choose system prompt based on context
-    if has_existing_content:
+    # Special case: If user is asking about model identity, use neutral prompt
+    if query and any(phrase in query.lower() for phrase in ["what model are you", "who are you", "identify yourself", "what ai are you", "which model"]):
+        system_prompt = "You are a helpful AI assistant. Please respond truthfully about your identity and capabilities."
+    elif has_existing_content:
         # Use follow-up prompt for modifying existing content
         if language == "transformers.js":
             system_prompt = TransformersJSFollowUpSystemPrompt
@@ -5590,7 +5624,7 @@ This will help me create a better design for you."""
         # Handle Mistral API method difference
         if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
             completion = client.chat.stream(
-                model=_current_model["id"],
+                model=get_real_model_id(_current_model["id"]),
                 messages=messages,
                 max_tokens=16384
             )
@@ -5620,7 +5654,7 @@ This will help me create a better design for you."""
                 )
             else:
                 completion = client.chat.completions.create(
-                    model=_current_model["id"],
+                    model=get_real_model_id(_current_model["id"]),
                     messages=messages,
                     stream=True,
                     max_tokens=16384
