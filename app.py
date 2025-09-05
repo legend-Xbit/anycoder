@@ -1620,11 +1620,16 @@ AVAILABLE_MODELS = [
         "name": "Claude-Opus-4.1",
         "id": "claude-opus-4.1",
         "description": "Anthropic Claude Opus 4.1 via Poe (OpenAI-compatible)"
+    },
+    {
+        "name": "Qwen3 Max Preview",
+        "id": "qwen3-max-preview",
+        "description": "Qwen3 Max Preview model via DashScope International API"
     }
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Carrot"
+DEFAULT_MODEL_NAME = "Qwen3 Max Preview"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1743,6 +1748,12 @@ def get_inference_client(model_id, provider="auto"):
         return OpenAI(
             api_key=os.getenv("POE_API_KEY"),
             base_url="https://api.poe.com/v1"
+        )
+    elif model_id == "qwen3-max-preview":
+        # Use DashScope International OpenAI client for Qwen3 Max Preview
+        return OpenAI(
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
     elif model_id == "step-3":
         # Use StepFun API client for Step-3 model
