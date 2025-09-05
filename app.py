@@ -7119,7 +7119,7 @@ with gr.Blocks(
         ]
         language_dropdown = gr.Dropdown(
             choices=language_choices,
-            value="gradio",
+            value="html",
             label="Code Language",
             visible=True
         )
