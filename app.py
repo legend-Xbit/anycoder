@@ -1630,11 +1630,16 @@ AVAILABLE_MODELS = [
         "name": "Sonoma Dusk Alpha",
         "id": "openrouter/sonoma-dusk-alpha",
         "description": "OpenRouter Sonoma Dusk Alpha model with vision capabilities"
+    },
+    {
+        "name": "Sonoma Sky Alpha",
+        "id": "openrouter/sonoma-sky-alpha",
+        "description": "OpenRouter Sonoma Sky Alpha model with vision capabilities"
     }
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Qwen3 Max Preview"
+DEFAULT_MODEL_NAME = "Sonoma Sky Alpha"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1762,6 +1767,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "openrouter/sonoma-dusk-alpha":
         # Use OpenRouter client for Sonoma Dusk Alpha model
+        return OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+        )
+    elif model_id == "openrouter/sonoma-sky-alpha":
+        # Use OpenRouter client for Sonoma Sky Alpha model
         return OpenAI(
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
