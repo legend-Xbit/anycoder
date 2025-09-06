@@ -1625,6 +1625,11 @@ AVAILABLE_MODELS = [
         "name": "Qwen3 Max Preview",
         "id": "qwen3-max-preview",
         "description": "Qwen3 Max Preview model via DashScope International API"
+    },
+    {
+        "name": "Sonoma Dusk Alpha",
+        "id": "openrouter/sonoma-dusk-alpha",
+        "description": "OpenRouter Sonoma Dusk Alpha model with vision capabilities"
     }
 ]
 
@@ -1754,6 +1759,12 @@ def get_inference_client(model_id, provider="auto"):
         return OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+    elif model_id == "openrouter/sonoma-dusk-alpha":
+        # Use OpenRouter client for Sonoma Dusk Alpha model
+        return OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
         )
     elif model_id == "step-3":
         # Use StepFun API client for Step-3 model
