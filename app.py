@@ -1649,7 +1649,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Sonoma Sky Alpha"
+DEFAULT_MODEL_NAME = "Qwen3-Next-80B-A3B-Thinking"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
