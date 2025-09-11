@@ -1547,6 +1547,16 @@ AVAILABLE_MODELS = [
         "description": "Qwen3-235B-A22B-Thinking model with advanced reasoning capabilities"
     },
     {
+        "name": "Qwen3-Next-80B-A3B-Thinking",
+        "id": "Qwen/Qwen3-Next-80B-A3B-Thinking",
+        "description": "Qwen3-Next-80B-A3B-Thinking model with advanced reasoning capabilities via Hyperbolic"
+    },
+    {
+        "name": "Qwen3-Next-80B-A3B-Instruct",
+        "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
+        "description": "Qwen3-Next-80B-A3B-Instruct model for code generation and general tasks via Hyperbolic"
+    },
+    {
         "name": "Qwen3-30B-A3B-Instruct-2507",
         "id": "qwen3-30b-a3b-instruct-2507",
         "description": "Qwen3-30B-A3B-Instruct model via Alibaba Cloud DashScope API"
@@ -1834,6 +1844,10 @@ def get_inference_client(model_id, provider="auto"):
         provider = "cerebras"
     elif model_id == "Qwen/Qwen3-Coder-480B-A35B-Instruct":
         provider = "cerebras"
+    elif model_id == "Qwen/Qwen3-Next-80B-A3B-Thinking":
+        provider = "hyperbolic"
+    elif model_id == "Qwen/Qwen3-Next-80B-A3B-Instruct":
+        provider = "hyperbolic"
     elif model_id == "deepseek-ai/DeepSeek-V3.1":
         provider = "novita"
     elif model_id == "zai-org/GLM-4.5":
