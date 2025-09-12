@@ -1649,7 +1649,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Qwen3-Next-80B-A3B-Thinking"
+DEFAULT_MODEL_NAME = "Qwen3-Next-80B-A3B-Instruct"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1847,7 +1847,7 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "Qwen/Qwen3-Next-80B-A3B-Thinking":
         provider = "hyperbolic"
     elif model_id == "Qwen/Qwen3-Next-80B-A3B-Instruct":
-        provider = "hyperbolic"
+        provider = "novita"
     elif model_id == "deepseek-ai/DeepSeek-V3.1":
         provider = "novita"
     elif model_id == "zai-org/GLM-4.5":
