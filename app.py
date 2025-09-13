@@ -2833,7 +2833,7 @@ def create_temp_media_url(media_bytes: bytes, filename: str, media_type: str = "
     """
     try:
         # Create unique filename with timestamp and UUID
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
         base_name, ext = os.path.splitext(filename)
         unique_filename = f"{media_type}_{timestamp}_{unique_id}_{base_name}{ext}"
@@ -2925,7 +2925,7 @@ def upload_media_to_hf(media_bytes: bytes, filename: str, media_type: str = "ima
             # Continue anyway, repo might already exist
         
         # Create unique filename with timestamp and UUID
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_id = str(uuid.uuid4())[:8]
         base_name, ext = os.path.splitext(filename)
         unique_filename = f"{media_type}/{timestamp}_{unique_id}_{base_name}{ext}"
@@ -3029,93 +3029,54 @@ def cleanup_temp_media_files():
     except Exception as e:
         print(f"[TempCleanup] Error during cleanup: {str(e)}")
 
-def generate_image_with_gemini(prompt: str, image_index: int = 0, token: gr.OAuthToken | None = None) -> str:
-    """Generate image using Google Gemini 2.5 Flash Image Preview via OpenRouter.
+def generate_image_with_hunyuan(prompt: str, image_index: int = 0, token: gr.OAuthToken | None = None) -> str:
+    """Generate image using Tencent HunyuanImage-2.1 via Hugging Face InferenceClient.
     
-    Uses google/gemini-2.5-flash-image-preview:free via OpenRouter chat completions API.
+    Uses tencent/HunyuanImage-2.1 via HuggingFace InferenceClient with fal-ai provider.
     
     Returns an HTML <img> tag whose src is an uploaded temporary URL.
     """
     try:
-        print(f"[Text2Image] Starting generation with prompt: {prompt[:100]}...")
-        # Check for OpenRouter API key
-        openrouter_key = os.getenv('OPENROUTER_API_KEY')
-        if not openrouter_key:
-            print("[Text2Image] Missing OPENROUTER_API_KEY")
-            return "Error: OPENROUTER_API_KEY environment variable is not set. Please set it to your OpenRouter API key."
+        print(f"[Text2Image] Starting HunyuanImage generation with prompt: {prompt[:100]}...")
+        
+        # Check for HF_TOKEN
+        hf_token = os.getenv('HF_TOKEN')
+        if not hf_token:
+            print("[Text2Image] Missing HF_TOKEN")
+            return "Error: HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token."
 
-        import requests
-        import json as _json
-        import base64
-        import io as _io
+        from huggingface_hub import InferenceClient
         from PIL import Image
+        import io as _io
         
-        # Create the chat completion request for text-to-image
-        headers = {
-            "Authorization": f"Bearer {openrouter_key}",
-            "Content-Type": "application/json"
-        }
+        # Create InferenceClient with fal-ai provider
+        client = InferenceClient(
+            provider="fal-ai",
+            api_key=hf_token,
+            bill_to="huggingface",
+        )
         
-        data = {
-            "model": "google/gemini-2.5-flash-image-preview:free",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": f"Generate an image based on this description: {prompt}"
-                }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 1000
-        }
+        print("[Text2Image] Making API request to HuggingFace InferenceClient...")
         
-        try:
-            print("[Text2Image] Making API request to OpenRouter...")
-            response = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=data,
-                timeout=60
-            )
-            response.raise_for_status()
-            result_data = response.json()
-            print(f"[Text2Image] Received API response: {_json.dumps(result_data, indent=2)}")
-            
-            # Extract the generated image from the response (using same pattern as image-to-image)
-            message = result_data.get('choices', [{}])[0].get('message', {})
-            
-            if message and 'images' in message and message['images']:
-                # Get the first image from the 'images' list
-                image_data = message['images'][0]
-                base64_string = image_data.get('image_url', {}).get('url', '')
-                
-                if base64_string and ',' in base64_string:
-                    # Remove the "data:image/png;base64," prefix
-                    base64_content = base64_string.split(',')[1]
-                    
-                    # Decode the base64 string and create a PIL image
-                    img_bytes = base64.b64decode(base64_content)
-                    generated_image = Image.open(_io.BytesIO(img_bytes))
-                    
-                    # Convert PIL image to JPEG bytes for upload
-                    out_buf = _io.BytesIO()
-                    generated_image.convert('RGB').save(out_buf, format='JPEG', quality=90, optimize=True)
-                    image_bytes = out_buf.getvalue()
-                else:
-                    raise RuntimeError(f"API returned an invalid image format. Response: {_json.dumps(result_data, indent=2)}")
-            else:
-                raise RuntimeError(f"API did not return an image. Full Response: {_json.dumps(result_data, indent=2)}")
-                    
-        except requests.exceptions.HTTPError as err:
-            error_body = err.response.text
-            if err.response.status_code == 401:
-                return "Error: Authentication failed. Check your OpenRouter API key."
-            elif err.response.status_code == 429:
-                return "Error: Rate limit exceeded or insufficient credits. Check your OpenRouter account."
-            else:
-                return f"Error: An API error occurred: {error_body}"
-        except Exception as e:
-            return f"Error: An unexpected error occurred: {str(e)}"
-
+        # Generate image using HunyuanImage-2.1 model
+        image = client.text_to_image(
+            prompt,
+            model="tencent/HunyuanImage-2.1",
+        )
+        
+        print(f"[Text2Image] Successfully generated image with size: {image.size}")
+        
+        # Resize image to reduce size while maintaining quality
+        max_size = 1024
+        if image.width > max_size or image.height > max_size:
+            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+        
+        # Convert PIL Image to bytes for upload
+        buffer = _io.BytesIO()
+        # Save as JPEG with good quality
+        image.convert('RGB').save(buffer, format='JPEG', quality=90, optimize=True)
+        image_bytes = buffer.getvalue()
+        
         # Upload and return HTML tag
         print("[Text2Image] Uploading image to HF...")
         filename = f"generated_image_{image_index}.jpg"
@@ -3125,8 +3086,9 @@ def generate_image_with_gemini(prompt: str, image_index: int = 0, token: gr.OAut
             return temp_url
         print(f"[Text2Image] Successfully generated image: {temp_url}")
         return f"<img src=\"{temp_url}\" alt=\"{prompt}\" style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\" loading=\"lazy\" />"
+        
     except Exception as e:
-        print(f"Text-to-image generation error: {str(e)}")
+        print(f"[Text2Image] Error generating image with HunyuanImage: {str(e)}")
         return f"Error generating image (text-to-image): {str(e)}"
 
 def generate_image_with_qwen(prompt: str, image_index: int = 0, token: gr.OAuthToken | None = None) -> str:
@@ -3651,7 +3613,7 @@ def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
     # Generate images for each prompt
     generated_images = []
     for i, prompt in enumerate(image_prompts):
-        image_html = generate_image_with_gemini(prompt, i, token=None)  # TODO: Pass token from parent context
+        image_html = generate_image_with_hunyuan(prompt, i, token=None)  # TODO: Pass token from parent context
         if not image_html.startswith("Error"):
             generated_images.append((i, image_html))
     
@@ -3741,7 +3703,7 @@ def create_image_replacement_blocks_text_to_image_single(html_content: str, prom
         placeholder_images = re.findall(img_pattern, html_content)
 
     # Generate a single image
-    image_html = generate_image_with_gemini(prompt, 0, token=None)  # TODO: Pass token from parent context
+    image_html = generate_image_with_hunyuan(prompt, 0, token=None)  # TODO: Pass token from parent context
     if image_html.startswith("Error"):
         return ""
 
@@ -4272,8 +4234,8 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
             print(f"[MediaApply] Running text-to-image with prompt len={len(t2i_prompt)}")
             # Single-image flow for text-to-image (LLM placement first, fallback deterministic)
             try:
-                print(f"[MediaApply] Calling generate_image_with_gemini with prompt: {t2i_prompt[:50]}...")
-                image_html_tag = generate_image_with_gemini(t2i_prompt, 0, token=token)
+                print(f"[MediaApply] Calling generate_image_with_hunyuan with prompt: {t2i_prompt[:50]}...")
+                image_html_tag = generate_image_with_hunyuan(t2i_prompt, 0, token=token)
                 print(f"[MediaApply] Image generation result: {image_html_tag[:200]}...")
                 if not (image_html_tag or "").startswith("Error"):
                     print("[MediaApply] Attempting LLM placement of image...")
@@ -7233,7 +7195,7 @@ with gr.Blocks(
             label="🎨 Generate Images (text → image)",
             value=False,
             visible=True,
-            info="Include generated images in your outputs using Nano Banana"
+            info="Include generated images in your outputs using HunyuanImage-2.1"
         )
         text_to_image_prompt = gr.Textbox(
             label="Text-to-Image Prompt",
