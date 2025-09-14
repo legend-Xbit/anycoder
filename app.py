@@ -1012,7 +1012,7 @@ Requirements:
 
 Library import (required): Add the following snippet to index.html to import transformers.js:
 <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2';
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.3';
 </script>
 
 Device Options: By default, transformers.js runs on CPU (via WASM). For better performance, you can run models on GPU using WebGPU:
@@ -1153,7 +1153,7 @@ Requirements:
 
 Library import (required): Add the following snippet to index.html to import transformers.js:
 <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2';
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.3';
 </script>
 
 Device Options: By default, transformers.js runs on CPU (via WASM). For better performance, you can run models on GPU using WebGPU:
@@ -2104,7 +2104,7 @@ def build_transformers_inline_html(files: dict) -> str:
     css = files.get('style.css') or ''
 
     # Normalize JS imports to CDN (handle both @huggingface/transformers and legacy @xenova/transformers)
-    cdn_url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
+    cdn_url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.3"
 
     def _normalize_imports(_code: str) -> str:
         if not _code:
