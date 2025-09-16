@@ -725,8 +725,8 @@ This reference is automatically synced from https://www.gradio.app/llms.txt to e
 """
     
     # Update the prompts
-    GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns."
-    GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns."
+    GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
+    GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
 
 # Initialize Gradio documentation on startup
 def initialize_gradio_docs():
@@ -758,7 +758,9 @@ If an image is provided, analyze it and use the visual information to better und
 
 Always respond with code that can be executed or rendered directly.
 
-Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output."""
+Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output.
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 def validate_video_html(video_html: str) -> bool:
     """Validate that the video HTML is well-formed and safe to insert."""
@@ -870,6 +872,8 @@ Structural requirements:
 - Keep everything in ONE file; inline CSS/JS as needed
 
 Return ONLY the code inside a single ```html ... ``` code block. No additional text before or after.
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
 # ---------------------------------------------------------------------------
@@ -1025,7 +1029,9 @@ The index.html should contain the basic HTML structure and link to the CSS and J
 The index.js should contain all the JavaScript logic including transformers.js integration.
 The style.css should contain all the styling for the application.
 
-Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+Always output only the three code blocks as shown above, and do not include any explanations or extra text.
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application.
 
@@ -1073,6 +1079,8 @@ Requirements:
 7. Follow accessibility best practices
 8. Use Svelte's reactive features effectively
 9. Include proper component structure and organization (only what's needed)
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
 SVELTE_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert Svelte developer. You have access to real-time web search.
@@ -1121,6 +1129,8 @@ Requirements:
 7. Accessibility best practices
 8. Use search to apply current best practices
 9. Keep component structure organized and minimal
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
 TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert web developer creating a transformers.js application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for transformers.js.
@@ -1166,7 +1176,9 @@ The index.html should contain the basic HTML structure and link to the CSS and J
 The index.js should contain all the JavaScript logic including transformers.js integration.
 The style.css should contain all the styling for the application.
 
-Always output only the three code blocks as shown above, and do not include any explanations or extra text."""
+Always output only the three code blocks as shown above, and do not include any explanations or extra text.
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Gradio system prompts will be dynamically populated by update_gradio_system_prompts()
 GRADIO_SYSTEM_PROMPT = ""
@@ -1176,7 +1188,9 @@ GRADIO_SYSTEM_PROMPT_WITH_SEARCH = ""
 
 # All Gradio API documentation is now dynamically loaded from https://www.gradio.app/llms.txt
 
-GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output."""
+GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output.
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # System prompt with search capability
 HTML_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert front-end developer. You have access to real-time web search.
@@ -1206,7 +1220,9 @@ If an image is provided, analyze it and use the visual information to better und
 
 Always respond with code that can be executed or rendered directly.
 
-Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output."""
+Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output.
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Multi-page static HTML project prompt (generic, production-style structure)
 MULTIPAGE_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
@@ -1243,6 +1259,8 @@ General requirements:
 - Include basic SEO meta tags in <head>
 - Include a footer on all pages
 - Avoid external CSS/JS frameworks (optional: CDN fonts/icons allowed)
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
 # Multi-page with search augmentation
@@ -1254,6 +1272,8 @@ Follow the same file output format and project structure as specified:
 === filename === blocks for each file (no Markdown fences)
 
 Use search results to apply current best practices in accessibility, semantics, responsive meta tags, and performance (preconnect, responsive images).
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
 # Dynamic multi-page (model decides files) prompts
@@ -1284,6 +1304,8 @@ General requirements:
 - Include basic SEO meta tags in <head> for the entrypoint
 - Include a footer on all major pages when multiple pages are present
 - Avoid external CSS/JS frameworks (optional: CDN fonts/icons allowed)
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
 DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert front-end developer. You have access to real-time web search.
@@ -1293,11 +1315,15 @@ Create a production-ready website using ONLY HTML, CSS, and vanilla JavaScript. 
 Follow the same output format and file selection policy as above (=== filename === blocks; model decides which files to create; ensure index.html unless explicitly not needed).
 
 Use search results to apply current best practices in accessibility, semantics, responsive meta tags, and performance (preconnect, responsive images).
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
 GENERIC_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert {language} developer. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for {language}.
 
-Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output."""
+Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output.
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Follow-up system prompt for modifying existing HTML files
 FollowUpSystemPrompt = f"""You are an expert web developer modifying an existing project.
@@ -1369,7 +1395,9 @@ Removing the paragraph...
   <p>This paragraph will be deleted.</p>
 {DIVIDER}
 {REPLACE_END}
-```"""
+```
+
+IMPORTANT: When modifying applications, preserve any existing "Built with anycoder" attribution in the header or add it if missing as clickable text that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Follow-up system prompt for modifying existing transformers.js applications
 TransformersJSFollowUpSystemPrompt = f"""You are an expert web developer modifying an existing transformers.js application.
@@ -1447,7 +1475,9 @@ Fixing transformers.js CDN loading error...
 {DIVIDER}
 <script type="module" src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2"></script>
 {REPLACE_END}
-```"""
+```
+
+IMPORTANT: When modifying transformers.js applications, preserve any existing "Built with anycoder" attribution in the header or add it if missing as clickable text that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Available models
 AVAILABLE_MODELS = [
