@@ -1397,7 +1397,9 @@ Removing the paragraph...
 {REPLACE_END}
 ```
 
-IMPORTANT: When modifying applications, preserve any existing "Built with anycoder" attribution in the header or add it if missing as clickable text that links to https://huggingface.co/spaces/akhaliq/anycoder"""
+IMPORTANT: Always ensure "Built with anycoder" appears as clickable text in the header/top section linking to https://huggingface.co/spaces/akhaliq/anycoder - if it's missing from the existing code, add it; if it exists, preserve it.
+
+CRITICAL: For imported spaces that lack anycoder attribution, you MUST add it as part of your modifications. Add it to the header/navigation area as clickable text linking to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Follow-up system prompt for modifying existing transformers.js applications
 TransformersJSFollowUpSystemPrompt = f"""You are an expert web developer modifying an existing transformers.js application.
@@ -1477,7 +1479,9 @@ Fixing transformers.js CDN loading error...
 {REPLACE_END}
 ```
 
-IMPORTANT: When modifying transformers.js applications, preserve any existing "Built with anycoder" attribution in the header or add it if missing as clickable text that links to https://huggingface.co/spaces/akhaliq/anycoder"""
+IMPORTANT: Always ensure "Built with anycoder" appears as clickable text in the header/top section linking to https://huggingface.co/spaces/akhaliq/anycoder - if it's missing from the existing code, add it; if it exists, preserve it.
+
+CRITICAL: For imported spaces that lack anycoder attribution, you MUST add it as part of your modifications. Add it to the header/navigation area as clickable text linking to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Available models
 AVAILABLE_MODELS = [
