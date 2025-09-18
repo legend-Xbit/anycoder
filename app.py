@@ -1626,6 +1626,11 @@ AVAILABLE_MODELS = [
         "description": "Mistral Medium 2508 model via Mistral API for general tasks and coding"
     },
     {
+        "name": "Magistral Medium 2509",
+        "id": "magistral-medium-2509",
+        "description": "Magistral Medium 2509 model via Mistral API for advanced code generation and reasoning"
+    },
+    {
         "name": "Gemini 2.5 Flash",
         "id": "gemini-2.5-flash",
         "description": "Google Gemini 2.5 Flash via OpenAI-compatible API"
@@ -1683,7 +1688,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Qwen3-Next-80B-A3B-Instruct"
+DEFAULT_MODEL_NAME = "Magistral Medium 2509"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1827,7 +1832,7 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("STEP_API_KEY"),
             base_url="https://api.stepfun.com/v1"
         )
-    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508":
+    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508" or model_id == "magistral-medium-2509":
         # Use Mistral client for Mistral models
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
     elif model_id == "gemini-2.5-flash":
@@ -5665,7 +5670,7 @@ This will help me create a better design for you."""
         messages.append({'role': 'user', 'content': enhanced_query})
     try:
         # Handle Mistral API method difference
-        if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
+        if _current_model["id"] in ("codestral-2508", "mistral-medium-2508", "magistral-medium-2509"):
             completion = client.chat.stream(
                 model=get_real_model_id(_current_model["id"]),
                 messages=messages,
@@ -5709,7 +5714,7 @@ This will help me create a better design for you."""
         for chunk in completion:
             # Handle different response formats for Mistral vs others
             chunk_content = None
-            if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
+            if _current_model["id"] in ("codestral-2508", "mistral-medium-2508", "magistral-medium-2509"):
                 # Mistral format: chunk.data.choices[0].delta.content
                 if (
                     hasattr(chunk, "data") and chunk.data and
