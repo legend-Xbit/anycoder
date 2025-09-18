@@ -2660,12 +2660,13 @@ def compress_video_for_data_uri(video_bytes: bytes, max_size_mb: int = 8) -> byt
         temp_output_path = temp_input_path.replace('.mp4', '_compressed.mp4')
         
         try:
-            # Compress with ffmpeg - aggressive settings for small size
+            # Compress with ffmpeg - extremely aggressive settings for tiny preview size
             subprocess.run([
                 'ffmpeg', '-i', temp_input_path, 
-                '-vcodec', 'libx264', '-crf', '30', '-preset', 'fast',
-                '-vf', 'scale=480:-1', '-r', '15',  # Lower resolution and frame rate
+                '-vcodec', 'libx264', '-crf', '40', '-preset', 'ultrafast',
+                '-vf', 'scale=320:-1', '-r', '10',  # Very low resolution and frame rate
                 '-an',  # Remove audio to save space
+                '-t', '10',  # Limit to first 10 seconds for preview
                 '-y', temp_output_path
             ], check=True, capture_output=True, stderr=subprocess.DEVNULL)
             
@@ -3504,6 +3505,114 @@ def generate_video_from_text(prompt: str, session_id: Optional[str] = None, toke
         print(f"Text-to-video generation error: {str(e)}")
         return f"Error generating video (text-to-video): {str(e)}"
 
+def generate_video_from_video(input_video_data, prompt: str, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+    """Generate a video from an input video and prompt using Decart AI's Lucy Pro V2V API.
+    
+    Returns an HTML <video> tag whose source points to a temporary file URL.
+    """
+    try:
+        print("[Video2Video] Starting video generation from video")
+        
+        # Check for Decart API key
+        api_key = os.getenv('DECART_API_KEY')
+        if not api_key:
+            print("[Video2Video] Missing DECART_API_KEY")
+            return "Error: DECART_API_KEY environment variable is not set. Please set it to your Decart AI API token."
+        
+        # Normalize input video to bytes
+        import io
+        import tempfile
+        
+        def _load_video_bytes(video_like) -> bytes:
+            if hasattr(video_like, 'read'):
+                return video_like.read()
+            if isinstance(video_like, (bytes, bytearray)):
+                return bytes(video_like)
+            if hasattr(video_like, 'name'):  # File path
+                with open(video_like.name, 'rb') as f:
+                    return f.read()
+            # If it's a string, assume it's a file path
+            if isinstance(video_like, str):
+                with open(video_like, 'rb') as f:
+                    return f.read()
+            return bytes(video_like)
+        
+        video_bytes = _load_video_bytes(input_video_data)
+        print(f"[Video2Video] Input video size: {len(video_bytes)} bytes")
+        
+        # Prepare the API request
+        form_data = {
+            "prompt": prompt or "Enhance the video quality"
+        }
+        
+        # Create temporary file for video data
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as temp_file:
+            temp_file.write(video_bytes)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Make API request to Decart AI
+            with open(temp_file_path, "rb") as video_file:
+                files = {"data": video_file}
+                headers = {"X-API-KEY": api_key}
+                
+                print(f"[Video2Video] Calling Decart API with prompt: {prompt}")
+                response = requests.post(
+                    "https://api.decart.ai/v1/generate/lucy-pro-v2v",
+                    headers=headers,
+                    data=form_data,
+                    files=files,
+                    timeout=300  # 5 minute timeout
+                )
+                
+                if response.status_code != 200:
+                    print(f"[Video2Video] API request failed with status {response.status_code}: {response.text}")
+                    return f"Error: Decart API request failed with status {response.status_code}"
+                
+                result_video_bytes = response.content
+                print(f"[Video2Video] Received video bytes: {len(result_video_bytes)}")
+                
+        finally:
+            # Clean up temporary file
+            try:
+                os.unlink(temp_file_path)
+            except Exception:
+                pass
+        
+        # Create temporary URL for preview (will be uploaded to HF during deploy)
+        filename = "video_to_video_result.mp4"
+        temp_url = upload_media_to_hf(result_video_bytes, filename, "video", token, use_temp=True)
+        
+        # Check if creation was successful
+        if temp_url.startswith("Error"):
+            return temp_url
+        
+        video_html = (
+            f'<video controls autoplay muted loop playsinline '
+            f'style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0; display: block;" '
+            f'onloadstart="this.style.backgroundColor=\'#f0f0f0\'" '
+            f'onerror="this.style.display=\'none\'; console.error(\'Video failed to load\')">'
+            f'<source src="{temp_url}" type="video/mp4" />'
+            f'<p style="text-align: center; color: #666;">Your browser does not support the video tag.</p>'
+            f'</video>'
+        )
+        
+        print(f"[Video2Video] Successfully generated video HTML tag with temporary URL: {temp_url}")
+        
+        # Validate the generated video HTML
+        if not validate_video_html(video_html):
+            print("[Video2Video] Generated video HTML failed validation")
+            return "Error: Generated video HTML is malformed"
+        
+        return video_html
+        
+    except Exception as e:
+        import traceback
+        print("[Video2Video] Exception during generation:")
+        traceback.print_exc()
+        print(f"Video-to-video generation error: {str(e)}")
+        return f"Error generating video (video-to-video): {str(e)}"
+
 def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
     """Generate music from a text prompt using ElevenLabs Music API and return an HTML <audio> tag.
 
@@ -4120,7 +4229,94 @@ def create_video_replacement_blocks_from_input_image(html_content: str, user_pro
     print("[Image2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+def create_video_replacement_blocks_from_input_video(html_content: str, user_prompt: str, input_video_data, session_id: Optional[str] = None) -> str:
+    """Create search/replace blocks that replace the first <video> (or placeholder) with a generated <video>.
+
+    Uses generate_video_from_video to produce a single video and swaps it in.
+    """
+    if not user_prompt:
+        return ""
+
+    import re
+    print("[Video2Video] Creating replacement blocks for video replacement")
+
+    # Look for existing video elements first
+    video_patterns = [
+        r'<video[^>]*>.*?</video>',
+        r'<video[^>]*/>',
+        r'<video[^>]*></video>',
+    ]
+
+    placeholder_videos = []
+    for pattern in video_patterns:
+        matches = re.findall(pattern, html_content, re.IGNORECASE | re.DOTALL)
+        if matches:
+            placeholder_videos.extend(matches)
+    
+    # If no videos found, look for video placeholders or divs that might represent videos
+    if not placeholder_videos:
+        placeholder_patterns = [
+            r'<div[^>]*class=["\'][^"\']*video[^"\']*["\'][^>]*>.*?</div>',
+            r'<div[^>]*id=["\'][^"\']*video[^"\']*["\'][^>]*>.*?</div>',
+            r'<iframe[^>]*src=["\'][^"\']*youtube[^"\']*["\'][^>]*>.*?</iframe>',
+            r'<iframe[^>]*src=["\'][^"\']*vimeo[^"\']*["\'][^>]*>.*?</iframe>',
+        ]
+        for pattern in placeholder_patterns:
+            matches = re.findall(pattern, html_content, re.IGNORECASE | re.DOTALL)
+            if matches:
+                placeholder_videos.extend(matches)
+
+    print(f"[Video2Video] Found {len(placeholder_videos)} candidate video elements")
+
+    video_html = generate_video_from_video(input_video_data, user_prompt, session_id=session_id, token=None)
+    try:
+        has_file_src = 'src="' in video_html and video_html.count('src="') >= 1 and 'data:video/mp4;base64' not in video_html.split('src="', 1)[1]
+        print(f"[Video2Video] Generated video HTML length={len(video_html)}; has_file_src={has_file_src}")
+    except Exception:
+        pass
+    if video_html.startswith("Error"):
+        print("[Video2Video] Video generation returned error; aborting replacement")
+        return ""
+
+    if placeholder_videos:
+        placeholder = placeholder_videos[0]
+        placeholder_clean = re.sub(r'\s+', ' ', placeholder.strip())
+        print("[Video2Video] Replacing first video placeholder with generated video")
+        placeholder_variations = [
+            # Try the exact string first to maximize replacement success
+            placeholder,
+            placeholder_clean,
+            placeholder_clean.replace('"', "'"),
+            placeholder_clean.replace("'", '"'),
+            re.sub(r'\s+', ' ', placeholder_clean),
+            placeholder_clean.replace('  ', ' '),
+        ]
+        blocks = []
+        for variation in placeholder_variations:
+            blocks.append(f"""{SEARCH_START}
+{variation}
+{DIVIDER}
+{video_html}
+{REPLACE_END}""")
+        return '\n\n'.join(blocks)
+
+    if '<body' in html_content:
+        body_start = html_content.find('<body')
+        body_end = html_content.find('>', body_start) + 1
+        opening_body_tag = html_content[body_start:body_end]
+        print("[Video2Video] No <video> found; inserting video right after the opening <body> tag")
+        print(f"[Video2Video] Opening <body> tag snippet: {opening_body_tag[:120]}")
+        return f"""{SEARCH_START}
+{opening_body_tag}
+{DIVIDER}
+{opening_body_tag}
+    {video_html}
+{REPLACE_END}"""
+
+    print("[Video2Video] No <body> tag; appending video via replacement block")
+    return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
+
+def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_video_to_video: bool = False, video_to_video_prompt: Optional[str] = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
     """Apply text/image/video/music replacements to HTML content.
 
     - Works with single-document HTML strings
@@ -4150,7 +4346,7 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
     try:
         print(
             f"[MediaApply] enable_i2v={enable_image_to_video}, enable_i2i={enable_image_to_image}, "
-            f"enable_t2i={enable_text_to_image}, enable_t2v={enable_text_to_video}, enable_t2m={enable_text_to_music}, has_image={input_image_data is not None}"
+            f"enable_t2i={enable_text_to_image}, enable_t2v={enable_text_to_video}, enable_v2v={enable_video_to_video}, enable_t2m={enable_text_to_music}, has_image={input_image_data is not None}, has_video={input_video_data is not None}"
         )
         # If image-to-video is enabled, replace the first image with a generated video and return.
         if enable_image_to_video and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
@@ -4190,6 +4386,50 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
                 result = result_after
             else:
                 print("[MediaApply] No i2v replacement blocks generated")
+            if is_multipage and entry_html_path:
+                multipage_files[entry_html_path] = result
+                return format_multipage_output(multipage_files)
+            return result
+
+        # If video-to-video is enabled, replace the first video with a generated video and return.
+        if enable_video_to_video and input_video_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
+            v2v_prompt = (video_to_video_prompt or user_prompt or "").strip()
+            print(f"[MediaApply] Running video-to-video with prompt len={len(v2v_prompt)}")
+            try:
+                video_html_tag = generate_video_from_video(input_video_data, v2v_prompt, session_id=session_id, token=token)
+                if not (video_html_tag or "").startswith("Error"):
+                    # Validate video HTML before attempting placement
+                    if validate_video_html(video_html_tag):
+                        blocks_v = llm_place_media(result, video_html_tag, media_kind="video")
+                    else:
+                        print("[MediaApply] Generated video HTML failed validation, skipping LLM placement")
+                        blocks_v = ""
+                else:
+                    print(f"[MediaApply] Video generation failed: {video_html_tag}")
+                    blocks_v = ""
+            except Exception as e:
+                print(f"[MediaApply] Exception during video-to-video generation: {str(e)}")
+                blocks_v = ""
+            if not blocks_v:
+                # Create fallback video replacement blocks
+                blocks_v = create_video_replacement_blocks_from_input_video(result, v2v_prompt, input_video_data, session_id=session_id)
+            if blocks_v:
+                print("[MediaApply] Applying video-to-video replacement blocks")
+                before_len = len(result)
+                result_after = apply_search_replace_changes(result, blocks_v)
+                after_len = len(result_after)
+                changed = (result_after != result)
+                print(f"[MediaApply] v2v blocks length={len(blocks_v)}; html before={before_len}, after={after_len}, changed={changed}")
+                if not changed:
+                    print("[MediaApply] DEBUG: Replacement did not change content. Dumping first block:")
+                    try:
+                        first_block = blocks_v.split(REPLACE_END)[0][:1000]
+                        print(first_block)
+                    except Exception:
+                        pass
+                result = result_after
+            else:
+                print("[MediaApply] No v2v replacement blocks generated")
             if is_multipage and entry_html_path:
                 multipage_files[entry_html_path] = result
                 return format_multipage_output(multipage_files)
@@ -4606,9 +4846,22 @@ def send_to_sandbox(code):
                 with open(path, 'rb') as _f:
                     raw = _f.read()
                 mime = _mtypes.guess_type(path)[0] or 'application/octet-stream'
+                
+                # Compress video files before converting to data URI to prevent preview breaks
+                if mime and mime.startswith('video/'):
+                    print(f"[Sandbox] Compressing video for preview: {len(raw)} bytes")
+                    raw = compress_video_for_data_uri(raw, max_size_mb=1)  # Very small limit for preview
+                    print(f"[Sandbox] Compressed video size: {len(raw)} bytes")
+                    
+                    # If still too large, skip video embedding for preview
+                    if len(raw) > 512 * 1024:  # 512KB final limit
+                        print(f"[Sandbox] Video still too large after compression, using placeholder")
+                        return None  # Let the replacement function handle the fallback
+                
                 b64 = _b64.b64encode(raw).decode()
                 return f"data:{mime};base64,{b64}"
-            except Exception:
+            except Exception as e:
+                print(f"[Sandbox] Failed to convert file URL to data URI: {str(e)}")
                 return None
         def _repl_double(m):
             url = m.group(1)
@@ -4620,6 +4873,36 @@ def send_to_sandbox(code):
             return f"src='{data_uri}'" if data_uri else m.group(0)
         html_doc = re.sub(r'src="(file:[^"]+)"', _repl_double, html_doc)
         html_doc = re.sub(r"src='(file:[^']+)'", _repl_single, html_doc)
+        
+        # Add deployment message for videos that couldn't be converted
+        if 'file://' in html_doc and ('video' in html_doc.lower() or '.mp4' in html_doc.lower()):
+            deployment_notice = '''
+            <div style="
+                position: fixed; 
+                top: 10px; 
+                right: 10px; 
+                background: #ff6b35; 
+                color: white; 
+                padding: 12px 16px; 
+                border-radius: 8px; 
+                font-family: Arial, sans-serif; 
+                font-size: 14px; 
+                font-weight: bold;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 9999;
+                max-width: 300px;
+                text-align: center;
+            ">
+                🚀 Deploy app to see videos with permanent URLs!
+            </div>
+            '''
+            # Insert the notice right after the opening body tag
+            if '<body' in html_doc:
+                body_end = html_doc.find('>', html_doc.find('<body')) + 1
+                html_doc = html_doc[:body_end] + deployment_notice + html_doc[body_end:]
+            else:
+                html_doc = deployment_notice + html_doc
+                
     except Exception:
         # Best-effort; continue without inlining
         pass
@@ -4648,9 +4931,22 @@ def send_to_sandbox_with_refresh(code):
                 with open(path, 'rb') as _f:
                     raw = _f.read()
                 mime = _mtypes.guess_type(path)[0] or 'application/octet-stream'
+                
+                # Compress video files before converting to data URI to prevent preview breaks
+                if mime and mime.startswith('video/'):
+                    print(f"[Sandbox] Compressing video for preview: {len(raw)} bytes")
+                    raw = compress_video_for_data_uri(raw, max_size_mb=1)  # Very small limit for preview
+                    print(f"[Sandbox] Compressed video size: {len(raw)} bytes")
+                    
+                    # If still too large, skip video embedding for preview
+                    if len(raw) > 512 * 1024:  # 512KB final limit
+                        print(f"[Sandbox] Video still too large after compression, using placeholder")
+                        return None  # Let the replacement function handle the fallback
+                
                 b64 = _b64.b64encode(raw).decode()
                 return f"data:{mime};base64,{b64}"
-            except Exception:
+            except Exception as e:
+                print(f"[Sandbox] Failed to convert file URL to data URI: {str(e)}")
                 return None
         def _repl_double(m):
             url = m.group(1)
@@ -4662,6 +4958,36 @@ def send_to_sandbox_with_refresh(code):
             return f"src='{data_uri}'" if data_uri else m.group(0)
         html_doc = re.sub(r'src="(file:[^"]+)"', _repl_double, html_doc)
         html_doc = re.sub(r"src='(file:[^']+)'", _repl_single, html_doc)
+        
+        # Add deployment message for videos that couldn't be converted
+        if 'file://' in html_doc and ('video' in html_doc.lower() or '.mp4' in html_doc.lower()):
+            deployment_notice = '''
+            <div style="
+                position: fixed; 
+                top: 10px; 
+                right: 10px; 
+                background: #ff6b35; 
+                color: white; 
+                padding: 12px 16px; 
+                border-radius: 8px; 
+                font-family: Arial, sans-serif; 
+                font-size: 14px; 
+                font-weight: bold;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 9999;
+                max-width: 300px;
+                text-align: center;
+            ">
+                🚀 Deploy app to see videos with permanent URLs!
+            </div>
+            '''
+            # Insert the notice right after the opening body tag
+            if '<body' in html_doc:
+                body_end = html_doc.find('>', html_doc.find('<body')) + 1
+                html_doc = html_doc[:body_end] + deployment_notice + html_doc[body_end:]
+            else:
+                html_doc = deployment_notice + html_doc
+                
     except Exception:
         # Best-effort; continue without inlining
         pass
@@ -5175,7 +5501,7 @@ The HTML code above contains the complete original website structure with all im
 stop_generation = False
 
 
-def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None):
+def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_video_to_video: bool = False, video_to_video_prompt: Optional[str] = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None):
     if query is None:
         query = ''
     if _history is None:
@@ -5447,6 +5773,9 @@ This will help me create a better design for you."""
             session_id=session_id,
             enable_text_to_video=enable_text_to_video,
             text_to_video_prompt=text_to_video_prompt,
+            enable_video_to_video=enable_video_to_video,
+            video_to_video_prompt=video_to_video_prompt,
+            input_video_data=input_video_data,
             enable_text_to_music=enable_text_to_music,
             text_to_music_prompt=text_to_music_prompt,
         )
@@ -5518,6 +5847,9 @@ This will help me create a better design for you."""
                     session_id=session_id,
                     enable_text_to_video=enable_text_to_video,
                     text_to_video_prompt=text_to_video_prompt,
+                    enable_video_to_video=enable_video_to_video,
+                    video_to_video_prompt=video_to_video_prompt,
+                    input_video_data=input_video_data,
                     enable_text_to_music=enable_text_to_music,
                     text_to_music_prompt=text_to_music_prompt,
                     token=None,
@@ -5547,6 +5879,9 @@ This will help me create a better design for you."""
                         session_id=session_id,
                         enable_text_to_video=enable_text_to_video,
                         text_to_video_prompt=text_to_video_prompt,
+                        enable_video_to_video=enable_video_to_video,
+                        video_to_video_prompt=video_to_video_prompt,
+                        input_video_data=input_video_data,
                         enable_text_to_music=enable_text_to_music,
                         text_to_music_prompt=text_to_music_prompt,
                         token=None,
@@ -5985,6 +6320,9 @@ This will help me create a better design for you."""
                 text_to_image_prompt=text_to_image_prompt,
                 enable_text_to_video=enable_text_to_video,
                 text_to_video_prompt=text_to_video_prompt,
+                enable_video_to_video=enable_video_to_video,
+                video_to_video_prompt=video_to_video_prompt,
+                input_video_data=input_video_data,
                 enable_text_to_music=enable_text_to_music,
                 text_to_music_prompt=text_to_music_prompt,
                 token=None,
@@ -6017,6 +6355,9 @@ This will help me create a better design for you."""
                 session_id=session_id,
                 enable_text_to_video=enable_text_to_video,
                 text_to_video_prompt=text_to_video_prompt,
+                enable_video_to_video=enable_video_to_video,
+                video_to_video_prompt=video_to_video_prompt,
+                input_video_data=input_video_data,
                 enable_text_to_music=enable_text_to_music,
                 text_to_music_prompt=text_to_music_prompt,
             )
@@ -7286,6 +7627,24 @@ with gr.Blocks(
             visible=False
         )
 
+        # Video-to-Video
+        video_to_video_toggle = gr.Checkbox(
+            label="🎬 Video to Video (uses input video)",
+            value=False,
+            visible=True,
+            info="Transform your uploaded video using Decart AI's Lucy Pro V2V"
+        )
+        video_to_video_prompt = gr.Textbox(
+            label="Video-to-Video Prompt",
+            placeholder="Describe the transformation (e.g., 'Change their shirt to black and shiny leather')",
+            lines=2,
+            visible=False
+        )
+        video_input = gr.Video(
+            label="Input video for transformation",
+            visible=False
+        )
+
         # Text-to-Music
         text_to_music_toggle = gr.Checkbox(
             label="🎵 Generate Music (text → music)",
@@ -7334,6 +7693,11 @@ with gr.Blocks(
             on_text_to_image_toggle,
             inputs=[text_to_video_toggle, beta_toggle],
             outputs=[text_to_video_prompt]
+        )
+        video_to_video_toggle.change(
+            on_image_to_video_toggle,
+            inputs=[video_to_video_toggle, beta_toggle],
+            outputs=[video_input, video_to_video_prompt]
         )
         text_to_music_toggle.change(
             on_text_to_image_toggle,
@@ -7892,7 +8256,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, text_to_music_toggle, text_to_music_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -7933,7 +8297,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, text_to_music_toggle, text_to_music_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -7982,6 +8346,9 @@ with gr.Blocks(
         upd_i2v_prompt = gr.skip()
         upd_t2v_toggle = gr.skip()
         upd_t2v_prompt = gr.skip()
+        upd_v2v_toggle = gr.skip()
+        upd_v2v_prompt = gr.skip()
+        upd_video_input = gr.skip()
         upd_model_dropdown = gr.skip()
         upd_current_model = gr.skip()
         upd_t2m_toggle = gr.skip()
@@ -8051,6 +8418,13 @@ with gr.Blocks(
                 if p:
                     upd_t2v_prompt = gr.update(value=p)
 
+            # Video-to-video
+            if ("video to video" in seg_norm) or ("video-to-video" in seg_norm) or ("transform video" in seg_norm):
+                upd_v2v_toggle = gr.update(value=True)
+                p = after_colon(seg)
+                if p:
+                    upd_v2v_prompt = gr.update(value=p)
+
             # Text-to-music
             if ("text to music" in seg_norm) or ("text-to-music" in seg_norm) or ("generate music" in seg_norm) or ("compose music" in seg_norm):
                 upd_t2m_toggle = gr.update(value=True)
@@ -8075,9 +8449,10 @@ with gr.Blocks(
                         upd_model_dropdown = gr.update(value=model_obj["name"])  # keep dropdown in sync
                         upd_current_model = model_obj  # pass directly to State for immediate effect
 
-        # Files: attach first non-image to file_input; image to generation_image_input
+        # Files: attach first non-image/video to file_input; image to generation_image_input; video to video_input
         img_assigned = False
-        non_img_assigned = False
+        video_assigned = False
+        non_media_assigned = False
         for f in files:
             try:
                 path = f["path"] if isinstance(f, dict) and "path" in f else f
@@ -8088,9 +8463,12 @@ with gr.Blocks(
             if not img_assigned and any(str(path).lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif"]):
                 upd_image_for_gen = gr.update(value=path)
                 img_assigned = True
-            elif not non_img_assigned:
+            elif not video_assigned and any(str(path).lower().endswith(ext) for ext in [".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v"]):
+                upd_video_input = gr.update(value=path)
+                video_assigned = True
+            elif not non_media_assigned:
                 upd_file = gr.update(value=path)
-                non_img_assigned = True
+                non_media_assigned = True
 
         # Set main build intent from first segment (if present), otherwise full text
         if main_prompt:
@@ -8120,6 +8498,9 @@ with gr.Blocks(
             upd_i2v_prompt,
             upd_t2v_toggle,
             upd_t2v_prompt,
+            upd_v2v_toggle,
+            upd_v2v_prompt,
+            upd_video_input,
             upd_model_dropdown,
             upd_current_model,
             upd_t2m_toggle,
@@ -8147,6 +8528,9 @@ with gr.Blocks(
             image_to_video_prompt,
             text_to_video_toggle,
             text_to_video_prompt,
+            video_to_video_toggle,
+            video_to_video_prompt,
+            video_input,
             model_dropdown,
             current_model,
             text_to_music_toggle,
@@ -8160,7 +8544,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, text_to_music_toggle, text_to_music_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -8192,12 +8576,13 @@ with gr.Blocks(
     )
 
     # Toggle between classic controls and beta chat UI
-    def toggle_beta(checked: bool, t2i: bool, i2i: bool, i2v: bool, t2v: bool, t2m: bool):
+    def toggle_beta(checked: bool, t2i: bool, i2i: bool, i2v: bool, t2v: bool, v2v: bool, t2m: bool):
         # Prompts only visible in classic mode and when their toggles are on
         t2i_vis = (not checked) and bool(t2i)
         i2i_vis = (not checked) and bool(i2i)
         i2v_vis = (not checked) and bool(i2v)
         t2v_vis = (not checked) and bool(t2v)
+        v2v_vis = (not checked) and bool(v2v)
         t2m_vis = (not checked) and bool(t2m)
 
         return (
@@ -8222,6 +8607,9 @@ with gr.Blocks(
             gr.update(visible=i2v_vis),      # image_to_video_prompt
             gr.update(visible=not checked),  # text_to_video_toggle
             gr.update(visible=t2v_vis),      # text_to_video_prompt
+            gr.update(visible=not checked),  # video_to_video_toggle
+            gr.update(visible=v2v_vis),      # video_to_video_prompt
+            gr.update(visible=v2v_vis),      # video_input
             gr.update(visible=not checked),  # text_to_music_toggle
             gr.update(visible=t2m_vis),      # text_to_music_prompt
             gr.update(visible=not checked),  # model_dropdown
@@ -8231,7 +8619,7 @@ with gr.Blocks(
 
     beta_toggle.change(
         toggle_beta,
-        inputs=[beta_toggle, image_generation_toggle, image_to_image_toggle, image_to_video_toggle, text_to_video_toggle, text_to_music_toggle],
+        inputs=[beta_toggle, image_generation_toggle, image_to_image_toggle, image_to_video_toggle, text_to_video_toggle, video_to_video_toggle, text_to_music_toggle],
         outputs=[
             sidebar_chatbot,
             sidebar_msg,
@@ -8252,6 +8640,9 @@ with gr.Blocks(
             image_to_video_prompt,
             text_to_video_toggle,
             text_to_video_prompt,
+            video_to_video_toggle,
+            video_to_video_prompt,
+            video_input,
             text_to_music_toggle,
             text_to_music_prompt,
             model_dropdown,
