@@ -1618,17 +1618,20 @@ AVAILABLE_MODELS = [
     {
         "name": "Codestral 2508",
         "id": "codestral-2508",
-        "description": "Mistral Codestral model - specialized for code generation and programming tasks"
+        "description": "Mistral Codestral model - specialized for code generation and programming tasks",
+        "type": "mistral"
     },
     {
         "name": "Mistral Medium 2508",
         "id": "mistral-medium-2508",
-        "description": "Mistral Medium 2508 model via Mistral API for general tasks and coding"
+        "description": "Mistral Medium 2508 model via Mistral API for general tasks and coding",
+        "type": "mistral"
     },
     {
         "name": "Magistral Medium 2509",
         "id": "magistral-medium-2509",
-        "description": "Magistral Medium 2509 model via Mistral API for advanced code generation and reasoning"
+        "description": "Magistral Medium 2509 model via Mistral API for advanced code generation and reasoning",
+        "type": "mistral"
     },
     {
         "name": "Gemini 2.5 Flash",
