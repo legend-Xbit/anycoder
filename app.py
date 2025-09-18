@@ -5738,6 +5738,14 @@ This will help me create a better design for you."""
                     chunk_content = chunk.choices[0].delta.content
             
             if chunk_content:
+                # Ensure chunk_content is always a string to avoid regex errors
+                if not isinstance(chunk_content, str):
+                    # Handle structured thinking chunks (like ThinkChunk objects from magistral)
+                    chunk_str = str(chunk_content) if chunk_content is not None else ""
+                    if '[ThinkChunk(' in chunk_str:
+                        # This is a structured thinking chunk, skip it to avoid polluting output
+                        continue
+                    chunk_content = chunk_str
                 if _current_model["id"] == "gpt-5":
                     # If this chunk is only placeholder thinking, surface a status update without polluting content
                     if is_placeholder_thinking_only(chunk_content):
