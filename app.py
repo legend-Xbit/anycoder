@@ -1486,6 +1486,11 @@ CRITICAL: For imported spaces that lack anycoder attribution, you MUST add it as
 # Available models
 AVAILABLE_MODELS = [
     {
+        "name": "Grok 4 Fast (Free)",
+        "id": "x-ai/grok-4-fast:free",
+        "description": "X.AI Grok 4 Fast model via OpenRouter - free tier with vision capabilities for code generation"
+    },
+    {
         "name": "Moonshot Kimi-K2",
         "id": "moonshotai/Kimi-K2-Instruct",
         "description": "Moonshot AI Kimi-K2-Instruct model for code generation and general tasks"
@@ -1691,7 +1696,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Magistral Medium 2509"
+DEFAULT_MODEL_NAME = "Grok 4 Fast (Free)"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1828,6 +1833,16 @@ def get_inference_client(model_id, provider="auto"):
         return OpenAI(
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
+        )
+    elif model_id == "x-ai/grok-4-fast:free":
+        # Use OpenRouter client for Grok 4 Fast (Free) model
+        return OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+            default_headers={
+                "HTTP-Referer": "https://huggingface.co/spaces/akhaliq/anycoder",
+                "X-Title": "anycoder"
+            }
         )
     elif model_id == "step-3":
         # Use StepFun API client for Step-3 model
