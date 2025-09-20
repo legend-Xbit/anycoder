@@ -38,6 +38,8 @@ import atexit
 import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
+import dashscope
+from dashscope.utils.oss_utils import check_and_upload_local
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
@@ -3679,6 +3681,226 @@ def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_
     except Exception as e:
         return f"Error generating music: {str(e)}"
 
+class WanAnimateApp:
+    """Wan2.2-Animate integration for character animation and video replacement using DashScope API"""
+    
+    def __init__(self):
+        self.api_key = os.getenv("DASHSCOPE_API_KEY")
+        if self.api_key:
+            dashscope.api_key = self.api_key
+        self.url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2video/video-synthesis/"
+        self.get_url = "https://dashscope.aliyuncs.com/api/v1/tasks/"
+
+    def predict(self, ref_img, video, model_id, model):
+        """
+        Generate animated video using Wan2.2-Animate
+        
+        Args:
+            ref_img: Reference image file path
+            video: Template video file path  
+            model_id: Animation mode ("wan2.2-animate-move" or "wan2.2-animate-mix")
+            model: Inference quality ("wan-pro" or "wan-std")
+            
+        Returns:
+            Tuple of (video_url, status_message)
+        """
+        if not self.api_key:
+            return None, "Error: DASHSCOPE_API_KEY environment variable is not set"
+            
+        try:
+            # Upload files to OSS if needed and get URLs
+            _, image_url = check_and_upload_local(model_id, ref_img, self.api_key)
+            _, video_url = check_and_upload_local(model_id, video, self.api_key)
+
+            # Prepare the request payload
+            payload = {
+                "model": model_id,
+                "input": {
+                    "image_url": image_url,
+                    "video_url": video_url
+                },
+                "parameters": {
+                    "check_image": True,
+                    "mode": model,
+                }
+            }
+            
+            # Set up headers
+            headers = {
+                "X-DashScope-Async": "enable",
+                "X-DashScope-OssResourceResolve": "enable",
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            # Make the initial API request
+            response = requests.post(self.url, json=payload, headers=headers)
+            
+            # Check if request was successful
+            if response.status_code != 200:
+                error_msg = f"Initial request failed with status code {response.status_code}: {response.text}"
+                print(f"[WanAnimate] {error_msg}")
+                return None, error_msg
+            
+            # Get the task ID from response
+            result = response.json()
+            task_id = result.get("output", {}).get("task_id")
+            if not task_id:
+                error_msg = "Failed to get task ID from response"
+                print(f"[WanAnimate] {error_msg}")
+                return None, error_msg
+            
+            # Poll for results
+            get_url = f"{self.get_url}/{task_id}"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            max_attempts = 60  # 5 minutes max wait time
+            attempt = 0
+            
+            while attempt < max_attempts:
+                response = requests.get(get_url, headers=headers)
+                if response.status_code != 200:
+                    error_msg = f"Failed to get task status: {response.status_code}: {response.text}"
+                    print(f"[WanAnimate] {error_msg}")
+                    return None, error_msg
+                
+                result = response.json()
+                print(f"[WanAnimate] Task status check {attempt + 1}: {result}")
+                task_status = result.get("output", {}).get("task_status")
+                
+                if task_status == "SUCCEEDED":
+                    # Task completed successfully, return video URL
+                    video_url = result["output"]["results"]["video_url"]
+                    print(f"[WanAnimate] Animation completed successfully: {video_url}")
+                    return video_url, "SUCCEEDED"
+                elif task_status == "FAILED":
+                    # Task failed, return error message
+                    error_msg = result.get("output", {}).get("message", "Unknown error")
+                    code_msg = result.get("output", {}).get("code", "Unknown code")
+                    full_error = f"Task failed: {error_msg} Code: {code_msg} TaskId: {task_id}"
+                    print(f"[WanAnimate] {full_error}")
+                    return None, full_error
+                else:
+                    # Task is still running, wait and retry
+                    time.sleep(5)  # Wait 5 seconds before polling again
+                    attempt += 1
+            
+            # Timeout reached
+            timeout_msg = f"Animation generation timed out after {max_attempts * 5} seconds. TaskId: {task_id}"
+            print(f"[WanAnimate] {timeout_msg}")
+            return None, timeout_msg
+            
+        except Exception as e:
+            error_msg = f"Exception during animation generation: {str(e)}"
+            print(f"[WanAnimate] {error_msg}")
+            return None, error_msg
+
+def generate_animation_from_image_video(input_image_data, input_video_data, prompt: str, model_id: str = "wan2.2-animate-move", model: str = "wan-pro", session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+    """Generate animated video from reference image and template video using Wan2.2-Animate.
+    
+    Returns an HTML <video> tag whose source points to a temporary file URL.
+    """
+    try:
+        print(f"[ImageVideo2Animation] Starting animation generation with model={model_id}, quality={model}")
+        
+        if not os.getenv("DASHSCOPE_API_KEY"):
+            print("[ImageVideo2Animation] Missing DASHSCOPE_API_KEY")
+            return "Error: DASHSCOPE_API_KEY environment variable is not set. Please configure your DashScope API key."
+
+        # Normalize inputs to file paths
+        def _save_to_temp_file(data, suffix):
+            if isinstance(data, str) and os.path.exists(data):
+                return data
+            elif hasattr(data, 'name') and os.path.exists(data.name):
+                return data.name
+            else:
+                # Save to temporary file
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+                if hasattr(data, 'read'):
+                    temp_file.write(data.read())
+                elif isinstance(data, (bytes, bytearray)):
+                    temp_file.write(data)
+                elif isinstance(data, np.ndarray):
+                    # Handle numpy array (likely image data)
+                    if suffix.lower() in ['.jpg', '.jpeg', '.png']:
+                        # Convert numpy array to image
+                        from PIL import Image
+                        if data.dtype != np.uint8:
+                            data = (data * 255).astype(np.uint8)
+                        if len(data.shape) == 3 and data.shape[2] == 3:
+                            # RGB image
+                            img = Image.fromarray(data, 'RGB')
+                        elif len(data.shape) == 3 and data.shape[2] == 4:
+                            # RGBA image
+                            img = Image.fromarray(data, 'RGBA')
+                        elif len(data.shape) == 2:
+                            # Grayscale image
+                            img = Image.fromarray(data, 'L')
+                        else:
+                            raise ValueError(f"Unsupported numpy array shape for image: {data.shape}")
+                        img.save(temp_file.name, format='JPEG' if suffix.lower() in ['.jpg', '.jpeg'] else 'PNG')
+                    else:
+                        raise ValueError(f"Cannot save numpy array as {suffix} format")
+                else:
+                    raise ValueError(f"Unsupported data type: {type(data)}")
+                temp_file.close()
+                return temp_file.name
+
+        ref_img_path = _save_to_temp_file(input_image_data, '.jpg')
+        video_path = _save_to_temp_file(input_video_data, '.mp4')
+        
+        print(f"[ImageVideo2Animation] Input files prepared: image={ref_img_path}, video={video_path}")
+
+        # Initialize WanAnimateApp and generate animation
+        wan_app = WanAnimateApp()
+        video_url, status = wan_app.predict(ref_img_path, video_path, model_id, model)
+        
+        if video_url and status == "SUCCEEDED":
+            print(f"[ImageVideo2Animation] Animation generated successfully: {video_url}")
+            
+            # Download the video and create temporary URL
+            try:
+                response = requests.get(video_url, timeout=60)
+                response.raise_for_status()
+                video_bytes = response.content
+                
+                filename = "wan_animate_result.mp4"
+                temp_url = upload_media_to_hf(video_bytes, filename, "video", token, use_temp=True)
+                
+                if temp_url.startswith("Error"):
+                    print(f"[ImageVideo2Animation] Failed to upload video: {temp_url}")
+                    return temp_url
+                
+                # Create video HTML tag
+                video_html = (
+                    f'<video controls autoplay muted loop playsinline '
+                    f'style="max-width:100%; height:auto; border-radius:8px; box-shadow:0 4px 8px rgba(0,0,0,0.1)" '
+                    f'onerror="this.style.display=\'none\'; console.error(\'Animation video failed to load\')">'
+                    f'<source src="{temp_url}" type="video/mp4" />'
+                    f'<p style="text-align: center; color: #666;">Your browser does not support the video tag.</p>'
+                    f'</video>'
+                )
+                
+                print(f"[ImageVideo2Animation] Successfully created animation HTML with temporary URL: {temp_url}")
+                return video_html
+                
+            except Exception as e:
+                error_msg = f"Failed to download generated animation: {str(e)}"
+                print(f"[ImageVideo2Animation] {error_msg}")
+                return f"Error: {error_msg}"
+        else:
+            error_msg = f"Animation generation failed: {status}"
+            print(f"[ImageVideo2Animation] {error_msg}")
+            return f"Error: {error_msg}"
+            
+    except Exception as e:
+        print(f"[ImageVideo2Animation] Exception during generation:")
+        print(f"Animation generation error: {str(e)}")
+        return f"Error generating animation: {str(e)}"
+
 def extract_image_prompts_from_text(text: str, num_images_needed: int = 1) -> list:
     """Extract image generation prompts from the full text based on number of images needed"""
     # Use the entire text as the base prompt for image generation
@@ -4331,7 +4553,7 @@ def create_video_replacement_blocks_from_input_video(html_content: str, user_pro
     print("[Video2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_video_to_video: bool = False, video_to_video_prompt: Optional[str] = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_video_to_video: bool = False, video_to_video_prompt: Optional[str] = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None, enable_image_video_to_animation: bool = False, animation_mode: str = "wan2.2-animate-move", animation_quality: str = "wan-pro", animation_video_data = None, token: gr.OAuthToken | None = None) -> str:
     """Apply text/image/video/music replacements to HTML content.
 
     - Works with single-document HTML strings
@@ -4361,8 +4583,57 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
     try:
         print(
             f"[MediaApply] enable_i2v={enable_image_to_video}, enable_i2i={enable_image_to_image}, "
-            f"enable_t2i={enable_text_to_image}, enable_t2v={enable_text_to_video}, enable_v2v={enable_video_to_video}, enable_t2m={enable_text_to_music}, has_image={input_image_data is not None}, has_video={input_video_data is not None}"
+            f"enable_t2i={enable_text_to_image}, enable_t2v={enable_text_to_video}, enable_v2v={enable_video_to_video}, enable_t2m={enable_text_to_music}, enable_iv2a={enable_image_video_to_animation}, has_image={input_image_data is not None}, has_video={input_video_data is not None}, has_anim_video={animation_video_data is not None}"
         )
+        
+        # If image+video-to-animation is enabled, generate animated video and return.
+        if enable_image_video_to_animation and input_image_data is not None and animation_video_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
+            print(f"[MediaApply] Running image+video-to-animation with mode={animation_mode}, quality={animation_quality}")
+            try:
+                animation_html_tag = generate_animation_from_image_video(
+                    input_image_data, 
+                    animation_video_data, 
+                    user_prompt or "", 
+                    model_id=animation_mode, 
+                    model=animation_quality, 
+                    session_id=session_id, 
+                    token=token
+                )
+                if not (animation_html_tag or "").startswith("Error"):
+                    # Validate animation video HTML before attempting placement
+                    if validate_video_html(animation_html_tag):
+                        blocks_anim = llm_place_media(result, animation_html_tag, media_kind="video")
+                    else:
+                        print("[MediaApply] Generated animation HTML failed validation, skipping LLM placement")
+                        blocks_anim = ""
+                else:
+                    print(f"[MediaApply] Animation generation failed: {animation_html_tag}")
+                    blocks_anim = ""
+            except Exception as e:
+                print(f"[MediaApply] Exception during animation generation: {str(e)}")
+                blocks_anim = ""
+            
+            # If LLM placement failed, use fallback placement
+            if not blocks_anim:
+                # Create simple replacement block for animation video
+                blocks_anim = f"""{SEARCH_START}
+</head>
+
+{DIVIDER}
+</head>
+<div class="animation-container" style="margin: 20px 0; text-align: center;">
+    {animation_html_tag}
+</div>
+{REPLACE_END}"""
+            
+            if blocks_anim:
+                print("[MediaApply] Applying animation replacement blocks")
+                result = apply_search_replace_changes(result, blocks_anim)
+                if is_multipage and entry_html_path:
+                    multipage_files[entry_html_path] = result
+                    return format_multipage_output(multipage_files)
+                return result
+
         # If image-to-video is enabled, replace the first image with a generated video and return.
         if enable_image_to_video and input_image_data is not None and (result.strip().startswith('<!DOCTYPE html>') or result.strip().startswith('<html')):
             i2v_prompt = (image_to_video_prompt or user_prompt or "").strip()
@@ -5516,7 +5787,7 @@ The HTML code above contains the complete original website structure with all im
 stop_generation = False
 
 
-def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_video_to_video: bool = False, video_to_video_prompt: Optional[str] = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None):
+def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_video_to_video: bool = False, video_to_video_prompt: Optional[str] = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None, enable_image_video_to_animation: bool = False, animation_mode: str = "wan2.2-animate-move", animation_quality: str = "wan-pro", animation_video_data = None):
     if query is None:
         query = ''
     if _history is None:
@@ -5793,6 +6064,11 @@ This will help me create a better design for you."""
             input_video_data=input_video_data,
             enable_text_to_music=enable_text_to_music,
             text_to_music_prompt=text_to_music_prompt,
+            enable_image_video_to_animation=enable_image_video_to_animation,
+            animation_mode=animation_mode,
+            animation_quality=animation_quality,
+            animation_video_data=animation_video_data,
+            token=None,
         )
         
         _history.append([query, final_content])
@@ -5867,6 +6143,10 @@ This will help me create a better design for you."""
                     input_video_data=input_video_data,
                     enable_text_to_music=enable_text_to_music,
                     text_to_music_prompt=text_to_music_prompt,
+                    enable_image_video_to_animation=enable_image_video_to_animation,
+                    animation_mode=animation_mode,
+                    animation_quality=animation_quality,
+                    animation_video_data=animation_video_data,
                     token=None,
                 )
                 
@@ -5899,6 +6179,10 @@ This will help me create a better design for you."""
                         input_video_data=input_video_data,
                         enable_text_to_music=enable_text_to_music,
                         text_to_music_prompt=text_to_music_prompt,
+                        enable_image_video_to_animation=enable_image_video_to_animation,
+                        animation_mode=animation_mode,
+                        animation_quality=animation_quality,
+                        animation_video_data=animation_video_data,
                         token=None,
                     )
                 else:
@@ -6340,6 +6624,10 @@ This will help me create a better design for you."""
                 input_video_data=input_video_data,
                 enable_text_to_music=enable_text_to_music,
                 text_to_music_prompt=text_to_music_prompt,
+                enable_image_video_to_animation=enable_image_video_to_animation,
+                animation_mode=animation_mode,
+                animation_quality=animation_quality,
+                animation_video_data=animation_video_data,
                 token=None,
             )
             
@@ -6375,6 +6663,11 @@ This will help me create a better design for you."""
                 input_video_data=input_video_data,
                 enable_text_to_music=enable_text_to_music,
                 text_to_music_prompt=text_to_music_prompt,
+                enable_image_video_to_animation=enable_image_video_to_animation,
+                animation_mode=animation_mode,
+                animation_quality=animation_quality,
+                animation_video_data=animation_video_data,
+                token=None,
             )
             
             _history.append([query, final_content])
@@ -7674,6 +7967,38 @@ with gr.Blocks(
             visible=False
         )
 
+        # Image+Video to Animation
+        image_video_to_animation_toggle = gr.Checkbox(
+            label="🎭 Character Animation (uses input image + video)",
+            value=False,
+            visible=True,
+            info="Animate characters using Wan2.2-Animate with reference image and template video"
+        )
+        animation_mode_dropdown = gr.Dropdown(
+            label="Animation Mode",
+            choices=[
+                ("Move Mode (animate character with video motion)", "wan2.2-animate-move"),
+                ("Mix Mode (replace character in video)", "wan2.2-animate-mix")
+            ],
+            value="wan2.2-animate-move",
+            visible=False,
+            info="Move: animate image character with video motion. Mix: replace video character with image character"
+        )
+        animation_quality_dropdown = gr.Dropdown(
+            label="Animation Quality",
+            choices=[
+                ("Professional (25fps, 720p)", "wan-pro"),
+                ("Standard (15fps, 720p)", "wan-std")
+            ],
+            value="wan-pro",
+            visible=False,
+            info="Higher quality takes more time to generate"
+        )
+        animation_video_input = gr.Video(
+            label="Template video for animation (upload a video to use as motion template or character replacement source)",
+            visible=False
+        )
+
         # LLM-guided media placement is now always on (no toggle in UI)
 
         def on_image_to_image_toggle(toggled, beta_enabled):
@@ -7718,6 +8043,21 @@ with gr.Blocks(
             on_text_to_image_toggle,
             inputs=[text_to_music_toggle, beta_toggle],
             outputs=[text_to_music_prompt]
+        )
+        
+        def on_image_video_to_animation_toggle(toggled, beta_enabled):
+            vis = bool(toggled) and not bool(beta_enabled)
+            return (
+                gr.update(visible=vis),  # generation_image_input
+                gr.update(visible=vis),  # animation_mode_dropdown
+                gr.update(visible=vis),  # animation_quality_dropdown
+                gr.update(visible=vis),  # animation_video_input
+            )
+        
+        image_video_to_animation_toggle.change(
+            on_image_video_to_animation_toggle,
+            inputs=[image_video_to_animation_toggle, beta_toggle],
+            outputs=[generation_image_input, animation_mode_dropdown, animation_quality_dropdown, animation_video_input]
         )
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
@@ -8271,7 +8611,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, image_video_to_animation_toggle, animation_mode_dropdown, animation_quality_dropdown, animation_video_input],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -8368,6 +8708,10 @@ with gr.Blocks(
         upd_current_model = gr.skip()
         upd_t2m_toggle = gr.skip()
         upd_t2m_prompt = gr.skip()
+        upd_iv2a_toggle = gr.skip()
+        upd_anim_mode = gr.skip()
+        upd_anim_quality = gr.skip()
+        upd_anim_video = gr.skip()
 
         # Split by comma to separate main prompt and directives
         segments = [seg.strip() for seg in (text or "").split(",") if seg.strip()]
@@ -8447,6 +8791,20 @@ with gr.Blocks(
                 if p:
                     upd_t2m_prompt = gr.update(value=p)
 
+            # Image+Video-to-Animation
+            if ("animate" in seg_norm) or ("character animation" in seg_norm) or ("wan animate" in seg_norm):
+                upd_iv2a_toggle = gr.update(value=True)
+                # Check for mode specification
+                if "move mode" in seg_norm:
+                    upd_anim_mode = gr.update(value="wan2.2-animate-move")
+                elif "mix mode" in seg_norm:
+                    upd_anim_mode = gr.update(value="wan2.2-animate-mix")
+                # Check for quality specification
+                if "standard quality" in seg_norm or "std quality" in seg_norm:
+                    upd_anim_quality = gr.update(value="wan-std")
+                elif "professional quality" in seg_norm or "pro quality" in seg_norm:
+                    upd_anim_quality = gr.update(value="wan-pro")
+
             # URL (website redesign)
             url = _extract_url(seg)
             if url:
@@ -8520,6 +8878,10 @@ with gr.Blocks(
             upd_current_model,
             upd_t2m_toggle,
             upd_t2m_prompt,
+            upd_iv2a_toggle,
+            upd_anim_mode,
+            upd_anim_quality,
+            upd_anim_video,
         )
 
     # Wire chat submit -> apply settings -> run generation
@@ -8550,6 +8912,10 @@ with gr.Blocks(
             current_model,
             text_to_music_toggle,
             text_to_music_prompt,
+            image_video_to_animation_toggle,
+            animation_mode_dropdown,
+            animation_quality_dropdown,
+            animation_video_input,
         ],
         queue=False,
     ).then(
@@ -8559,7 +8925,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, image_video_to_animation_toggle, animation_mode_dropdown, animation_quality_dropdown, animation_video_input],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -8591,7 +8957,7 @@ with gr.Blocks(
     )
 
     # Toggle between classic controls and beta chat UI
-    def toggle_beta(checked: bool, t2i: bool, i2i: bool, i2v: bool, t2v: bool, v2v: bool, t2m: bool):
+    def toggle_beta(checked: bool, t2i: bool, i2i: bool, i2v: bool, t2v: bool, v2v: bool, t2m: bool, iv2a: bool):
         # Prompts only visible in classic mode and when their toggles are on
         t2i_vis = (not checked) and bool(t2i)
         i2i_vis = (not checked) and bool(i2i)
@@ -8599,6 +8965,7 @@ with gr.Blocks(
         t2v_vis = (not checked) and bool(t2v)
         v2v_vis = (not checked) and bool(v2v)
         t2m_vis = (not checked) and bool(t2m)
+        iv2a_vis = (not checked) and bool(iv2a)
 
         return (
             # Chat UI group
@@ -8627,6 +8994,10 @@ with gr.Blocks(
             gr.update(visible=v2v_vis),      # video_input
             gr.update(visible=not checked),  # text_to_music_toggle
             gr.update(visible=t2m_vis),      # text_to_music_prompt
+            gr.update(visible=not checked),  # image_video_to_animation_toggle
+            gr.update(visible=iv2a_vis),     # animation_mode_dropdown
+            gr.update(visible=iv2a_vis),     # animation_quality_dropdown
+            gr.update(visible=iv2a_vis),     # animation_video_input
             gr.update(visible=not checked),  # model_dropdown
             gr.update(visible=not checked),  # quick_start_md
             gr.update(visible=not checked),  # quick_examples_col
@@ -8634,7 +9005,7 @@ with gr.Blocks(
 
     beta_toggle.change(
         toggle_beta,
-        inputs=[beta_toggle, image_generation_toggle, image_to_image_toggle, image_to_video_toggle, text_to_video_toggle, video_to_video_toggle, text_to_music_toggle],
+        inputs=[beta_toggle, image_generation_toggle, image_to_image_toggle, image_to_video_toggle, text_to_video_toggle, video_to_video_toggle, text_to_music_toggle, image_video_to_animation_toggle],
         outputs=[
             sidebar_chatbot,
             sidebar_msg,
@@ -8660,6 +9031,10 @@ with gr.Blocks(
             video_input,
             text_to_music_toggle,
             text_to_music_prompt,
+            image_video_to_animation_toggle,
+            animation_mode_dropdown,
+            animation_quality_dropdown,
+            animation_video_input,
             model_dropdown,
             quick_start_md,
             quick_examples_col,
