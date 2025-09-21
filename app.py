@@ -66,10 +66,10 @@ GRADIO_DOCS_LAST_UPDATE_FILE = ".gradio_docs_last_update.txt"
 GRADIO_DOCS_UPDATE_ON_APP_UPDATE = True  # Only update when app is updated, not on a timer
 
 # Global variable to store the current Gradio documentation
-_gradio_docs_content: Optional[str] = None
+_gradio_docs_content: str | None = None
 _gradio_docs_last_fetched: Optional[datetime] = None
 
-def fetch_gradio_docs() -> Optional[str]:
+def fetch_gradio_docs() -> str | None:
     """Fetch the latest Gradio documentation from llms.txt"""
     try:
         response = requests.get(GRADIO_LLMS_TXT_URL, timeout=10)
@@ -79,7 +79,7 @@ def fetch_gradio_docs() -> Optional[str]:
         print(f"Warning: Failed to fetch Gradio docs from {GRADIO_LLMS_TXT_URL}: {e}")
         return None
 
-def load_cached_gradio_docs() -> Optional[str]:
+def load_cached_gradio_docs() -> str | None:
     """Load cached Gradio documentation from file"""
     try:
         if os.path.exists(GRADIO_DOCS_CACHE_FILE):
@@ -894,7 +894,7 @@ def _ensure_video_dir_exists() -> None:
         pass
 
 
-def _register_video_for_session(session_id: Optional[str], file_path: str) -> None:
+def _register_video_for_session(session_id: str | None, file_path: str) -> None:
     if not session_id or not file_path:
         return
     with _VIDEO_FILES_LOCK:
@@ -903,7 +903,7 @@ def _register_video_for_session(session_id: Optional[str], file_path: str) -> No
         _SESSION_VIDEO_FILES[session_id].append(file_path)
 
 
-def cleanup_session_videos(session_id: Optional[str]) -> None:
+def cleanup_session_videos(session_id: str | None) -> None:
     if not session_id:
         return
     with _VIDEO_FILES_LOCK:
@@ -952,7 +952,7 @@ def _ensure_audio_dir_exists() -> None:
         pass
 
 
-def _register_audio_for_session(session_id: Optional[str], file_path: str) -> None:
+def _register_audio_for_session(session_id: str | None, file_path: str) -> None:
     if not session_id or not file_path:
         return
     with _AUDIO_FILES_LOCK:
@@ -961,7 +961,7 @@ def _register_audio_for_session(session_id: Optional[str], file_path: str) -> No
         _SESSION_AUDIO_FILES[session_id].append(file_path)
 
 
-def cleanup_session_audio(session_id: Optional[str]) -> None:
+def cleanup_session_audio(session_id: str | None) -> None:
     if not session_id:
         return
     with _AUDIO_FILES_LOCK:
@@ -2561,7 +2561,7 @@ def infer_svelte_dependencies(files: Dict[str, str]) -> Dict[str, str]:
 
     return deps
 
-def build_svelte_package_json(existing_json_text: Optional[str], detected_dependencies: Dict[str, str]) -> str:
+def build_svelte_package_json(existing_json_text: str | None, detected_dependencies: Dict[str, str]) -> str:
     """Create or merge a package.json for Svelte spaces.
 
     - If existing_json_text is provided, merge detected deps into its dependencies.
@@ -2781,7 +2781,7 @@ def _ensure_media_dir_exists() -> None:
     except Exception:
         pass
 
-def track_session_media_file(session_id: Optional[str], file_path: str) -> None:
+def track_session_media_file(session_id: str | None, file_path: str) -> None:
     """Track a media file for session-based cleanup."""
     if not session_id or not file_path:
         return
@@ -2790,7 +2790,7 @@ def track_session_media_file(session_id: Optional[str], file_path: str) -> None:
             _SESSION_MEDIA_FILES[session_id] = []
         _SESSION_MEDIA_FILES[session_id].append(file_path)
 
-def cleanup_session_media(session_id: Optional[str]) -> None:
+def cleanup_session_media(session_id: str | None) -> None:
     """Clean up media files for a specific session."""
     if not session_id:
         return
@@ -2879,7 +2879,7 @@ def cleanup_all_temp_media_on_shutdown() -> None:
 # Register shutdown cleanup handler
 atexit.register(cleanup_all_temp_media_on_shutdown)
 
-def create_temp_media_url(media_bytes: bytes, filename: str, media_type: str = "image", session_id: Optional[str] = None) -> str:
+def create_temp_media_url(media_bytes: bytes, filename: str, media_type: str = "image", session_id: str | None = None) -> str:
     """Create a temporary file and return a local URL for preview.
     
     Args:
@@ -3325,7 +3325,7 @@ def generate_image_to_image(input_image_data, prompt: str, token: gr.OAuthToken 
         print(f"Image-to-image generation error: {str(e)}")
         return f"Error generating image (image-to-image): {str(e)}"
 
-def generate_video_from_image(input_image_data, prompt: str, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+def generate_video_from_image(input_image_data, prompt: str, session_id: str | None = None, token: gr.OAuthToken | None = None) -> str:
     """Generate a video from an input image and prompt using Hugging Face InferenceClient.
 
     Returns an HTML <video> tag whose source points to a local file URL (file://...).
@@ -3452,7 +3452,7 @@ def generate_video_from_image(input_image_data, prompt: str, session_id: Optiona
         print(f"Image-to-video generation error: {str(e)}")
         return f"Error generating video (image-to-video): {str(e)}"
 
-def generate_video_from_text(prompt: str, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+def generate_video_from_text(prompt: str, session_id: str | None = None, token: gr.OAuthToken | None = None) -> str:
     """Generate a video from a text prompt using Hugging Face InferenceClient.
 
     Returns an HTML <video> tag with compressed data URI for deployment compatibility.
@@ -3522,7 +3522,7 @@ def generate_video_from_text(prompt: str, session_id: Optional[str] = None, toke
         print(f"Text-to-video generation error: {str(e)}")
         return f"Error generating video (text-to-video): {str(e)}"
 
-def generate_video_from_video(input_video_data, prompt: str, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+def generate_video_from_video(input_video_data, prompt: str, session_id: str | None = None, token: gr.OAuthToken | None = None) -> str:
     """Generate a video from an input video and prompt using Decart AI's Lucy Pro V2V API.
     
     Returns an HTML <video> tag whose source points to a temporary file URL.
@@ -3630,7 +3630,7 @@ def generate_video_from_video(input_video_data, prompt: str, session_id: Optiona
         print(f"Video-to-video generation error: {str(e)}")
         return f"Error generating video (video-to-video): {str(e)}"
 
-def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+def generate_music_from_text(prompt: str, music_length_ms: int = 30000, session_id: str | None = None, token: gr.OAuthToken | None = None) -> str:
     """Generate music from a text prompt using ElevenLabs Music API and return an HTML <audio> tag.
 
     Returns compressed data URI for deployment compatibility.
@@ -3842,7 +3842,7 @@ class WanAnimateApp:
             print(f"[WanAnimate] {error_msg}")
             return None, error_msg
 
-def generate_animation_from_image_video(input_image_data, input_video_data, prompt: str, model_id: str = "wan2.2-animate-move", model: str = "wan-pro", session_id: Optional[str] = None, token: gr.OAuthToken | None = None) -> str:
+def generate_animation_from_image_video(input_image_data, input_video_data, prompt: str, model_id: str = "wan2.2-animate-move", model: str = "wan-pro", session_id: str | None = None, token: gr.OAuthToken | None = None) -> str:
     """Generate animated video from reference image and template video using Wan2.2-Animate.
     
     Returns an HTML <video> tag whose source points to a temporary file URL.
@@ -4179,7 +4179,7 @@ def create_image_replacement_blocks_text_to_image_single(html_content: str, prom
     # If no <body>, just append
     return f"{SEARCH_START}\n\n{DIVIDER}\n{image_html}\n{REPLACE_END}"
 
-def create_video_replacement_blocks_text_to_video(html_content: str, prompt: str, session_id: Optional[str] = None) -> str:
+def create_video_replacement_blocks_text_to_video(html_content: str, prompt: str, session_id: str | None = None) -> str:
     """Create search/replace blocks that generate and insert ONLY ONE text-to-video result.
 
     Replaces the first detected <img> placeholder; if none found, inserts one video near the top of <body>.
@@ -4290,7 +4290,7 @@ def create_video_replacement_blocks_text_to_video(html_content: str, prompt: str
     # If no <body>, just append
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def create_music_replacement_blocks_text_to_music(html_content: str, prompt: str, session_id: Optional[str] = None) -> str:
+def create_music_replacement_blocks_text_to_music(html_content: str, prompt: str, session_id: str | None = None) -> str:
     """Create search/replace blocks that insert ONE generated <audio> near the top of <body>.
 
     Unlike images/videos which replace placeholders, music doesn't map to an <img> tag.
@@ -4430,7 +4430,7 @@ def create_image_replacement_blocks_from_input_image(html_content: str, user_pro
 
     return '\n\n'.join(replacement_blocks)
 
-def create_video_replacement_blocks_from_input_image(html_content: str, user_prompt: str, input_image_data, session_id: Optional[str] = None) -> str:
+def create_video_replacement_blocks_from_input_image(html_content: str, user_prompt: str, input_image_data, session_id: str | None = None) -> str:
     """Create search/replace blocks that replace the first <img> (or placeholder) with a generated <video>.
 
     Uses generate_video_from_image to produce a single video and swaps it in.
@@ -4516,7 +4516,7 @@ def create_video_replacement_blocks_from_input_image(html_content: str, user_pro
     print("[Image2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def create_video_replacement_blocks_from_input_video(html_content: str, user_prompt: str, input_video_data, session_id: Optional[str] = None) -> str:
+def create_video_replacement_blocks_from_input_video(html_content: str, user_prompt: str, input_video_data, session_id: str | None = None) -> str:
     """Create search/replace blocks that replace the first <video> (or placeholder) with a generated <video>.
 
     Uses generate_video_from_video to produce a single video and swaps it in.
@@ -4603,7 +4603,7 @@ def create_video_replacement_blocks_from_input_video(html_content: str, user_pro
     print("[Video2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_video_to_video: bool = False, video_to_video_prompt: Optional[str] = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None, enable_image_video_to_animation: bool = False, animation_mode: str = "wan2.2-animate-move", animation_quality: str = "wan-pro", animation_video_data = None, token: gr.OAuthToken | None = None) -> str:
+def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: str | None = None, enable_text_to_video: bool = False, text_to_video_prompt: str | None = None, enable_video_to_video: bool = False, video_to_video_prompt: str | None = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: str | None = None, enable_image_video_to_animation: bool = False, animation_mode: str = "wan2.2-animate-move", animation_quality: str = "wan-pro", animation_video_data = None, token: gr.OAuthToken | None = None) -> str:
     """Apply text/image/video/music replacements to HTML content.
 
     - Works with single-document HTML strings
@@ -4614,7 +4614,7 @@ def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_te
     # Detect multi-page sections and choose an entry HTML to modify
     is_multipage = False
     multipage_files: Dict[str, str] = {}
-    entry_html_path: Optional[str] = None
+    entry_html_path: str | None = None
     try:
         multipage_files = parse_multipage_html_output(html_content) or {}
         if multipage_files:
@@ -5837,7 +5837,62 @@ The HTML code above contains the complete original website structure with all im
 stop_generation = False
 
 
-def generation_code(query: Optional[str], vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: Optional[str], website_url: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: Optional[str] = None, text_to_image_prompt: Optional[str] = None, enable_image_to_video: bool = False, image_to_video_prompt: Optional[str] = None, enable_text_to_video: bool = False, text_to_video_prompt: Optional[str] = None, enable_video_to_video: bool = False, video_to_video_prompt: Optional[str] = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: Optional[str] = None, enable_image_video_to_animation: bool = False, animation_mode: str = "wan2.2-animate-move", animation_quality: str = "wan-pro", animation_video_data = None):
+def check_authentication(profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None) -> tuple[bool, str]:
+    """Check if user is authenticated and return status with message."""
+    if not profile or not token:
+        return False, "Please log in with your Hugging Face account to use AnyCoder."
+    
+    if not token.token:
+        return False, "Authentication token is invalid. Please log in again."
+    
+    return True, f"Authenticated as {profile.username}"
+
+
+def update_ui_for_auth_status(profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
+    """Update UI components based on authentication status."""
+    is_authenticated, auth_message = check_authentication(profile, token)
+    
+    if is_authenticated:
+        # User is authenticated - enable all components
+        return {
+            # Enable main input and button
+            input: gr.update(interactive=True, placeholder="Describe your application..."),
+            btn: gr.update(interactive=True, variant="primary"),
+            # Show authentication status
+            auth_status: gr.update(
+                value=f"✅ {auth_message}",
+                visible=True
+            )
+        }
+    else:
+        # User not authenticated - disable main components
+        return {
+            # Disable main input and button with clear messaging
+            input: gr.update(
+                interactive=False, 
+                placeholder="🔒 Please log in with Hugging Face to use AnyCoder..."
+            ),
+            btn: gr.update(interactive=False, variant="secondary"),
+            # Show authentication requirement
+            auth_status: gr.update(
+                value=f"🔒 {auth_message}",
+                visible=True
+            )
+        }
+
+
+def generation_code(query: str | None, vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: str | None, website_url: str | None, _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, enable_text_to_video: bool = False, text_to_video_prompt: str | None = None, enable_video_to_video: bool = False, video_to_video_prompt: str | None = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: str | None = None, enable_image_video_to_animation: bool = False, animation_mode: str = "wan2.2-animate-move", animation_quality: str = "wan-pro", animation_video_data = None, profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
+    # Check authentication first
+    is_authenticated, auth_message = check_authentication(profile, token)
+    if not is_authenticated:
+        error_message = f"🔒 Authentication Required\n\n{auth_message}\n\nPlease click the 'Sign in with Hugging Face' button in the sidebar to continue."
+        yield {
+            code_output: error_message,
+            history_output: history_to_chatbot_messages(_history or []),
+            sandbox: f"<div style='padding:2em;text-align:center;color:#e74c3c;font-size:1.2em;'><h3>🔒 Authentication Required</h3><p>{auth_message}</p><p>Please log in to use AnyCoder.</p></div>",
+        }
+        return
+    
     if query is None:
         query = ''
     if _history is None:
@@ -7028,7 +7083,7 @@ def deploy_to_spaces_static(code):
     full_url = f"{base_url}?{params}&{files_params}"
     webbrowser.open_new_tab(full_url)
 
-def check_hf_space_url(url: str) -> Tuple[bool, Optional[str], Optional[str]]:
+def check_hf_space_url(url: str) -> Tuple[bool, str | None, str | None]:
     """Check if URL is a valid Hugging Face Spaces URL and extract username/project"""
     import re
     
@@ -7264,7 +7319,7 @@ def _parse_repo_or_model_url(url: str) -> Tuple[str, Optional[dict]]:
         pass
     return "unknown", None
 
-def _fetch_hf_model_readme(repo_id: str) -> Optional[str]:
+def _fetch_hf_model_readme(repo_id: str) -> str | None:
     """Fetch README.md (model card) for a Hugging Face model repo."""
     try:
         api = HfApi()
@@ -7281,7 +7336,7 @@ def _fetch_hf_model_readme(repo_id: str) -> Optional[str]:
     except Exception:
         return None
 
-def _fetch_github_readme(owner: str, repo: str) -> Optional[str]:
+def _fetch_github_readme(owner: str, repo: str) -> str | None:
     """Fetch README.md from a GitHub repo via raw URLs, trying HEAD/main/master."""
     bases = [
         f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD/README.md",
@@ -7297,7 +7352,7 @@ def _fetch_github_readme(owner: str, repo: str) -> Optional[str]:
             continue
     return None
 
-def _extract_transformers_or_diffusers_snippet(markdown_text: str) -> Tuple[Optional[str], Optional[str]]:
+def _extract_transformers_or_diffusers_snippet(markdown_text: str) -> Tuple[str | None, str | None]:
     """Extract the most relevant Python code block referencing transformers/diffusers from markdown.
 
     Returns (language, code). If not found, returns (None, None).
@@ -7335,7 +7390,7 @@ def _extract_transformers_or_diffusers_snippet(markdown_text: str) -> Tuple[Opti
         return scored[0][0] or None, scored[0][1]
     return None, None
 
-def _infer_task_from_context(snippet: Optional[str], pipeline_tag: Optional[str]) -> str:
+def _infer_task_from_context(snippet: str | None, pipeline_tag: str | None) -> str:
     """Infer a task string for transformers pipeline; fall back to provided pipeline_tag or 'text-generation'."""
     if pipeline_tag:
         return pipeline_tag
@@ -7779,6 +7834,24 @@ with gr.Blocks(
         #beta_chat .message.user {
             background: rgba(70, 70, 70, 0.95);
         }
+        /* Authentication status styling */
+        .auth-status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin: 8px 0;
+            font-weight: 500;
+            text-align: center;
+        }
+        .auth-status:has-text("🔒") {
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+        }
+        .auth-status:has-text("✅") {
+            background: rgba(46, 204, 113, 0.1);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+            color: #2ecc71;
+        }
     """
 ) as demo:
     history = gr.State([])
@@ -7791,6 +7864,14 @@ with gr.Blocks(
 
     with gr.Sidebar() as sidebar:
         login_button = gr.LoginButton()
+        
+        # Authentication status display
+        auth_status = gr.Markdown(
+            value="🔒 Please log in with your Hugging Face account to use AnyCoder.",
+            visible=True,
+            elem_classes=["auth-status"]
+        )
+        
         beta_toggle = gr.Checkbox(
             value=False,
             label="Beta: Chat UI",
@@ -7867,9 +7948,10 @@ with gr.Blocks(
         
         input = gr.Textbox(
             label="What would you like to build?",
-            placeholder="Describe your application...",
+            placeholder="🔒 Please log in with Hugging Face to use AnyCoder...",
             lines=3,
-            visible=True
+            visible=True,
+            interactive=False
         )
         # Language dropdown for code generation (add Streamlit and Gradio as first-class options)
         language_choices = [
@@ -7908,7 +7990,7 @@ with gr.Blocks(
             visible=False
         )
         with gr.Row():
-            btn = gr.Button("Generate", variant="primary", size="lg", scale=2, visible=True)
+            btn = gr.Button("Generate", variant="secondary", size="lg", scale=2, visible=True, interactive=False)
             clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)
         # --- Move deploy/app name/sdk here, right before web search ---
         space_name_input = gr.Textbox(
@@ -8661,7 +8743,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, image_video_to_animation_toggle, animation_mode_dropdown, animation_quality_dropdown, animation_video_input],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, image_video_to_animation_toggle, animation_mode_dropdown, animation_quality_dropdown, animation_video_input, login_button, login_button],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -8702,7 +8784,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, login_button, login_button],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -8975,7 +9057,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, image_video_to_animation_toggle, animation_mode_dropdown, animation_quality_dropdown, animation_video_input],
+        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, image_video_to_animation_toggle, animation_mode_dropdown, animation_quality_dropdown, animation_video_input, login_button, login_button],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -9735,6 +9817,21 @@ with gr.Blocks(
     )
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
     # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.
+    
+    # Handle login status changes to update UI
+    login_button.login(
+        update_ui_for_auth_status,
+        inputs=[login_button, login_button],
+        outputs=[input, btn, auth_status],
+        queue=False
+    )
+    
+    login_button.logout(
+        update_ui_for_auth_status,
+        inputs=[login_button, login_button],
+        outputs=[input, btn, auth_status],
+        queue=False
+    )
 
 if __name__ == "__main__":
     # Initialize Gradio documentation system
