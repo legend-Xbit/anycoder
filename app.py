@@ -9817,10 +9817,22 @@ with gr.Blocks(
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
     # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.
     
-    # Handle login/logout button clicks to update UI
-    # The LoginButton automatically handles OAuth flow, we just need to update UI on click
+    # Handle authentication state updates
+    # The LoginButton automatically handles OAuth flow and passes profile/token to the function
+    def handle_auth_update(profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
+        return update_ui_for_auth_status(profile, token)
+    
+    # Update UI when login button is clicked (handles both login and logout)
     login_button.click(
-        update_ui_for_auth_status,
+        handle_auth_update,
+        inputs=[],
+        outputs=[input, btn, auth_status],
+        queue=False
+    )
+    
+    # Also update UI when the page loads in case user is already authenticated
+    demo.load(
+        handle_auth_update,
         inputs=[],
         outputs=[input, btn, auth_status],
         queue=False
