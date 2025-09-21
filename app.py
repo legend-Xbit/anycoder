@@ -3689,7 +3689,40 @@ class WanAnimateApp:
         if self.api_key:
             dashscope.api_key = self.api_key
         self.url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/image2video/video-synthesis/"
-        self.get_url = "https://dashscope.aliyuncs.com/api/v1/tasks/"
+        self.get_url = "https://dashscope.aliyuncs.com/api/v1/tasks"
+
+    def check_task_status(self, task_id: str):
+        """Check the status of a specific animation task by TaskId"""
+        if not self.api_key:
+            return None, "Error: DASHSCOPE_API_KEY environment variable is not set"
+            
+        try:
+            get_url = f"{self.get_url}/{task_id}"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            response = requests.get(get_url, headers=headers, timeout=30)
+            if response.status_code != 200:
+                error_msg = f"Failed to get task status: {response.status_code}: {response.text}"
+                return None, error_msg
+            
+            result = response.json()
+            task_status = result.get("output", {}).get("task_status")
+            
+            if task_status == "SUCCEEDED":
+                video_url = result["output"]["results"]["video_url"]
+                return video_url, "SUCCEEDED"
+            elif task_status == "FAILED":
+                error_msg = result.get("output", {}).get("message", "Unknown error")
+                code_msg = result.get("output", {}).get("code", "Unknown code")
+                return None, f"Task failed: {error_msg} Code: {code_msg}"
+            else:
+                return None, f"Task is still {task_status}"
+                
+        except Exception as e:
+            return None, f"Exception checking task status: {str(e)}"
 
     def predict(self, ref_img, video, model_id, model):
         """
@@ -3757,39 +3790,50 @@ class WanAnimateApp:
                 "Content-Type": "application/json"
             }
             
-            max_attempts = 60  # 5 minutes max wait time
+            max_attempts = 180  # 15 minutes max wait time (increased from 5 minutes)
             attempt = 0
             
             while attempt < max_attempts:
-                response = requests.get(get_url, headers=headers)
-                if response.status_code != 200:
-                    error_msg = f"Failed to get task status: {response.status_code}: {response.text}"
-                    print(f"[WanAnimate] {error_msg}")
-                    return None, error_msg
-                
-                result = response.json()
-                print(f"[WanAnimate] Task status check {attempt + 1}: {result}")
-                task_status = result.get("output", {}).get("task_status")
-                
-                if task_status == "SUCCEEDED":
-                    # Task completed successfully, return video URL
-                    video_url = result["output"]["results"]["video_url"]
-                    print(f"[WanAnimate] Animation completed successfully: {video_url}")
-                    return video_url, "SUCCEEDED"
-                elif task_status == "FAILED":
-                    # Task failed, return error message
-                    error_msg = result.get("output", {}).get("message", "Unknown error")
-                    code_msg = result.get("output", {}).get("code", "Unknown code")
-                    full_error = f"Task failed: {error_msg} Code: {code_msg} TaskId: {task_id}"
-                    print(f"[WanAnimate] {full_error}")
-                    return None, full_error
-                else:
-                    # Task is still running, wait and retry
-                    time.sleep(5)  # Wait 5 seconds before polling again
+                try:
+                    response = requests.get(get_url, headers=headers, timeout=30)
+                    if response.status_code != 200:
+                        error_msg = f"Failed to get task status: {response.status_code}: {response.text}"
+                        print(f"[WanAnimate] {error_msg}")
+                        return None, error_msg
+                    
+                    result = response.json()
+                    task_status = result.get("output", {}).get("task_status")
+                    
+                    # Log progress every 20 attempts (100 seconds) to show activity
+                    if attempt % 20 == 0 or task_status in ["SUCCEEDED", "FAILED"]:
+                        print(f"[WanAnimate] Task status check {attempt + 1}/{max_attempts}: {task_status} (TaskId: {task_id})")
+                    
+                    if task_status == "SUCCEEDED":
+                        # Task completed successfully, return video URL
+                        video_url = result["output"]["results"]["video_url"]
+                        print(f"[WanAnimate] Animation completed successfully: {video_url}")
+                        return video_url, "SUCCEEDED"
+                    elif task_status == "FAILED":
+                        # Task failed, return error message
+                        error_msg = result.get("output", {}).get("message", "Unknown error")
+                        code_msg = result.get("output", {}).get("code", "Unknown code")
+                        full_error = f"Task failed: {error_msg} Code: {code_msg} TaskId: {task_id}"
+                        print(f"[WanAnimate] {full_error}")
+                        return None, full_error
+                    else:
+                        # Task is still running, wait and retry
+                        time.sleep(5)  # Wait 5 seconds before polling again
+                        attempt += 1
+                        
+                except requests.exceptions.RequestException as e:
+                    print(f"[WanAnimate] Network error during status check {attempt + 1}: {str(e)}")
+                    # For network errors, wait a bit longer before retrying
+                    time.sleep(10)
                     attempt += 1
+                    continue
             
             # Timeout reached
-            timeout_msg = f"Animation generation timed out after {max_attempts * 5} seconds. TaskId: {task_id}"
+            timeout_msg = f"Animation generation timed out after {max_attempts * 5} seconds ({max_attempts * 5 // 60} minutes). TaskId: {task_id}. The animation may still be processing - please check back later or try with a simpler input."
             print(f"[WanAnimate] {timeout_msg}")
             return None, timeout_msg
             
@@ -3892,7 +3936,13 @@ def generate_animation_from_image_video(input_image_data, input_video_data, prom
                 print(f"[ImageVideo2Animation] {error_msg}")
                 return f"Error: {error_msg}"
         else:
-            error_msg = f"Animation generation failed: {status}"
+            # Provide more helpful error messages based on status
+            if "timed out" in str(status).lower():
+                error_msg = f"Animation generation timed out. This can happen with complex animations or during high server load. Please try again with simpler inputs or wait a few minutes before retrying. Details: {status}"
+            elif "taskid" in str(status).lower():
+                error_msg = f"Animation generation failed. You can check the status later using the TaskId from the error message. Details: {status}"
+            else:
+                error_msg = f"Animation generation failed: {status}"
             print(f"[ImageVideo2Animation] {error_msg}")
             return f"Error: {error_msg}"
             
