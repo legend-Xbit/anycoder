@@ -1518,6 +1518,11 @@ AVAILABLE_MODELS = [
         "description": "DeepSeek V3.1 model for code generation and general tasks"
     },
     {
+        "name": "DeepSeek V3.1 Terminus",
+        "id": "deepseek-ai/DeepSeek-V3.1-Terminus",
+        "description": "DeepSeek V3.1 Terminus model for advanced code generation and reasoning tasks"
+    },
+    {
         "name": "DeepSeek R1", 
         "id": "deepseek-ai/DeepSeek-R1-0528",
         "description": "DeepSeek R1 model for code generation"
@@ -1698,7 +1703,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Grok 4 Fast (Free)"
+DEFAULT_MODEL_NAME = "DeepSeek V3.1 Terminus"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1908,6 +1913,8 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "Qwen/Qwen3-Next-80B-A3B-Instruct":
         provider = "novita"
     elif model_id == "deepseek-ai/DeepSeek-V3.1":
+        provider = "novita"
+    elif model_id == "deepseek-ai/DeepSeek-V3.1-Terminus":
         provider = "novita"
     elif model_id == "zai-org/GLM-4.5":
         provider = "fireworks-ai"
