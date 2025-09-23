@@ -1654,6 +1654,11 @@ AVAILABLE_MODELS = [
         "description": "Qwen3-Coder-30B-A3B-Instruct model for advanced code generation via Alibaba Cloud DashScope API"
     },
     {
+        "name": "Qwen3-Coder-Plus-2025-09-23",
+        "id": "qwen3-coder-plus-2025-09-23",
+        "description": "Qwen3-Coder-Plus-2025-09-23 model - latest advanced code generation model via Alibaba Cloud DashScope API"
+    },
+    {
         "name": "Cohere Command-A Reasoning 08-2025",
         "id": "CohereLabs/command-a-reasoning-08-2025",
         "description": "Cohere Labs Command-A Reasoning (Aug 2025) via Hugging Face InferenceClient"
@@ -1739,7 +1744,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "DeepSeek V3.1 Terminus"
+DEFAULT_MODEL_NAME = "Qwen3-Coder-Plus-2025-09-23"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1831,6 +1836,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "qwen3-coder-30b-a3b-instruct":
         # Use DashScope OpenAI client for Coder model
+        return OpenAI(
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+    elif model_id == "qwen3-coder-plus-2025-09-23":
+        # Use DashScope OpenAI client for Qwen3-Coder-Plus-2025-09-23 model
         return OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
