@@ -79,6 +79,33 @@ def fetch_gradio_docs() -> str | None:
         print(f"Warning: Failed to fetch Gradio docs from {GRADIO_LLMS_TXT_URL}: {e}")
         return None
 
+def filter_problematic_instructions(content: str) -> str:
+    """Filter out problematic instructions that cause LLM to stop generation prematurely"""
+    if not content:
+        return content
+    
+    # List of problematic phrases that cause early termination when LLM encounters ``` in user code
+    problematic_patterns = [
+        r"Output ONLY the code inside a ``` code block, and do not include any explanations or extra text",
+        r"output only the code inside a ```.*?``` code block",
+        r"Always output only the.*?code.*?inside.*?```.*?```.*?block",
+        r"Do NOT add the language name at the top of the code output",
+        r"do not include any explanations or extra text",
+        r"Always output only the.*?code blocks.*?shown above, and do not include any explanations",
+    ]
+    
+    # Remove problematic patterns
+    filtered_content = content
+    for pattern in problematic_patterns:
+        # Use case-insensitive matching
+        filtered_content = re.sub(pattern, "", filtered_content, flags=re.IGNORECASE | re.DOTALL)
+    
+    # Clean up any double newlines or extra whitespace left by removals
+    filtered_content = re.sub(r'\n\s*\n\s*\n', '\n\n', filtered_content)
+    filtered_content = re.sub(r'^\s+', '', filtered_content, flags=re.MULTILINE)
+    
+    return filtered_content
+
 def load_cached_gradio_docs() -> str | None:
     """Load cached Gradio documentation from file"""
     try:
@@ -127,9 +154,11 @@ def force_update_gradio_docs():
     latest_content = fetch_gradio_docs()
     
     if latest_content:
-        _gradio_docs_content = latest_content
+        # Filter out problematic instructions that cause early termination
+        filtered_content = filter_problematic_instructions(latest_content)
+        _gradio_docs_content = filtered_content
         _gradio_docs_last_fetched = datetime.now()
-        save_gradio_docs_cache(latest_content)
+        save_gradio_docs_cache(filtered_content)
         update_gradio_system_prompts()
         print("✅ Gradio documentation updated successfully")
         return True
@@ -152,9 +181,11 @@ def get_gradio_docs_content() -> str:
         latest_content = fetch_gradio_docs()
         
         if latest_content:
-            _gradio_docs_content = latest_content
+            # Filter out problematic instructions that cause early termination
+            filtered_content = filter_problematic_instructions(latest_content)
+            _gradio_docs_content = filtered_content
             _gradio_docs_last_fetched = datetime.now()
-            save_gradio_docs_cache(latest_content)
+            save_gradio_docs_cache(filtered_content)
             print("✅ Gradio documentation updated successfully")
         else:
             # Fallback to cached content
