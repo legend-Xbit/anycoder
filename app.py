@@ -1750,6 +1750,11 @@ AVAILABLE_MODELS = [
         "description": "Qwen3 Max Preview model via DashScope International API"
     },
     {
+        "name": "Qwen3-Max-2025-09-23",
+        "id": "qwen3-max-2025-09-23",
+        "description": "Qwen3-Max-2025-09-23 model - latest flagship model via Alibaba Cloud DashScope API"
+    },
+    {
         "name": "Sonoma Dusk Alpha",
         "id": "openrouter/sonoma-dusk-alpha",
         "description": "OpenRouter Sonoma Dusk Alpha model with vision capabilities"
@@ -1762,7 +1767,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Qwen3-Coder-Plus-2025-09-23"
+DEFAULT_MODEL_NAME = "Qwen3-Max-2025-09-23"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -1890,6 +1895,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "qwen3-max-preview":
         # Use DashScope International OpenAI client for Qwen3 Max Preview
+        return OpenAI(
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+    elif model_id == "qwen3-max-2025-09-23":
+        # Use DashScope OpenAI client for Qwen3-Max-2025-09-23 model
         return OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
