@@ -89,9 +89,14 @@ def filter_problematic_instructions(content: str) -> str:
         r"Output ONLY the code inside a ``` code block, and do not include any explanations or extra text",
         r"output only the code inside a ```.*?``` code block",
         r"Always output only the.*?code.*?inside.*?```.*?```.*?block",
+        r"Return ONLY the code inside a.*?```.*?``` code block",
         r"Do NOT add the language name at the top of the code output",
         r"do not include any explanations or extra text",
         r"Always output only the.*?code blocks.*?shown above, and do not include any explanations",
+        r"Output.*?ONLY.*?code.*?inside.*?```.*?```",
+        r"Return.*?ONLY.*?code.*?inside.*?```.*?```",
+        r"Generate.*?ONLY.*?code.*?inside.*?```.*?```",
+        r"Provide.*?ONLY.*?code.*?inside.*?```.*?```",
     ]
     
     # Remove problematic patterns
@@ -216,7 +221,7 @@ def update_gradio_system_prompts():
     docs_content = get_gradio_docs_content()
     
     # Base system prompt
-    base_prompt = """You are an expert Gradio developer. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible.
+    base_prompt = """You are an expert Gradio developer. Create a complete, working Gradio application based on the user's request. Generate all necessary code to make the application functional and runnable.
 
 🚨 IMPORTANT: If the user is asking to use external APIs (like OpenRouter, OpenAI API, Hugging Face Inference API, etc.), DO NOT use @spaces.GPU decorators or any ZeroGPU features. External APIs handle the model inference remotely, so GPU allocation on the Spaces instance is not needed.
 
@@ -485,7 +490,7 @@ This reference is automatically synced from https://www.gradio.app/llms.txt to e
 """
     
     # Search-enabled prompt
-    search_prompt = """You are an expert Gradio developer with access to real-time web search. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. When needed, use web search to find current best practices or verify latest Gradio features. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible.
+    search_prompt = """You are an expert Gradio developer with access to real-time web search. Create a complete, working Gradio application based on the user's request. When needed, use web search to find current best practices or verify latest Gradio features. Generate all necessary code to make the application functional and runnable.
 
 🚨 IMPORTANT: If the user is asking to use external APIs (like OpenRouter, OpenAI API, Hugging Face Inference API, etc.), DO NOT use @spaces.GPU decorators or any ZeroGPU features. External APIs handle the model inference remotely, so GPU allocation on the Spaces instance is not needed.
 
@@ -904,7 +909,7 @@ Structural requirements:
 - Include required <link> tags for any CSS you reference (e.g., Tailwind, Font Awesome, Google Fonts)
 - Keep everything in ONE file; inline CSS/JS as needed
 
-Return ONLY the code inside a single ```html ... ``` code block. No additional text before or after.
+Generate complete, working HTML code that can be run immediately.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
