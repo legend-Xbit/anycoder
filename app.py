@@ -1226,6 +1226,24 @@ GRADIO_SYSTEM_PROMPT_WITH_SEARCH = ""
 
 # All Gradio API documentation is now dynamically loaded from https://www.gradio.app/llms.txt
 
+JSON_SYSTEM_PROMPT = """You are an expert JSON developer. Generate clean, valid JSON data based on the user's request. Follow JSON syntax rules strictly:
+- Use double quotes for strings
+- No trailing commas
+- Proper nesting and structure
+- Valid data types (string, number, boolean, null, object, array)
+
+Generate ONLY the JSON data requested - no HTML, no applications, no explanations outside the JSON. The output should be pure, valid JSON that can be parsed directly."""
+
+JSON_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert JSON developer. You have access to real-time web search. When needed, use web search to find the latest information or data structures for your JSON generation.
+
+Generate clean, valid JSON data based on the user's request. Follow JSON syntax rules strictly:
+- Use double quotes for strings
+- No trailing commas
+- Proper nesting and structure
+- Valid data types (string, number, boolean, null, object, array)
+
+Generate ONLY the JSON data requested - no HTML, no applications, no explanations outside the JSON. The output should be pure, valid JSON that can be parsed directly."""
+
 GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
@@ -6123,6 +6141,8 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = SVELTE_SYSTEM_PROMPT_WITH_SEARCH if enable_search else SVELTE_SYSTEM_PROMPT
         elif language == "gradio":
             system_prompt = GRADIO_SYSTEM_PROMPT_WITH_SEARCH if enable_search else GRADIO_SYSTEM_PROMPT
+        elif language == "json":
+            system_prompt = JSON_SYSTEM_PROMPT_WITH_SEARCH if enable_search else JSON_SYSTEM_PROMPT
         else:
             system_prompt = GENERIC_SYSTEM_PROMPT_WITH_SEARCH.format(language=language) if enable_search else GENERIC_SYSTEM_PROMPT.format(language=language)
 
@@ -8711,6 +8731,8 @@ with gr.Blocks(
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
         if language == "svelte":
             return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code and deploy it to see the result.</div>"
+        if language == "json":
+            return "<div style='padding:1em;color:#888;text-align:center;'>JSON data generated successfully. Use the download button to save your JSON file.</div>"
         return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML.</div>"
 
     # Direct preview updates from multi-file editor changes
