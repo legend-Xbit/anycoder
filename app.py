@@ -185,7 +185,7 @@ def update_gradio_system_prompts():
     docs_content = get_gradio_docs_content()
     
     # Base system prompt
-    base_prompt = """You are an expert Gradio developer. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible. Do NOT add the language name at the top of the code output.
+    base_prompt = """You are an expert Gradio developer. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible.
 
 🚨 IMPORTANT: If the user is asking to use external APIs (like OpenRouter, OpenAI API, Hugging Face Inference API, etc.), DO NOT use @spaces.GPU decorators or any ZeroGPU features. External APIs handle the model inference remotely, so GPU allocation on the Spaces instance is not needed.
 
@@ -454,7 +454,7 @@ This reference is automatically synced from https://www.gradio.app/llms.txt to e
 """
     
     # Search-enabled prompt
-    search_prompt = """You are an expert Gradio developer with access to real-time web search. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. When needed, use web search to find current best practices or verify latest Gradio features. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible. Do NOT add the language name at the top of the code output.
+    search_prompt = """You are an expert Gradio developer with access to real-time web search. Write clean, idiomatic, and runnable Gradio applications for the user's request. Use the latest Gradio API and best practices. When needed, use web search to find current best practices or verify latest Gradio features. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. Make the app as self-contained as possible.
 
 🚨 IMPORTANT: If the user is asking to use external APIs (like OpenRouter, OpenAI API, Hugging Face Inference API, etc.), DO NOT use @spaces.GPU decorators or any ZeroGPU features. External APIs handle the model inference remotely, so GPU allocation on the Spaces instance is not needed.
 
@@ -760,7 +760,7 @@ If an image is provided, analyze it and use the visual information to better und
 
 Always respond with code that can be executed or rendered directly.
 
-Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output.
+Generate complete, working HTML code that can be run immediately.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
@@ -1031,7 +1031,7 @@ The index.html should contain the basic HTML structure and link to the CSS and J
 The index.js should contain all the JavaScript logic including transformers.js integration.
 The style.css should contain all the styling for the application.
 
-Always output only the three code blocks as shown above, and do not include any explanations or extra text.
+Generate complete, working code files as shown above.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
@@ -1178,7 +1178,7 @@ The index.html should contain the basic HTML structure and link to the CSS and J
 The index.js should contain all the JavaScript logic including transformers.js integration.
 The style.css should contain all the styling for the application.
 
-Always output only the three code blocks as shown above, and do not include any explanations or extra text.
+Generate complete, working code files as shown above.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
@@ -1190,7 +1190,7 @@ GRADIO_SYSTEM_PROMPT_WITH_SEARCH = ""
 
 # All Gradio API documentation is now dynamically loaded from https://www.gradio.app/llms.txt
 
-GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output.
+GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
@@ -1222,7 +1222,7 @@ If an image is provided, analyze it and use the visual information to better und
 
 Always respond with code that can be executed or rendered directly.
 
-Always output only the HTML code inside a ```html ... ``` code block, and do not include any explanations or extra text. Do NOT add the language name at the top of the code output.
+Generate complete, working HTML code that can be run immediately.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
@@ -1323,7 +1323,7 @@ IMPORTANT: Always include "Built with anycoder" as clickable text in the header/
 
 GENERIC_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert {language} developer. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for {language}.
 
-Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Output ONLY the code inside a ``` code block, and do not include any explanations or extra text. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible. Do NOT add the language name at the top of the code output.
+Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
