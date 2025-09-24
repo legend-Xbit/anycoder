@@ -38,7 +38,7 @@ from dashscope.utils.oss_utils import check_and_upload_local
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
-    "python", "c", "cpp", "markdown", "latex", "json", "html", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper", None
+    "python", "c", "cpp", "markdown", "latex", "json", "html"
 ]
 
 def get_gradio_language(language):
@@ -7706,7 +7706,7 @@ with gr.Blocks(
         )
         # Language dropdown for code generation (add Streamlit and Gradio as first-class options)
         language_choices = [
-            "html", "gradio", "transformers.js", "streamlit", "python", "svelte", "c", "cpp", "markdown", "latex", "json", "css", "javascript", "jinja2", "typescript", "yaml", "dockerfile", "shell", "r", "sql", "sql-msSQL", "sql-mySQL", "sql-mariaDB", "sql-sqlite", "sql-cassandra", "sql-plSQL", "sql-hive", "sql-pgSQL", "sql-gql", "sql-gpSQL", "sql-sparkSQL", "sql-esper"
+            "html", "gradio", "transformers.js", "streamlit", "python", "svelte", "c", "cpp", "markdown", "latex", "json"
         ]
         language_dropdown = gr.Dropdown(
             choices=language_choices,
