@@ -23,7 +23,6 @@ import html
 
 import gradio as gr
 from huggingface_hub import InferenceClient
-from tavily import TavilyClient
 from huggingface_hub import HfApi
 import tempfile
 from openai import OpenAI
@@ -1149,66 +1148,6 @@ def validate_video_html(video_html: str) -> bool:
     except Exception:
         return False
 
-def llm_place_media(html_content: str, media_html_tag: str, media_kind: str = "image") -> str:
-    """Ask a lightweight model to produce search/replace blocks that insert media_html_tag in the best spot.
-
-    The model must return ONLY our block format using SEARCH_START/DIVIDER/REPLACE_END.
-    """
-    try:
-        client = get_inference_client("Qwen/Qwen3-Coder-480B-A35B-Instruct", "auto")
-        system_prompt = (
-            "You are a code editor. Insert the provided media tag into the given HTML in the most semantically appropriate place.\n"
-            "For video elements: prefer replacing placeholder images or inserting in hero sections with proper container divs.\n"
-            "For image elements: prefer replacing placeholder images or inserting near related content.\n"
-            "CRITICAL: Ensure proper HTML structure - videos should be wrapped in appropriate containers.\n"
-            "Return ONLY search/replace blocks using the exact markers: <<<<<<< SEARCH, =======, >>>>>>> REPLACE.\n"
-            "Do NOT include any commentary. Ensure the SEARCH block matches exact lines from the input.\n"
-            "When inserting videos, ensure they are properly contained within semantic HTML elements.\n"
-        )
-        # Truncate very long media tags for LLM prompt only to prevent token limits
-        truncated_media_tag_for_prompt = media_html_tag
-        if len(media_html_tag) > 2000:
-            # For very long data URIs, show structure but truncate the data for LLM prompt
-            if 'data:video/mp4;base64,' in media_html_tag:
-                start_idx = media_html_tag.find('data:video/mp4;base64,')
-                end_idx = media_html_tag.find('"', start_idx)
-                if start_idx != -1 and end_idx != -1:
-                    truncated_media_tag_for_prompt = (
-                        media_html_tag[:start_idx] + 
-                        'data:video/mp4;base64,[TRUNCATED_BASE64_DATA]' + 
-                        media_html_tag[end_idx:]
-                    )
-        
-        user_payload = (
-            "HTML Document:\n" + html_content + "\n\n" +
-            f"Media ({media_kind}):\n" + truncated_media_tag_for_prompt + "\n\n" +
-            "Produce search/replace blocks now."
-        )
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_payload},
-        ]
-        completion = client.chat.completions.create(
-            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
-            messages=messages,
-            max_tokens=2000,
-            temperature=0.2,
-        )
-        text = (completion.choices[0].message.content or "") if completion and completion.choices else ""
-        
-        # Replace any truncated placeholders with the original full media HTML
-        if '[TRUNCATED_BASE64_DATA]' in text and 'data:video/mp4;base64,[TRUNCATED_BASE64_DATA]' in truncated_media_tag_for_prompt:
-            # Extract the original base64 data from the full media tag
-            original_start = media_html_tag.find('data:video/mp4;base64,')
-            original_end = media_html_tag.find('"', original_start)
-            if original_start != -1 and original_end != -1:
-                original_data_uri = media_html_tag[original_start:original_end]
-                text = text.replace('data:video/mp4;base64,[TRUNCATED_BASE64_DATA]', original_data_uri)
-        
-        return text.strip()
-    except Exception as e:
-        print(f"[LLMPlaceMedia] Fallback due to error: {e}")
-        return ""
 
 # Stricter prompt for GLM-4.5V to ensure a complete, runnable HTML document with no escaped characters
 GLM45V_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
@@ -1438,102 +1377,6 @@ Requirements:
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
-SVELTE_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert Svelte developer. You have access to real-time web search.
-
-File selection policy (dynamic, model-decided):
-- Generate ONLY the files actually needed for the user's request.
-- MUST include src/App.svelte (entry component) and src/main.ts (entry point).
-- Usually include src/app.css for global styles.
-- Add additional files when needed, e.g. src/lib/*.svelte, src/components/*.svelte, src/stores/*.ts, static/* assets, etc.
-- Other base template files (package.json, vite.config.ts, tsconfig, svelte.config.js, src/vite-env.d.ts) are provided by the template and should NOT be generated unless explicitly requested by the user.
-
-CRITICAL: Always generate src/main.ts with correct Svelte 5 syntax:
-```typescript
-import './app.css'
-import App from './App.svelte'
-
-const app = new App({
-  target: document.getElementById('app')!,
-})
-
-export default app
-```
-Do NOT use the old mount syntax: `import { mount } from 'svelte'` - this will cause build errors.
-
-Output format (CRITICAL):
-- Return ONLY a series of file sections, each starting with a filename line:
-  === src/App.svelte ===
-  ...file content...
-
-  === src/app.css ===
-  ...file content...
-
-  (repeat for all files you decide to create)
-- Do NOT wrap files in Markdown code fences.
-
-Dependency policy:
-- If you import any third-party npm packages, include a package.json at the project root with a "dependencies" section listing them. Keep scripts and devDependencies compatible with the default Svelte + Vite template.
-
-Requirements:
-1. Create a modern, responsive Svelte application
-2. Prefer TypeScript where applicable
-3. Clean, professional UI and UX
-4. Mobile-first responsiveness
-5. Svelte best practices and modern CSS
-6. Error handling and loading states
-7. Accessibility best practices
-8. Use search to apply current best practices
-9. Keep component structure organized and minimal
-
-IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
-"""
-
-TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert web developer creating a transformers.js application. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for transformers.js.
-
-You will generate THREE separate files: index.html, index.js, and style.css.
-
-IMPORTANT: You MUST output ALL THREE files in the following format:
-
-```html
-<!-- index.html content here -->
-```
-
-```javascript
-// index.js content here
-```
-
-```css
-/* style.css content here */
-```
-
-Requirements:
-1. Create a modern, responsive web application using transformers.js
-2. Use the transformers.js library for AI/ML functionality
-3. Use web search to find current best practices and latest transformers.js features
-4. Create a clean, professional UI with good user experience
-5. Make the application fully responsive for mobile devices
-6. Use modern CSS practices and JavaScript ES6+ features
-7. Include proper error handling and loading states
-8. Follow accessibility best practices
-
-Library import (required): Add the following snippet to index.html to import transformers.js:
-<script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.3';
-</script>
-
-Device Options: By default, transformers.js runs on CPU (via WASM). For better performance, you can run models on GPU using WebGPU:
-- CPU (default): const pipe = await pipeline('task', 'model-name');
-- GPU (WebGPU): const pipe = await pipeline('task', 'model-name', { device: 'webgpu' });
-
-Consider providing users with a toggle option to choose between CPU and GPU execution based on their browser's WebGPU support.
-
-The index.html should contain the basic HTML structure and link to the CSS and JS files.
-The index.js should contain all the JavaScript logic including transformers.js integration.
-The style.css should contain all the styling for the application.
-
-Generate complete, working code files as shown above.
-
-IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Gradio system prompts will be dynamically populated by update_gradio_system_prompts()
 GRADIO_SYSTEM_PROMPT = ""
@@ -1553,37 +1396,6 @@ GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, 
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
-# System prompt with search capability
-HTML_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert front-end developer. You have access to real-time web search.
-
-Output a COMPLETE, STANDALONE HTML document that renders directly in a browser. Requirements:
-- Include <!DOCTYPE html>, <html>, <head>, and <body> with proper nesting
-- Include all required <link> and <script> tags for any libraries you use
-- Do NOT escape characters (no \\n, \\t, or escaped quotes). Output raw HTML/JS/CSS.
-- If you use React or Tailwind, include correct CDN tags
-- Keep everything in ONE file; inline CSS/JS as needed
-
-Use web search when needed to find the latest best practices or correct CDN links.
-
-For website redesign tasks:
-- Use the provided original HTML code as the starting point for redesign
-- Preserve all original content, structure, and functionality
-- Keep the same semantic HTML structure but enhance the styling
-- Reuse all original images and their URLs from the HTML code
-- Use web search to find current design trends and best practices for the specific type of website
-- Create a modern, responsive design with improved typography and spacing
-- Use modern CSS frameworks and design patterns
-- Ensure accessibility and mobile responsiveness
-- Maintain the same navigation and user flow
-- Enhance the visual design while keeping the original layout structure
-
-If an image is provided, analyze it and use the visual information to better understand the user's requirements.
-
-Always respond with code that can be executed or rendered directly.
-
-Generate complete, working HTML code that can be run immediately.
-
-IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Multi-page static HTML project prompt (generic, production-style structure)
 MULTIPAGE_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
@@ -1624,18 +1436,6 @@ General requirements:
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
-# Multi-page with search augmentation
-MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert front-end developer. You have access to real-time web search.
-
-Create a production-ready MULTI-PAGE website using ONLY HTML, CSS, and vanilla JavaScript. Do NOT use SPA frameworks.
-
-Follow the same file output format and project structure as specified:
-=== filename === blocks for each file (no Markdown fences)
-
-Use search results to apply current best practices in accessibility, semantics, responsive meta tags, and performance (preconnect, responsive images).
-
-IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
-"""
 
 # Dynamic multi-page (model decides files) prompts
 DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
@@ -1669,22 +1469,7 @@ General requirements:
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
-DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert front-end developer. You have access to real-time web search.
 
-Create a production-ready website using ONLY HTML, CSS, and vanilla JavaScript. Do NOT use SPA frameworks.
-
-Follow the same output format and file selection policy as above (=== filename === blocks; model decides which files to create; ensure index.html unless explicitly not needed).
-
-Use search results to apply current best practices in accessibility, semantics, responsive meta tags, and performance (preconnect, responsive images).
-
-IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
-"""
-
-GENERIC_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert {language} developer. You have access to real-time web search. When needed, use web search to find the latest information, best practices, or specific technologies for {language}.
-
-Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible.
-
-IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 # Follow-up system prompt for modifying existing HTML files
 FollowUpSystemPrompt = f"""You are an expert web developer modifying an existing project.
@@ -2322,14 +2107,6 @@ History = List[Tuple[str, str]]
 Messages = List[Dict[str, str]]
 
 # Tavily Search Client
-TAVILY_API_KEY = os.getenv('TAVILY_API_KEY')
-tavily_client = None
-if TAVILY_API_KEY:
-    try:
-        tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
-    except Exception as e:
-        print(f"Failed to initialize Tavily client: {e}")
-        tavily_client = None
 
 def history_to_messages(history: History, system: str) -> Messages:
     messages = [{'role': 'system', 'content': system}]
@@ -3477,114 +3254,7 @@ def cleanup_temp_media_files():
     except Exception as e:
         print(f"[TempCleanup] Error during cleanup: {str(e)}")
 
-def generate_image_with_hunyuan(prompt: str, image_index: int = 0, token: gr.OAuthToken | None = None) -> str:
-    """Generate image using Tencent HunyuanImage-2.1 via Hugging Face InferenceClient.
-    
-    Uses tencent/HunyuanImage-2.1 via HuggingFace InferenceClient with fal-ai provider.
-    
-    Returns an HTML <img> tag whose src is an uploaded temporary URL.
-    """
-    try:
-        print(f"[Text2Image] Starting HunyuanImage generation with prompt: {prompt[:100]}...")
-        
-        # Check for HF_TOKEN
-        hf_token = os.getenv('HF_TOKEN')
-        if not hf_token:
-            print("[Text2Image] Missing HF_TOKEN")
-            return "Error: HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token."
 
-        from huggingface_hub import InferenceClient
-        from PIL import Image
-        import io as _io
-        
-        # Create InferenceClient with fal-ai provider
-        client = InferenceClient(
-            provider="fal-ai",
-            api_key=hf_token,
-            bill_to="huggingface",
-        )
-        
-        print("[Text2Image] Making API request to HuggingFace InferenceClient...")
-        
-        # Generate image using HunyuanImage-2.1 model
-        image = client.text_to_image(
-            prompt,
-            model="tencent/HunyuanImage-2.1",
-        )
-        
-        print(f"[Text2Image] Successfully generated image with size: {image.size}")
-        
-        # Resize image to reduce size while maintaining quality
-        max_size = 1024
-        if image.width > max_size or image.height > max_size:
-            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-        
-        # Convert PIL Image to bytes for upload
-        buffer = _io.BytesIO()
-        # Save as JPEG with good quality
-        image.convert('RGB').save(buffer, format='JPEG', quality=90, optimize=True)
-        image_bytes = buffer.getvalue()
-        
-        # Upload and return HTML tag
-        print("[Text2Image] Uploading image to HF...")
-        filename = f"generated_image_{image_index}.jpg"
-        temp_url = upload_media_to_hf(image_bytes, filename, "image", token, use_temp=True)
-        if temp_url.startswith("Error"):
-            print(f"[Text2Image] Upload failed: {temp_url}")
-            return temp_url
-        print(f"[Text2Image] Successfully generated image: {temp_url}")
-        return f"<img src=\"{temp_url}\" alt=\"{prompt}\" style=\"max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;\" loading=\"lazy\" />"
-        
-    except Exception as e:
-        print(f"[Text2Image] Error generating image with HunyuanImage: {str(e)}")
-        return f"Error generating image (text-to-image): {str(e)}"
-
-def generate_image_with_qwen(prompt: str, image_index: int = 0, token: gr.OAuthToken | None = None) -> str:
-    """Generate image using Qwen image model via Hugging Face InferenceClient and upload to HF for permanent URL"""
-    try:
-        # Check if HF_TOKEN is available
-        if not os.getenv('HF_TOKEN'):
-            return "Error: HF_TOKEN environment variable is not set. Please set it to your Hugging Face API token."
-        
-        # Create InferenceClient for Qwen image generation
-        client = InferenceClient(
-            provider="auto",
-            api_key=os.getenv('HF_TOKEN'),
-            bill_to="huggingface",
-        )
-        
-        # Generate image using Qwen/Qwen-Image model
-        image = client.text_to_image(
-            prompt,
-            model="Qwen/Qwen-Image",
-        )
-        
-        # Resize image to reduce size while maintaining quality
-        max_size = 1024  # Increased size since we're not using data URIs
-        if image.width > max_size or image.height > max_size:
-            image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-        
-        # Convert PIL Image to bytes for upload
-        import io
-        buffer = io.BytesIO()
-        # Save as JPEG with good quality since we're not embedding
-        image.convert('RGB').save(buffer, format='JPEG', quality=90, optimize=True)
-        image_bytes = buffer.getvalue()
-        
-        # Create temporary URL for preview (will be uploaded to HF during deploy)
-        filename = f"generated_image_{image_index}.jpg"
-        temp_url = upload_media_to_hf(image_bytes, filename, "image", token, use_temp=True)
-        
-        # Check if creation was successful
-        if temp_url.startswith("Error"):
-            return temp_url
-        
-        # Return HTML img tag with temporary URL
-        return f'<img src="{temp_url}" alt="{prompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 10px 0;" loading="lazy" />'
-        
-    except Exception as e:
-        print(f"Image generation error: {str(e)}")
-        return f"Error generating image: {str(e)}"
 
 def generate_image_to_image(input_image_data, prompt: str, token: gr.OAuthToken | None = None) -> str:
     """Generate an image using image-to-image via OpenRouter.
@@ -4991,7 +4661,7 @@ def create_video_replacement_blocks_from_input_video(html_content: str, user_pro
     print("[Video2Video] No <body> tag; appending video via replacement block")
     return f"{SEARCH_START}\n\n{DIVIDER}\n{video_html}\n{REPLACE_END}"
 
-def apply_generated_media_to_html(html_content: str, user_prompt: str, enable_text_to_image: bool, enable_image_to_image: bool, input_image_data, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, session_id: str | None = None, enable_text_to_video: bool = False, text_to_video_prompt: str | None = None, enable_video_to_video: bool = False, video_to_video_prompt: str | None = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: str | None = None, enable_image_video_to_animation: bool = False, animation_mode: str = "wan2.2-animate-move", animation_quality: str = "wan-pro", animation_video_data = None, token: gr.OAuthToken | None = None) -> str:
+def apply_generated_media_to_html_REMOVED():
     """Apply text/image/video/music replacements to HTML content.
 
     - Works with single-document HTML strings
@@ -5501,55 +5171,6 @@ def apply_transformers_js_search_replace_changes(original_formatted_content: str
 # Updated for faster Tavily search and closer prompt usage
 # Uses 'advanced' search_depth and auto_parameters=True for speed and relevance
 
-def perform_web_search(query: str, max_results: int = 5, include_domains=None, exclude_domains=None) -> str:
-    """Perform web search using Tavily with default parameters"""
-    if not tavily_client:
-        return "Web search is not available. Please set the TAVILY_API_KEY environment variable."
-    
-    try:
-        # Use Tavily defaults with advanced search depth for better results
-        search_params = {
-            "search_depth": "advanced",
-            "max_results": min(max(1, max_results), 20)
-        }
-        if include_domains is not None:
-            search_params["include_domains"] = include_domains
-        if exclude_domains is not None:
-            search_params["exclude_domains"] = exclude_domains
-
-        response = tavily_client.search(query, **search_params)
-        
-        search_results = []
-        for result in response.get('results', []):
-            title = result.get('title', 'No title')
-            url = result.get('url', 'No URL')
-            content = result.get('content', 'No content')
-            search_results.append(f"Title: {title}\nURL: {url}\nContent: {content}\n")
-        
-        if search_results:
-            return "Web Search Results:\n\n" + "\n---\n".join(search_results)
-        else:
-            return "No search results found."
-            
-    except Exception as e:
-        return f"Search error: {str(e)}"
-
-def enhance_query_with_search(query: str, enable_search: bool) -> str:
-    """Enhance the query with web search results if search is enabled"""
-    if not enable_search or not tavily_client:
-        return query
-    
-    # Perform search to get relevant information
-    search_results = perform_web_search(query)
-    
-    # Combine original query with search results
-    enhanced_query = f"""Original Query: {query}
-
-{search_results}
-
-Please use the search results above to help create the requested application with the most up-to-date information and best practices."""
-    
-    return enhanced_query
 
 def send_to_sandbox(code):
     """Render HTML in a sandboxed iframe. Assumes full HTML is provided by prompts."""
@@ -6269,7 +5890,7 @@ def update_ui_for_auth_status(profile: gr.OAuthProfile | None = None, token: gr.
         }
 
 
-def generation_code(query: str | None, vlm_image: Optional[gr.Image], gen_image: Optional[gr.Image], file: str | None, website_url: str | None, _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, enable_search: bool = False, language: str = "html", provider: str = "auto", enable_image_generation: bool = False, enable_image_to_image: bool = False, image_to_image_prompt: str | None = None, text_to_image_prompt: str | None = None, enable_image_to_video: bool = False, image_to_video_prompt: str | None = None, enable_text_to_video: bool = False, text_to_video_prompt: str | None = None, enable_video_to_video: bool = False, video_to_video_prompt: str | None = None, input_video_data = None, enable_text_to_music: bool = False, text_to_music_prompt: str | None = None, enable_image_video_to_animation: bool = False, animation_mode: str = "wan2.2-animate-move", animation_quality: str = "wan-pro", animation_video_data = None, profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
+def generation_code(query: str | None, vlm_image: Optional[gr.Image], file: str | None, website_url: str | None, _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, language: str = "html", provider: str = "auto", profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
     # Check authentication first
     is_authenticated, auth_message = check_authentication(profile, token)
     if not is_authenticated:
@@ -6450,17 +6071,17 @@ Generate the exact search/replace blocks needed to make these changes."""
         # Use language-specific prompt
         if language == "html":
             # Dynamic file selection always enabled
-            system_prompt = DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT_WITH_SEARCH if enable_search else DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT
+            system_prompt = DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT
         elif language == "transformers.js":
-            system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT_WITH_SEARCH if enable_search else TRANSFORMERS_JS_SYSTEM_PROMPT
+            system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT
         elif language == "svelte":
-            system_prompt = SVELTE_SYSTEM_PROMPT_WITH_SEARCH if enable_search else SVELTE_SYSTEM_PROMPT
+            system_prompt = SVELTE_SYSTEM_PROMPT
         elif language == "gradio":
-            system_prompt = GRADIO_SYSTEM_PROMPT_WITH_SEARCH if enable_search else GRADIO_SYSTEM_PROMPT
+            system_prompt = GRADIO_SYSTEM_PROMPT
         elif language == "json":
-            system_prompt = JSON_SYSTEM_PROMPT_WITH_SEARCH if enable_search else JSON_SYSTEM_PROMPT
+            system_prompt = JSON_SYSTEM_PROMPT
         else:
-            system_prompt = GENERIC_SYSTEM_PROMPT_WITH_SEARCH.format(language=language) if enable_search else GENERIC_SYSTEM_PROMPT.format(language=language)
+            system_prompt = GENERIC_SYSTEM_PROMPT.format(language=language)
 
     messages = history_to_messages(_history, system_prompt)
 
@@ -6492,8 +6113,8 @@ Since I couldn't extract the website content, please provide additional details 
 This will help me create a better design for you."""
             query = f"{query}\n\n[Error extracting website: {website_text}]{fallback_guidance}"
 
-    # Enhance query with search if enabled
-    enhanced_query = enhance_query_with_search(query, enable_search)
+    # Use the original query without search enhancement
+    enhanced_query = query
 
     # Check if this is GLM-4.5 model and handle with simple HuggingFace InferenceClient
     if _current_model["id"] == "zai-org/GLM-4.5":
@@ -6540,45 +6161,14 @@ This will help me create a better design for you."""
         
         clean_code = remove_code_block(content)
         
-        # Apply media generation (images/video/music)
-        print("[Generate] Applying post-generation media to GLM-4.5 HTML output")
-        final_content = apply_generated_media_to_html(
-            clean_code,
-            query,
-            enable_text_to_image=enable_image_generation,
-            enable_image_to_image=enable_image_to_image,
-            input_image_data=gen_image,
-            image_to_image_prompt=image_to_image_prompt,
-            enable_image_to_video=enable_image_to_video,
-            image_to_video_prompt=image_to_video_prompt,
-            session_id=session_id,
-            enable_text_to_video=enable_text_to_video,
-            text_to_video_prompt=text_to_video_prompt,
-            enable_video_to_video=enable_video_to_video,
-            video_to_video_prompt=video_to_video_prompt,
-            input_video_data=input_video_data,
-            enable_text_to_music=enable_text_to_music,
-            text_to_music_prompt=text_to_music_prompt,
-            enable_image_video_to_animation=enable_image_video_to_animation,
-            animation_mode=animation_mode,
-            animation_quality=animation_quality,
-            animation_video_data=animation_video_data,
-            token=None,
-        )
+        # Use clean code as final content without media generation
+        final_content = clean_code
         
         _history.append([query, final_content])
         
         if language == "transformers.js":
             files = parse_transformers_js_output(clean_code)
             if files['index.html'] and files['index.js'] and files['style.css']:
-                # Apply image generation if enabled
-                if enable_image_generation:
-                    # Create search/replace blocks for image replacement based on images found in code
-                    image_replacement_blocks = create_image_replacement_blocks(files['index.html'], query)
-                    if image_replacement_blocks:
-                        # Apply the image replacements using existing search/replace logic
-                        files['index.html'] = apply_search_replace_changes(files['index.html'], image_replacement_blocks)
-                
                 formatted_output = format_transformers_js_output(files)
                 yield {
                     code_output: formatted_output,
@@ -6619,31 +6209,7 @@ This will help me create a better design for you."""
                 modified_content = apply_search_replace_changes(last_content, clean_code)
                 clean_content = remove_code_block(modified_content)
                 
-                # Apply media generation (images/video/music)
-                print("[Generate] Applying post-generation media to modified HTML content")
-                clean_content = apply_generated_media_to_html(
-                    clean_content,
-                    query,
-                    enable_text_to_image=enable_image_generation,
-                    enable_image_to_image=enable_image_to_image,
-                    input_image_data=gen_image,
-                    image_to_image_prompt=image_to_image_prompt,
-                    enable_image_to_video=enable_image_to_video,
-                    image_to_video_prompt=image_to_video_prompt,
-                    session_id=session_id,
-                    enable_text_to_video=enable_text_to_video,
-                    text_to_video_prompt=text_to_video_prompt,
-                    enable_video_to_video=enable_video_to_video,
-                    video_to_video_prompt=video_to_video_prompt,
-                    input_video_data=input_video_data,
-                    enable_text_to_music=enable_text_to_music,
-                    text_to_music_prompt=text_to_music_prompt,
-                    enable_image_video_to_animation=enable_image_video_to_animation,
-                    animation_mode=animation_mode,
-                    animation_quality=animation_quality,
-                    animation_video_data=animation_video_data,
-                    token=None,
-                )
+                # Use clean content without media generation
                 
                 yield {
                     code_output: clean_content,
@@ -6652,37 +6218,8 @@ This will help me create a better design for you."""
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
-                # Apply media generation (images/video/music)
-                # Only apply media generation to static HTML apps, not Svelte/React/other frameworks
-                if language == "html":
-                    print("[Generate] Applying post-generation media to static HTML content")
-                    final_content = apply_generated_media_to_html(
-                        clean_code,
-                        query,
-                        enable_text_to_image=enable_image_generation,
-                        enable_image_to_image=enable_image_to_image,
-                        input_image_data=gen_image,
-                        image_to_image_prompt=image_to_image_prompt,
-                        text_to_image_prompt=text_to_image_prompt,
-                        enable_image_to_video=enable_image_to_video,
-                        image_to_video_prompt=image_to_video_prompt,
-                        session_id=session_id,
-                        enable_text_to_video=enable_text_to_video,
-                        text_to_video_prompt=text_to_video_prompt,
-                        enable_video_to_video=enable_video_to_video,
-                        video_to_video_prompt=video_to_video_prompt,
-                        input_video_data=input_video_data,
-                        enable_text_to_music=enable_text_to_music,
-                        text_to_music_prompt=text_to_music_prompt,
-                        enable_image_video_to_animation=enable_image_video_to_animation,
-                        animation_mode=animation_mode,
-                        animation_quality=animation_quality,
-                        animation_video_data=animation_video_data,
-                        token=None,
-                    )
-                else:
-                    print(f"[Generate] Skipping media generation for {language} apps (only supported for static HTML)")
-                    final_content = clean_code
+                # Use clean code as final content without media generation
+                final_content = clean_code
                 
                 preview_val = None
                 if language == "html":
@@ -6920,7 +6457,7 @@ This will help me create a better design for you."""
                 else:
                     # Append content, filtering out placeholder thinking lines
                     content += strip_placeholder_thinking(chunk_content)
-                search_status = " (with web search)" if enable_search and tavily_client else ""
+                search_status = ""
                 
                 # Handle transformers.js output differently
                 if language == "transformers.js":
@@ -7099,32 +6636,7 @@ This will help me create a better design for you."""
                 modified_content = apply_search_replace_changes(last_content, final_code)
                 clean_content = remove_code_block(modified_content)
             
-            # Apply media generation (images/video/music)
-            print("[Generate] Applying post-generation media to follow-up HTML content")
-            clean_content = apply_generated_media_to_html(
-                clean_content,
-                query,
-                enable_text_to_image=enable_image_generation,
-                enable_image_to_image=enable_image_to_image,
-                input_image_data=gen_image,
-                image_to_image_prompt=image_to_image_prompt,
-                enable_image_to_video=enable_image_to_video,
-                image_to_video_prompt=image_to_video_prompt,
-                session_id=session_id,
-                text_to_image_prompt=text_to_image_prompt,
-                enable_text_to_video=enable_text_to_video,
-                text_to_video_prompt=text_to_video_prompt,
-                enable_video_to_video=enable_video_to_video,
-                video_to_video_prompt=video_to_video_prompt,
-                input_video_data=input_video_data,
-                enable_text_to_music=enable_text_to_music,
-                text_to_music_prompt=text_to_music_prompt,
-                enable_image_video_to_animation=enable_image_video_to_animation,
-                animation_mode=animation_mode,
-                animation_quality=animation_quality,
-                animation_video_data=animation_video_data,
-                token=None,
-            )
+            # Use clean content without media generation
             
             # Update history with the cleaned content
             _history.append([query, clean_content])
@@ -7138,32 +6650,7 @@ This will help me create a better design for you."""
             # Regular generation - use the content as is
             final_content = remove_code_block(content)
             
-            # Apply media generation (images/video/music)
-            print("[Generate] Applying post-generation media to final HTML content")
-            final_content = apply_generated_media_to_html(
-                final_content,
-                query,
-                enable_text_to_image=enable_image_generation,
-                enable_image_to_image=enable_image_to_image,
-                input_image_data=gen_image,
-                image_to_image_prompt=image_to_image_prompt,
-                text_to_image_prompt=text_to_image_prompt,
-                enable_image_to_video=enable_image_to_video,
-                image_to_video_prompt=image_to_video_prompt,
-                session_id=session_id,
-                enable_text_to_video=enable_text_to_video,
-                text_to_video_prompt=text_to_video_prompt,
-                enable_video_to_video=enable_video_to_video,
-                video_to_video_prompt=video_to_video_prompt,
-                input_video_data=input_video_data,
-                enable_text_to_music=enable_text_to_music,
-                text_to_music_prompt=text_to_music_prompt,
-                enable_image_video_to_animation=enable_image_video_to_animation,
-                animation_mode=animation_mode,
-                animation_quality=animation_quality,
-                animation_video_data=animation_video_data,
-                token=None,
-            )
+            # Use final content without media generation
             
             _history.append([query, final_content])
             preview_val = None
@@ -8262,19 +7749,14 @@ with gr.Blocks(
                 value=(
                     "### Command Reference\n"
                     "- **Language**: 'use streamlit' | 'use gradio' | 'use html'\n"
-                    "- **Web search**: 'enable web search' | 'disable web search'\n"
                     "- **Model**: 'model <name>' (exact match to items in the Model dropdown)\n"
                     "- **Website redesign**: include a URL in your message (e.g., 'https://example.com')\n"
-                    "- **Text → Image**: 'generate images: <prompt>' or 'text to image: <prompt>'\n"
-                    "- **Image → Image**: 'image to image: <prompt>' (attach an image)\n"
-                    "- **Image → Video**: 'image to video: <prompt>' (attach an image)\n"
-                    "- **Text → Video**: 'text to video: <prompt>' or 'generate video: <prompt>'\n"
-                    "- **Files & media**: attach documents or images directly; the first image is used for generation, the first non-image is treated as a reference file\n"
+                    "- **Files**: attach documents or images directly for reference\n"
                     "- **Multiple directives**: separate with commas. The first segment is the main build prompt.\n\n"
                     "Examples:\n"
-                    "- anycoder coffee shop, text to video: coffee pouring into cup\n"
-                    "- redesign https://example.com, use streamlit, enable web search\n"
-                    "- dashboard ui, generate images: minimalist pastel hero"
+                    "- anycoder coffee shop website\n"
+                    "- redesign https://example.com, use streamlit\n"
+                    "- dashboard ui with minimalist design"
                 )
             )
         
@@ -8332,21 +7814,11 @@ with gr.Blocks(
             label="UI design image",
             visible=False
         )
-        # New hidden image input used for VLMs, image-to-image, and image-to-video
-        generation_image_input = gr.Image(
-            label="image for generation",
-            visible=False
-        )
-        image_to_image_prompt = gr.Textbox(
-            label="Image-to-Image Prompt",
-            placeholder="Describe how to transform the uploaded image (e.g., 'Turn the cat into a tiger.')",
-            lines=2,
-            visible=False
-        )
+        # Removed image generation components
         with gr.Row():
             btn = gr.Button("Generate", variant="secondary", size="lg", scale=2, visible=True, interactive=False)
             clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)
-        # --- Move deploy/app name/sdk here, right before web search ---
+        # --- Deploy/app name/sdk components ---
         space_name_input = gr.Textbox(
             label="app name (e.g. my-cool-app)",
             placeholder="Enter your app name",
@@ -8369,181 +7841,9 @@ with gr.Blocks(
         deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=False)
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
         # --- End move ---
-        search_toggle = gr.Checkbox(
-            label="🔍 Web search",
-            value=False,
-            visible=True
-        )
-        # Dynamic multipage is always enabled; no toggle in UI
-        # Image generation toggles
-        image_generation_toggle = gr.Checkbox(
-            label="🎨 Generate Images (text → image)",
-            value=False,
-            visible=True,
-            info="Include generated images in your outputs using HunyuanImage-2.1"
-        )
-        text_to_image_prompt = gr.Textbox(
-            label="Text-to-Image Prompt",
-            placeholder="Describe the image to generate (e.g., 'A minimalist dashboard hero illustration in pastel colors.')",
-            lines=2,
-            visible=False
-        )
-        image_to_image_toggle = gr.Checkbox(
-            label="🖼️ Image to Image (uses input image)",
-            value=False,
-            visible=True,
-            info="Transform your uploaded image using Nano Banana"
-        )
-        image_to_video_toggle = gr.Checkbox(
-            label="🎞️ Image to Video (uses input image)",
-            value=False,
-            visible=True,
-            info="Generate a short video from your uploaded image using Lightricks LTX-Video"
-        )
-        image_to_video_prompt = gr.Textbox(
-            label="Image-to-Video Prompt",
-            placeholder="Describe the motion (e.g., 'The cat starts to dance')",
-            lines=2,
-            visible=False
-        )
+        # Removed media generation and web search UI components
 
-        # Text-to-Video
-        text_to_video_toggle = gr.Checkbox(
-            label="📹 Generate Video (text → video)",
-            value=False,
-            visible=True,
-            info="Generate a short video directly from your prompt using Wan-AI/Wan2.2-TI2V-5B"
-        )
-        text_to_video_prompt = gr.Textbox(
-            label="Text-to-Video Prompt",
-            placeholder="Describe the video to generate (e.g., 'A young man walking on the street')",
-            lines=2,
-            visible=False
-        )
-
-        # Video-to-Video
-        video_to_video_toggle = gr.Checkbox(
-            label="🎬 Video to Video (uses input video)",
-            value=False,
-            visible=True,
-            info="Transform your uploaded video using Decart AI's Lucy Pro V2V"
-        )
-        video_to_video_prompt = gr.Textbox(
-            label="Video-to-Video Prompt",
-            placeholder="Describe the transformation (e.g., 'Change their shirt to black and shiny leather')",
-            lines=2,
-            visible=False
-        )
-        video_input = gr.Video(
-            label="Input video for transformation",
-            visible=False
-        )
-
-        # Text-to-Music
-        text_to_music_toggle = gr.Checkbox(
-            label="🎵 Generate Music (text → music)",
-            value=False,
-            visible=True,
-            info="Compose short music from your prompt using ElevenLabs Music"
-        )
-        text_to_music_prompt = gr.Textbox(
-            label="Text-to-Music Prompt",
-            placeholder="Describe the music to generate (e.g., 'Epic orchestral theme with soaring strings and powerful brass')",
-            lines=2,
-            visible=False
-        )
-
-        # Image+Video to Animation
-        image_video_to_animation_toggle = gr.Checkbox(
-            label="🎭 Character Animation (uses input image + video)",
-            value=False,
-            visible=True,
-            info="Animate characters using Wan2.2-Animate with reference image and template video"
-        )
-        animation_mode_dropdown = gr.Dropdown(
-            label="Animation Mode",
-            choices=[
-                ("Move Mode (animate character with video motion)", "wan2.2-animate-move"),
-                ("Mix Mode (replace character in video)", "wan2.2-animate-mix")
-            ],
-            value="wan2.2-animate-move",
-            visible=False,
-            info="Move: animate image character with video motion. Mix: replace video character with image character"
-        )
-        animation_quality_dropdown = gr.Dropdown(
-            label="Animation Quality",
-            choices=[
-                ("Professional (25fps, 720p)", "wan-pro"),
-                ("Standard (15fps, 720p)", "wan-std")
-            ],
-            value="wan-pro",
-            visible=False,
-            info="Higher quality takes more time to generate"
-        )
-        animation_video_input = gr.Video(
-            label="Template video for animation (upload a video to use as motion template or character replacement source)",
-            visible=False
-        )
-
-        # LLM-guided media placement is now always on (no toggle in UI)
-
-        def on_image_to_image_toggle(toggled):
-            vis = bool(toggled)
-            return gr.update(visible=vis), gr.update(visible=vis)
-
-        def on_text_to_image_toggle(toggled):
-            vis = bool(toggled)
-            return gr.update(visible=vis)
-
-        image_to_image_toggle.change(
-            on_image_to_image_toggle,
-            inputs=[image_to_image_toggle],
-            outputs=[generation_image_input, image_to_image_prompt]
-        )
-        def on_image_to_video_toggle(toggled):
-            vis = bool(toggled)
-            return gr.update(visible=vis), gr.update(visible=vis)
-
-        image_to_video_toggle.change(
-            on_image_to_video_toggle,
-            inputs=[image_to_video_toggle],
-            outputs=[generation_image_input, image_to_video_prompt]
-        )
-        image_generation_toggle.change(
-            on_text_to_image_toggle,
-            inputs=[image_generation_toggle],
-            outputs=[text_to_image_prompt]
-        )
-        text_to_video_toggle.change(
-            on_text_to_image_toggle,
-            inputs=[text_to_video_toggle],
-            outputs=[text_to_video_prompt]
-        )
-        video_to_video_toggle.change(
-            on_image_to_video_toggle,
-            inputs=[video_to_video_toggle],
-            outputs=[video_input, video_to_video_prompt]
-        )
-        text_to_music_toggle.change(
-            on_text_to_image_toggle,
-            inputs=[text_to_music_toggle],
-            outputs=[text_to_music_prompt]
-        )
-        
-        def on_image_video_to_animation_toggle(toggled):
-            vis = bool(toggled)
-            return (
-                gr.update(visible=vis),  # generation_image_input
-                gr.update(visible=vis),  # animation_mode_dropdown
-                gr.update(visible=vis),  # animation_quality_dropdown
-                gr.update(visible=vis),  # animation_video_input
-            )
-        
-        image_video_to_animation_toggle.change(
-            on_image_video_to_animation_toggle,
-            inputs=[image_video_to_animation_toggle],
-            outputs=[generation_image_input, animation_mode_dropdown, animation_quality_dropdown, animation_video_input]
-        )
+        # Removed media generation toggle event handlers
         model_dropdown = gr.Dropdown(
             choices=[model['name'] for model in AVAILABLE_MODELS],
             value=DEFAULT_MODEL_NAME,
@@ -8563,9 +7863,7 @@ with gr.Blocks(
                     fn=lambda idx=i: gr.update(value=DEMO_LIST[idx]['description']),
                     outputs=input
                 )
-        if not tavily_client:
-            gr.Markdown("⚠️ Web search unavailable", visible=True)
-        # Remove model display and web search available line
+        # Removed web search availability indicator
         def on_model_change(model_name):
             for m in AVAILABLE_MODELS:
                 if m['name'] == model_name:
@@ -9098,7 +8396,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, image_video_to_animation_toggle, animation_mode_dropdown, animation_quality_dropdown, animation_video_input],
+        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -9139,7 +8437,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt],
+        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,

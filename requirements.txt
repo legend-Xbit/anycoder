@@ -1,6 +1,5 @@
 git+https://github.com/huggingface/huggingface_hub.git
 gradio[oauth]
-tavily-python
 PyPDF2
 python-docx
 pytesseract

@@ -44,7 +44,6 @@ pip install -r requirements.txt
 3. Set up environment variables:
 ```bash
 export HF_TOKEN="your_huggingface_token"
-export TAVILY_API_KEY="your_tavily_api_key"  # Optional, for web search feature
 export DASHSCOPE_API_KEY="your_dashscope_api_key"  # Required for Qwen3-30B models via DashScope
 export POE_API_KEY="your_poe_api_key"  # Required for GPT-5, Grok-4, and Grok-Code-Fast-1 via Poe
 export GEMINI_API_KEY="your_gemini_api_key"  # Required for Gemini models
@@ -97,11 +96,6 @@ python app.py
 - **File Upload**: Provide a reference file (PDF, TXT, MD, CSV, DOCX, or image) for code generation or text extraction (OCR for images)
 - **Website URL**: Enter a URL to extract and redesign the website (HTML and content are analyzed and modernized)
 
-## Web Search Feature
-
-- Enable the "Web search" toggle to use Tavily for real-time information (requires TAVILY_API_KEY)
-- Uses advanced search depth for best results
-
 ## Code Generation & Modification
 
 - Generates code in HTML, Python, JS, and more (selectable via dropdown)
@@ -129,7 +123,6 @@ python app.py
 ## Environment Variables
 
 - `HF_TOKEN`: Your Hugging Face API token (required)
-- `TAVILY_API_KEY`: Your Tavily API key (optional, for web search)
  - `GEMINI_API_KEY`: Your Google Gemini API key (required to use Gemini models)
 - `MOONSHOT_API_KEY`: Your Moonshot AI API key (required to use Kimi models)
 
