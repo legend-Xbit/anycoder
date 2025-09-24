@@ -8216,14 +8216,6 @@ with gr.Blocks(
             margin: 8px 0;
             text-align: center;
         }
-        /* Darker chat bubbles for better contrast in dark theme */
-        #beta_chat .message.user, #beta_chat .message.assistant {
-            background: rgba(60, 60, 60, 0.85);
-            color: #f5f5f5;
-        }
-        #beta_chat .message.user {
-            background: rgba(70, 70, 70, 0.95);
-        }
         /* Authentication status styling */
         .auth-status {
             padding: 8px 12px;
@@ -8262,34 +8254,7 @@ with gr.Blocks(
             elem_classes=["auth-status"]
         )
         
-        beta_toggle = gr.Checkbox(
-            value=False,
-            label="Beta: Chat UI",
-            info="Switch to the new chat-based sidebar interface"
-        )
 
-        # Simple chat-based controller for sidebar
-        sidebar_chatbot = gr.Chatbot(
-            type="messages",
-            show_label=False,
-            height=320,
-            layout="bubble",
-            group_consecutive_messages=True,
-            visible=False,
-            elem_id="beta_chat"
-        )
-        sidebar_msg = gr.MultimodalTextbox(
-            placeholder=(
-                "Describe what to build. Examples: 'use streamlit', 'text to video: <prompt>'. "
-                "See Advanced Commands below for the full list."
-            ),
-            submit_btn=True,
-            stop_btn=False,
-            show_label=False,
-            sources=["upload", "microphone"],
-            visible=False
-        )
-        chat_clear_btn = gr.ClearButton([sidebar_msg, sidebar_chatbot], visible=False)
 
         # Collapsed Advanced Commands reference
         with gr.Accordion(label="Advanced Commands", open=False, visible=False) as advanced_commands:
@@ -8522,52 +8487,51 @@ with gr.Blocks(
 
         # LLM-guided media placement is now always on (no toggle in UI)
 
-        def on_image_to_image_toggle(toggled, beta_enabled):
-            # Only show in classic mode (beta disabled)
-            vis = bool(toggled) and not bool(beta_enabled)
+        def on_image_to_image_toggle(toggled):
+            vis = bool(toggled)
             return gr.update(visible=vis), gr.update(visible=vis)
 
-        def on_text_to_image_toggle(toggled, beta_enabled):
-            vis = bool(toggled) and not bool(beta_enabled)
+        def on_text_to_image_toggle(toggled):
+            vis = bool(toggled)
             return gr.update(visible=vis)
 
         image_to_image_toggle.change(
             on_image_to_image_toggle,
-            inputs=[image_to_image_toggle, beta_toggle],
+            inputs=[image_to_image_toggle],
             outputs=[generation_image_input, image_to_image_prompt]
         )
-        def on_image_to_video_toggle(toggled, beta_enabled):
-            vis = bool(toggled) and not bool(beta_enabled)
+        def on_image_to_video_toggle(toggled):
+            vis = bool(toggled)
             return gr.update(visible=vis), gr.update(visible=vis)
 
         image_to_video_toggle.change(
             on_image_to_video_toggle,
-            inputs=[image_to_video_toggle, beta_toggle],
+            inputs=[image_to_video_toggle],
             outputs=[generation_image_input, image_to_video_prompt]
         )
         image_generation_toggle.change(
             on_text_to_image_toggle,
-            inputs=[image_generation_toggle, beta_toggle],
+            inputs=[image_generation_toggle],
             outputs=[text_to_image_prompt]
         )
         text_to_video_toggle.change(
             on_text_to_image_toggle,
-            inputs=[text_to_video_toggle, beta_toggle],
+            inputs=[text_to_video_toggle],
             outputs=[text_to_video_prompt]
         )
         video_to_video_toggle.change(
             on_image_to_video_toggle,
-            inputs=[video_to_video_toggle, beta_toggle],
+            inputs=[video_to_video_toggle],
             outputs=[video_input, video_to_video_prompt]
         )
         text_to_music_toggle.change(
             on_text_to_image_toggle,
-            inputs=[text_to_music_toggle, beta_toggle],
+            inputs=[text_to_music_toggle],
             outputs=[text_to_music_prompt]
         )
         
-        def on_image_video_to_animation_toggle(toggled, beta_enabled):
-            vis = bool(toggled) and not bool(beta_enabled)
+        def on_image_video_to_animation_toggle(toggled):
+            vis = bool(toggled)
             return (
                 gr.update(visible=vis),  # generation_image_input
                 gr.update(visible=vis),  # animation_mode_dropdown
@@ -8577,7 +8541,7 @@ with gr.Blocks(
         
         image_video_to_animation_toggle.change(
             on_image_video_to_animation_toggle,
-            inputs=[image_video_to_animation_toggle, beta_toggle],
+            inputs=[image_video_to_animation_toggle],
             outputs=[generation_image_input, animation_mode_dropdown, animation_quality_dropdown, animation_video_input]
         )
         model_dropdown = gr.Dropdown(
@@ -9202,367 +9166,8 @@ with gr.Blocks(
         import re
         match = re.search(r"https?://[^\s]+", text or "")
         return match.group(0) if match else None
-    def apply_chat_command(message, chat_messages):
-        # Support plain text or dict from MultimodalTextbox
-        text = message if isinstance(message, str) else (message.get("text", "") if isinstance(message, dict) else "")
-        files = []
-        if isinstance(message, dict):
-            files = message.get("files", []) or []
 
-        # Defaults to skip updates where unchanged
-        upd_input = gr.skip()
-        upd_language = gr.skip()
-        upd_url = gr.skip()
-        upd_file = gr.skip()
-        upd_image_for_gen = gr.skip()
-        upd_search = gr.skip()
-        upd_img_gen = gr.skip()
-        upd_t2i_prompt = gr.skip()
-        upd_i2i_toggle = gr.skip()
-        upd_i2i_prompt = gr.skip()
-        upd_i2v_toggle = gr.skip()
-        upd_i2v_prompt = gr.skip()
-        upd_t2v_toggle = gr.skip()
-        upd_t2v_prompt = gr.skip()
-        upd_v2v_toggle = gr.skip()
-        upd_v2v_prompt = gr.skip()
-        upd_video_input = gr.skip()
-        upd_model_dropdown = gr.skip()
-        upd_current_model = gr.skip()
-        upd_t2m_toggle = gr.skip()
-        upd_t2m_prompt = gr.skip()
-        upd_iv2a_toggle = gr.skip()
-        upd_anim_mode = gr.skip()
-        upd_anim_quality = gr.skip()
-        upd_anim_video = gr.skip()
 
-        # Split by comma to separate main prompt and directives
-        segments = [seg.strip() for seg in (text or "").split(",") if seg.strip()]
-        main_prompt = segments[0] if segments else text
-
-        # Helper to get text after ':' in original casing
-        def after_colon(original_segment: str) -> str:
-            parts = original_segment.split(":", 1)
-            return parts[1].strip() if len(parts) == 2 else ""
-
-        # Process directives from all segments (including first if user puts directives there),
-        # but always set the main build prompt from the first segment only
-        for seg in segments:
-            seg_norm = seg.lower()
-            # Language
-            if "use streamlit" in seg_norm:
-                upd_language = gr.update(value="streamlit")
-            elif "use gradio" in seg_norm:
-                upd_language = gr.update(value="gradio")
-            elif "use html" in seg_norm or "as html" in seg_norm:
-                upd_language = gr.update(value="html")
-
-            # Web search
-            if (
-                "enable web search" in seg_norm
-                or "web search on" in seg_norm
-                or "with web search" in seg_norm
-                or "search the web" in seg_norm
-            ):
-                upd_search = gr.update(value=True)
-            if (
-                "disable web search" in seg_norm
-                or "no web search" in seg_norm
-                or "web search off" in seg_norm
-            ):
-                upd_search = gr.update(value=False)
-
-            # Text-to-image
-            if ("generate images" in seg_norm) or ("text to image" in seg_norm) or ("text-to-image" in seg_norm):
-                upd_img_gen = gr.update(value=True)
-                p = after_colon(seg)
-                if p:
-                    upd_t2i_prompt = gr.update(value=p)
-
-            # Image-to-image
-            if ("image to image" in seg_norm) or ("image-to-image" in seg_norm) or ("transform image" in seg_norm):
-                upd_i2i_toggle = gr.update(value=True)
-                p = after_colon(seg)
-                if p:
-                    upd_i2i_prompt = gr.update(value=p)
-
-            # Image-to-video
-            if ("image to video" in seg_norm) or ("image-to-video" in seg_norm):
-                upd_i2v_toggle = gr.update(value=True)
-                p = after_colon(seg)
-                if p:
-                    upd_i2v_prompt = gr.update(value=p)
-
-            # Text-to-video
-            if ("text to video" in seg_norm) or ("text-to-video" in seg_norm) or ("generate video" in seg_norm):
-                upd_t2v_toggle = gr.update(value=True)
-                p = after_colon(seg)
-                if p:
-                    upd_t2v_prompt = gr.update(value=p)
-
-            # Video-to-video
-            if ("video to video" in seg_norm) or ("video-to-video" in seg_norm) or ("transform video" in seg_norm):
-                upd_v2v_toggle = gr.update(value=True)
-                p = after_colon(seg)
-                if p:
-                    upd_v2v_prompt = gr.update(value=p)
-
-            # Text-to-music
-            if ("text to music" in seg_norm) or ("text-to-music" in seg_norm) or ("generate music" in seg_norm) or ("compose music" in seg_norm):
-                upd_t2m_toggle = gr.update(value=True)
-                p = after_colon(seg)
-                if p:
-                    upd_t2m_prompt = gr.update(value=p)
-
-            # Image+Video-to-Animation
-            if ("animate" in seg_norm) or ("character animation" in seg_norm) or ("wan animate" in seg_norm):
-                upd_iv2a_toggle = gr.update(value=True)
-                # Check for mode specification
-                if "move mode" in seg_norm:
-                    upd_anim_mode = gr.update(value="wan2.2-animate-move")
-                elif "mix mode" in seg_norm:
-                    upd_anim_mode = gr.update(value="wan2.2-animate-mix")
-                # Check for quality specification
-                if "standard quality" in seg_norm or "std quality" in seg_norm:
-                    upd_anim_quality = gr.update(value="wan-std")
-                elif "professional quality" in seg_norm or "pro quality" in seg_norm:
-                    upd_anim_quality = gr.update(value="wan-pro")
-
-            # URL (website redesign)
-            url = _extract_url(seg)
-            if url:
-                upd_url = gr.update(value=url)
-
-            # Model selection
-            if "model " in seg_norm:
-                try:
-                    model_name = seg.split("model", 1)[1].strip()
-                except Exception:
-                    model_name = ""
-                if model_name:
-                    model_obj = _find_model_by_name(model_name)
-                    if model_obj is not None:
-                        upd_model_dropdown = gr.update(value=model_obj["name"])  # keep dropdown in sync
-                        upd_current_model = model_obj  # pass directly to State for immediate effect
-
-        # Files: attach first non-image/video to file_input; image to generation_image_input; video to video_input
-        img_assigned = False
-        video_assigned = False
-        non_media_assigned = False
-        for f in files:
-            try:
-                path = f["path"] if isinstance(f, dict) and "path" in f else f
-            except Exception:
-                path = None
-            if not path:
-                continue
-            if not img_assigned and any(str(path).lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".tiff", ".tif"]):
-                upd_image_for_gen = gr.update(value=path)
-                img_assigned = True
-            elif not video_assigned and any(str(path).lower().endswith(ext) for ext in [".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v"]):
-                upd_video_input = gr.update(value=path)
-                video_assigned = True
-            elif not non_media_assigned:
-                upd_file = gr.update(value=path)
-                non_media_assigned = True
-
-        # Set main build intent from first segment (if present), otherwise full text
-        if main_prompt:
-            upd_input = gr.update(value=main_prompt)
-
-        # Build assistant acknowledgement
-        ack = "Configured. Running generation with your latest instructions."
-        if not chat_messages:
-            chat_messages = []
-        chat_messages.append({"role": "user", "content": text})
-        chat_messages.append({"role": "assistant", "content": ack})
-
-        return (
-            "",
-            gr.update(value=chat_messages, visible=True),
-            upd_input,
-            upd_language,
-            upd_url,
-            upd_file,
-            upd_image_for_gen,
-            upd_search,
-            upd_img_gen,
-            upd_t2i_prompt,
-            upd_i2i_toggle,
-            upd_i2i_prompt,
-            upd_i2v_toggle,
-            upd_i2v_prompt,
-            upd_t2v_toggle,
-            upd_t2v_prompt,
-            upd_v2v_toggle,
-            upd_v2v_prompt,
-            upd_video_input,
-            upd_model_dropdown,
-            upd_current_model,
-            upd_t2m_toggle,
-            upd_t2m_prompt,
-            upd_iv2a_toggle,
-            upd_anim_mode,
-            upd_anim_quality,
-            upd_anim_video,
-        )
-
-    # Wire chat submit -> apply settings -> run generation
-    sidebar_msg.submit(
-        apply_chat_command,
-        inputs=[sidebar_msg, sidebar_chatbot],
-        outputs=[
-            sidebar_msg,
-            sidebar_chatbot,
-            input,
-            language_dropdown,
-            website_url_input,
-            file_input,
-            generation_image_input,
-            search_toggle,
-            image_generation_toggle,
-            text_to_image_prompt,
-            image_to_image_toggle,
-            image_to_image_prompt,
-            image_to_video_toggle,
-            image_to_video_prompt,
-            text_to_video_toggle,
-            text_to_video_prompt,
-            video_to_video_toggle,
-            video_to_video_prompt,
-            video_input,
-            model_dropdown,
-            current_model,
-            text_to_music_toggle,
-            text_to_music_prompt,
-            image_video_to_animation_toggle,
-            animation_mode_dropdown,
-            animation_quality_dropdown,
-            animation_video_input,
-        ],
-        queue=False,
-    ).then(
-        begin_generation_ui,
-        inputs=None,
-        outputs=[sidebar, generating_status],
-        show_progress="hidden",
-    ).then(
-        generation_code,
-        inputs=[input, image_input, generation_image_input, file_input, website_url_input, setting, history, current_model, search_toggle, language_dropdown, provider_state, image_generation_toggle, image_to_image_toggle, image_to_image_prompt, text_to_image_prompt, image_to_video_toggle, image_to_video_prompt, text_to_video_toggle, text_to_video_prompt, video_to_video_toggle, video_to_video_prompt, video_input, text_to_music_toggle, text_to_music_prompt, image_video_to_animation_toggle, animation_mode_dropdown, animation_quality_dropdown, animation_video_input],
-        outputs=[code_output, history, sandbox, history_output]
-    ).then(
-        end_generation_ui,
-        inputs=None,
-        outputs=[sidebar, generating_status]
-    ).then(
-        toggle_editors,
-        inputs=[language_dropdown, code_output],
-        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code]
-    ).then(
-        toggle_static_editors,
-        inputs=[language_dropdown, code_output],
-        outputs=[
-            code_output, 
-            static_group_2, static_group_3, static_group_4, static_group_5plus,
-            static_tab_2_1, static_code_2_1, static_tab_2_2, static_code_2_2,
-            static_tab_3_1, static_code_3_1, static_tab_3_2, static_code_3_2, static_tab_3_3, static_code_3_3,
-            static_tab_4_1, static_code_4_1, static_tab_4_2, static_code_4_2, static_tab_4_3, static_code_4_3, static_tab_4_4, static_code_4_4,
-            static_tab_5_1, static_code_5_1, static_tab_5_2, static_code_5_2, static_tab_5_3, static_code_5_3, static_tab_5_4, static_code_5_4, static_tab_5_5, static_code_5_5,
-        ]
-    ).then(
-        show_deploy_components,
-        None,
-        [space_name_input, sdk_dropdown, deploy_btn]
-    ).then(
-        preserve_space_info_for_followup,
-        inputs=[history],
-        outputs=[space_name_input, deploy_btn]
-    )
-
-    # Toggle between classic controls and beta chat UI
-    def toggle_beta(checked: bool, t2i: bool, i2i: bool, i2v: bool, t2v: bool, v2v: bool, t2m: bool, iv2a: bool):
-        # Prompts only visible in classic mode and when their toggles are on
-        t2i_vis = (not checked) and bool(t2i)
-        i2i_vis = (not checked) and bool(i2i)
-        i2v_vis = (not checked) and bool(i2v)
-        t2v_vis = (not checked) and bool(t2v)
-        v2v_vis = (not checked) and bool(v2v)
-        t2m_vis = (not checked) and bool(t2m)
-        iv2a_vis = (not checked) and bool(iv2a)
-
-        return (
-            # Chat UI group
-            gr.update(visible=checked),  # sidebar_chatbot
-            gr.update(visible=checked),  # sidebar_msg
-            gr.update(visible=checked),  # advanced_commands
-            gr.update(visible=checked),  # chat_clear_btn
-            # Classic controls
-            gr.update(visible=not checked),  # input
-            gr.update(visible=not checked),  # language_dropdown
-            gr.update(visible=not checked),  # website_url_input
-            gr.update(visible=not checked),  # file_input
-            gr.update(visible=not checked),  # btn
-            gr.update(visible=not checked),  # clear_btn
-            gr.update(visible=not checked),  # search_toggle
-            gr.update(visible=not checked),  # image_generation_toggle
-            gr.update(visible=t2i_vis),      # text_to_image_prompt
-            gr.update(visible=not checked),  # image_to_image_toggle
-            gr.update(visible=i2i_vis),      # image_to_image_prompt
-            gr.update(visible=not checked),  # image_to_video_toggle
-            gr.update(visible=i2v_vis),      # image_to_video_prompt
-            gr.update(visible=not checked),  # text_to_video_toggle
-            gr.update(visible=t2v_vis),      # text_to_video_prompt
-            gr.update(visible=not checked),  # video_to_video_toggle
-            gr.update(visible=v2v_vis),      # video_to_video_prompt
-            gr.update(visible=v2v_vis),      # video_input
-            gr.update(visible=not checked),  # text_to_music_toggle
-            gr.update(visible=t2m_vis),      # text_to_music_prompt
-            gr.update(visible=not checked),  # image_video_to_animation_toggle
-            gr.update(visible=iv2a_vis),     # animation_mode_dropdown
-            gr.update(visible=iv2a_vis),     # animation_quality_dropdown
-            gr.update(visible=iv2a_vis),     # animation_video_input
-            gr.update(visible=not checked),  # model_dropdown
-            gr.update(visible=not checked),  # quick_start_md
-            gr.update(visible=not checked),  # quick_examples_col
-        )
-
-    beta_toggle.change(
-        toggle_beta,
-        inputs=[beta_toggle, image_generation_toggle, image_to_image_toggle, image_to_video_toggle, text_to_video_toggle, video_to_video_toggle, text_to_music_toggle, image_video_to_animation_toggle],
-        outputs=[
-            sidebar_chatbot,
-            sidebar_msg,
-            advanced_commands,
-            chat_clear_btn,
-            input,
-            language_dropdown,
-            website_url_input,
-            file_input,
-            btn,
-            clear_btn,
-            search_toggle,
-            image_generation_toggle,
-            text_to_image_prompt,
-            image_to_image_toggle,
-            image_to_image_prompt,
-            image_to_video_toggle,
-            image_to_video_prompt,
-            text_to_video_toggle,
-            text_to_video_prompt,
-            video_to_video_toggle,
-            video_to_video_prompt,
-            video_input,
-            text_to_music_toggle,
-            text_to_music_prompt,
-            image_video_to_animation_toggle,
-            animation_mode_dropdown,
-            animation_quality_dropdown,
-            animation_video_input,
-            model_dropdown,
-            quick_start_md,
-            quick_examples_col,
-        ],
-    )
     # Update preview when code or language changes (supports multi-file path via optional args)
     code_output.change(preview_logic, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
