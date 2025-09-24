@@ -5827,7 +5827,6 @@ def generation_code(query: str | None, vlm_image: Optional[gr.Image], website_ur
         yield {
             code_output: error_message,
             history_output: history_to_chatbot_messages(_history or []),
-            sandbox: f"<div style='padding:2em;text-align:center;color:#e74c3c;font-size:1.2em;'><h3>🔒 Authentication Required</h3><p>{auth_message}</p><p>Please log in to use AnyCoder.</p></div>",
         }
         return
     
@@ -5946,7 +5945,6 @@ Generate the exact search/replace blocks needed to make these changes."""
                 yield {
                     code_output: modified_content,
                     history: _history,
-                    sandbox: deploy_message,
                     history_output: history_to_chatbot_messages(_history),
                 }
                 return
@@ -6072,7 +6070,6 @@ This will help me create a better design for you."""
                     yield {
                         code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                         history_output: history_to_chatbot_messages(_history),
-                        sandbox: progress_message,
                     }
             
         except Exception as e:
@@ -6092,14 +6089,12 @@ This will help me create a better design for you."""
                 yield {
                     code_output: formatted_output,
                     history: _history,
-                    sandbox: send_transformers_to_sandbox(files),
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
                 yield {
                     code_output: clean_code,
                     history: _history,
-                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Error parsing transformers.js output. Please try again.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
         elif language == "svelte":
@@ -6112,14 +6107,12 @@ This will help me create a better design for you."""
                 yield {
                     code_output: formatted_output,
                     history: _history,
-                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
                 yield {
                     code_output: clean_code,
                     history: _history,
-                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
         else:
@@ -6133,13 +6126,6 @@ This will help me create a better design for you."""
                 yield {
                     code_output: clean_content,
                     history: _history,
-                    sandbox: f"""
-                    <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 10px;'>
-                        <h3 style='margin-top: 0; color: white;'>✅ {language.upper()} Code Generated!</h3>
-                        <p style='margin: 0.5em 0; opacity: 0.9;'>Your code is ready for deployment.</p>
-                        <p style='margin: 0.5em 0; font-weight: bold;'>👉 Use the Deploy button in the sidebar to publish your app!</p>
-                    </div>
-                    """,
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
@@ -6183,7 +6169,6 @@ This will help me create a better design for you."""
                 yield {
                     code_output: final_content,
                     history: _history,
-                    sandbox: deploy_message,
                     history_output: history_to_chatbot_messages(_history),
                 }
         return
@@ -6251,7 +6236,6 @@ This will help me create a better design for you."""
                     yield {
                         code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                         history_output: history_to_chatbot_messages(_history),
-                        sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                     }
         except Exception as e:
             content = f"Error with GLM-4.5V: {str(e)}\n\nPlease make sure HF_TOKEN environment variable is set."
@@ -6272,7 +6256,6 @@ This will help me create a better design for you."""
         yield {
             code_output: clean_code,
             history: _history,
-            sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
             history_output: history_to_chatbot_messages(_history),
         }
         return
@@ -6366,7 +6349,6 @@ This will help me create a better design for you."""
                         yield {
                             code_output: gr.update(value=(content or "") + "\n<!-- " + status_line + " -->", language="html"),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: "<div style='padding:1em;color:#888;text-align:center;'>" + status_line + "</div>",
                         }
                         continue
                     # Filter placeholders
@@ -6420,7 +6402,6 @@ This will help me create a better design for you."""
                         yield {
                             code_output: gr.update(value=merged_html, language="html"),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Generating transformers.js app...</div>",
                         }
                     elif has_existing_content:
                         # Model is returning search/replace changes for transformers.js - apply them
@@ -6430,14 +6411,12 @@ This will help me create a better design for you."""
                         yield {
                             code_output: gr.update(value=modified_content, language="html"),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: send_transformers_to_sandbox(_mf) if _mf['index.html'] else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
                         }
                     else:
                         # Still streaming, show partial content
                         yield {
                             code_output: gr.update(value=content, language="html"),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Generating transformers.js app...</div>",
                         }
                 elif language == "svelte":
                     # For Svelte, just show the content as it streams
@@ -6445,7 +6424,6 @@ This will help me create a better design for you."""
                     yield {
                         code_output: gr.update(value=content, language="html"),
                         history_output: history_to_chatbot_messages(_history),
-                        sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Generating Svelte app...</div>",
                     }
                 else:
                     clean_code = remove_code_block(content)
@@ -6465,7 +6443,6 @@ This will help me create a better design for you."""
                             yield {
                                 code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                                 history_output: history_to_chatbot_messages(_history),
-                                sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                             }
                         else:
                             # Model returned search/replace changes - apply them
@@ -6484,7 +6461,6 @@ This will help me create a better design for you."""
                             yield {
                                 code_output: gr.update(value=clean_content, language=get_gradio_language(language)),
                                 history_output: history_to_chatbot_messages(_history),
-                                sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                             }
                     else:
                         preview_val = None
@@ -6499,7 +6475,6 @@ This will help me create a better design for you."""
                         yield {
                             code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                             history_output: history_to_chatbot_messages(_history),
-                            sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
                         }
             # Skip chunks with empty choices (end of stream)
             # Do not treat as error
@@ -6514,7 +6489,6 @@ This will help me create a better design for you."""
                 yield {
                     code_output: formatted_output,
                     history: _history,
-                    sandbox: send_transformers_to_sandbox(files),
                     history_output: history_to_chatbot_messages(_history),
                 }
             elif has_existing_content:
@@ -6526,7 +6500,6 @@ This will help me create a better design for you."""
                 yield {
                     code_output: modified_content,
                     history: _history,
-                    sandbox: send_transformers_to_sandbox(_mf),
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
@@ -6535,7 +6508,6 @@ This will help me create a better design for you."""
                 yield {
                     code_output: content,
                     history: _history,
-                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Error parsing transformers.js output. Please try again.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
         elif language == "svelte":
@@ -6548,7 +6520,6 @@ This will help me create a better design for you."""
                 yield {
                     code_output: formatted_output,
                     history: _history,
-                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
             elif has_existing_content:
@@ -6559,7 +6530,6 @@ This will help me create a better design for you."""
                 yield {
                     code_output: modified_content,
                     history: _history,
-                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
@@ -6568,7 +6538,6 @@ This will help me create a better design for you."""
                 yield {
                     code_output: content,
                     history: _history,
-                    sandbox: "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code using the download button above.</div>",
                     history_output: history_to_chatbot_messages(_history),
                 }
         elif has_existing_content:
@@ -6590,7 +6559,6 @@ This will help me create a better design for you."""
             yield {
                 code_output: clean_content,
                 history: _history,
-                sandbox: ((send_to_sandbox_with_refresh(inline_multipage_into_single_preview(parse_multipage_html_output(clean_content))) if parse_multipage_html_output(clean_content).get('index.html') else send_to_sandbox_with_refresh(clean_content)) if language == "html" else (send_streamlit_to_stlite(clean_content) if (language == "python" and is_streamlit_code(clean_content)) else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>")),
                 history_output: history_to_chatbot_messages(_history),
             }
         else:
@@ -6638,7 +6606,6 @@ This will help me create a better design for you."""
             yield {
                 code_output: final_content,
                 history: _history,
-                sandbox: deploy_message,
                 history_output: history_to_chatbot_messages(_history),
             }
     except Exception as e:
@@ -7916,7 +7883,6 @@ with gr.Blocks(
                 gr.update(value="Please enter a URL.", visible=True),
                 gr.update(),
                 gr.update(),
-                gr.update(),
                 [],
                 [],
                 gr.update(value="", visible=False),
@@ -7949,7 +7915,6 @@ with gr.Blocks(
             return [
                 gr.update(value=status, visible=True),
                 gr.update(value=code, language=code_lang),  # Use html for transformers.js display
-                gr.update(value=""),
                 gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
@@ -7975,7 +7940,6 @@ with gr.Blocks(
             return [
                 gr.update(value=status, visible=True),
                 gr.update(value=code, language=code_lang),
-                gr.update(value=""),
                 gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
@@ -8253,9 +8217,6 @@ with gr.Blocks(
         </div>
         """
     
-    tjs_html_code.change(show_tjs_deployment_message, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
-    tjs_js_code.change(show_tjs_deployment_message, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
-    tjs_css_code.change(show_tjs_deployment_message, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
 
     def show_deploy_components(*args):
         return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
@@ -8298,7 +8259,6 @@ with gr.Blocks(
         outputs=[
             load_project_status,
             code_output,
-            sandbox,
             load_project_url,
             history,
             history_output,
@@ -8330,7 +8290,7 @@ with gr.Blocks(
     ).then(
         generation_code,
         inputs=[input, image_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
-        outputs=[code_output, history, sandbox, history_output]
+        outputs=[code_output, history, history_output]
     ).then(
         end_generation_ui,
         inputs=None,
@@ -8371,7 +8331,7 @@ with gr.Blocks(
     ).then(
         generation_code,
         inputs=[input, image_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
-        outputs=[code_output, history, sandbox, history_output]
+        outputs=[code_output, history, history_output]
     ).then(
         end_generation_ui,
         inputs=None,
@@ -8411,8 +8371,6 @@ with gr.Blocks(
         </div>
         """
     
-    code_output.change(show_deployment_message, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
-    language_dropdown.change(show_deployment_message, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
     # Update deploy button text when space name changes
     space_name_input.change(update_deploy_button_text, inputs=[space_name_input], outputs=[deploy_btn])
     clear_btn.click(clear_history, outputs=[history, history_output, website_url_input])
