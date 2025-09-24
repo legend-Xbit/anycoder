@@ -4,12 +4,8 @@ from http import HTTPStatus
 from typing import Dict, List, Optional, Tuple
 import base64
 import mimetypes
-import PyPDF2
-import docx
-import cv2
 import numpy as np
 from PIL import Image
-import pytesseract
 import requests
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
@@ -5450,63 +5446,6 @@ def demo_card_click(e: gr.EventData):
     except (KeyError, IndexError, AttributeError) as e:
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
-def extract_text_from_image(image_path):
-    """Extract text from image using OCR"""
-    try:
-        # Check if tesseract is available
-        try:
-            pytesseract.get_tesseract_version()
-        except Exception:
-            return "Error: Tesseract OCR is not installed. Please install Tesseract to extract text from images. See install_tesseract.md for instructions."
-        
-        # Read image using OpenCV
-        image = cv2.imread(image_path)
-        if image is None:
-            return "Error: Could not read image file"
-        
-        # Convert to RGB (OpenCV uses BGR)
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        # Preprocess image for better OCR results
-        # Convert to grayscale
-        gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
-        
-        # Apply thresholding to get binary image
-        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        # Extract text using pytesseract
-        text = pytesseract.image_to_string(binary, config='--psm 6')
-        
-        return text.strip() if text.strip() else "No text found in image"
-        
-    except Exception as e:
-        return f"Error extracting text from image: {e}"
-
-def extract_text_from_file(file_path):
-    if not file_path:
-        return ""
-    mime, _ = mimetypes.guess_type(file_path)
-    ext = os.path.splitext(file_path)[1].lower()
-    try:
-        if ext == ".pdf":
-            with open(file_path, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
-                return "\n".join(page.extract_text() or "" for page in reader.pages)
-        elif ext in [".txt", ".md"]:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
-        elif ext == ".csv":
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
-        elif ext == ".docx":
-            doc = docx.Document(file_path)
-            return "\n".join([para.text for para in doc.paragraphs])
-        elif ext.lower() in [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"]:
-            return extract_text_from_image(file_path)
-        else:
-            return ""
-    except Exception as e:
-        return f"Error extracting text: {e}"
 
 def extract_website_content(url: str) -> str:
     """Extract HTML code and content from a website URL"""
@@ -5866,12 +5805,7 @@ def update_ui_for_auth_status(profile: gr.OAuthProfile | None = None, token: gr.
         return {
             # Enable main input and button
             input: gr.update(interactive=True, placeholder="Describe your application..."),
-            btn: gr.update(interactive=True, variant="primary"),
-            # Show authentication status
-            auth_status: gr.update(
-                value=f"✅ {auth_message}",
-                visible=True
-            )
+            btn: gr.update(interactive=True, variant="primary")
         }
     else:
         # User not authenticated - disable main components
@@ -5881,16 +5815,11 @@ def update_ui_for_auth_status(profile: gr.OAuthProfile | None = None, token: gr.
                 interactive=False, 
                 placeholder="🔒 Please log in with Hugging Face to use AnyCoder..."
             ),
-            btn: gr.update(interactive=False, variant="secondary"),
-            # Show authentication requirement
-            auth_status: gr.update(
-                value=f"🔒 {auth_message}",
-                visible=True
-            )
+            btn: gr.update(interactive=False, variant="secondary")
         }
 
 
-def generation_code(query: str | None, vlm_image: Optional[gr.Image], file: str | None, website_url: str | None, _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, language: str = "html", provider: str = "auto", profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
+def generation_code(query: str | None, vlm_image: Optional[gr.Image], website_url: str | None, _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, language: str = "html", provider: str = "auto", profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
     # Check authentication first
     is_authenticated, auth_message = check_authentication(profile, token)
     if not is_authenticated:
@@ -6085,13 +6014,6 @@ Generate the exact search/replace blocks needed to make these changes."""
 
     messages = history_to_messages(_history, system_prompt)
 
-    # Extract file text and append to query if file is present
-    file_text = ""
-    if file:
-        file_text = extract_text_from_file(file)
-        if file_text:
-            file_text = file_text[:5000]  # Limit to 5000 chars for prompt size
-            query = f"{query}\n\n[Reference file content below]\n{file_text}"
 
     # Extract website content and append to query if website URL is present
     website_text = ""
@@ -6815,7 +6737,7 @@ def generate_requirements_txt_with_llm(import_statements):
 Instructions:
 - Include the direct packages needed for the imports
 - Include commonly used companion packages and dependencies for better functionality
-- Use correct PyPI package names (e.g., cv2 -> opencv-python, PIL -> Pillow, sklearn -> scikit-learn)
+- Use correct PyPI package names (e.g., PIL -> Pillow, sklearn -> scikit-learn)
 - IMPORTANT: For diffusers, ALWAYS use: git+https://github.com/huggingface/diffusers
 - IMPORTANT: For transformers, ALWAYS use: git+https://github.com/huggingface/transformers
 - IMPORTANT: If diffusers is installed, also include transformers and sentencepiece as they usually go together
@@ -6876,7 +6798,6 @@ Generate a comprehensive requirements.txt that ensures the application will work
         # Fallback: simple extraction with basic mapping
         dependencies = set()
         special_cases = {
-            'cv2': 'opencv-python',
             'PIL': 'Pillow', 
             'sklearn': 'scikit-learn',
             'skimage': 'scikit-image',
@@ -7734,12 +7655,6 @@ with gr.Blocks(
     with gr.Sidebar() as sidebar:
         login_button = gr.LoginButton()
         
-        # Authentication status display
-        auth_status = gr.Markdown(
-            value="🔒 Please log in with your Hugging Face account to use AnyCoder.",
-            visible=True,
-            elem_classes=["auth-status"]
-        )
         
 
 
@@ -7803,11 +7718,6 @@ with gr.Blocks(
             label="website for redesign",
             placeholder="https://example.com",
             lines=1,
-            visible=True
-        )
-        file_input = gr.File(
-            label="Reference file (OCR only)",
-            file_types=[".pdf", ".txt", ".md", ".csv", ".docx", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".gif", ".webp"],
             visible=True
         )
         image_input = gr.Image(
@@ -8396,7 +8306,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
+        inputs=[input, image_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -8437,7 +8347,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, file_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
+        inputs=[input, image_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, sandbox, history_output]
     ).then(
         end_generation_ui,
@@ -8471,7 +8381,7 @@ with gr.Blocks(
     language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
     # Update deploy button text when space name changes
     space_name_input.change(update_deploy_button_text, inputs=[space_name_input], outputs=[deploy_btn])
-    clear_btn.click(clear_history, outputs=[history, history_output, file_input, website_url_input])
+    clear_btn.click(clear_history, outputs=[history, history_output, website_url_input])
     clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn])
     # Reset space name and button text when clearing
     clear_btn.click(
@@ -9121,7 +9031,7 @@ with gr.Blocks(
     login_button.click(
         handle_auth_update,
         inputs=[],
-        outputs=[input, btn, auth_status],
+        outputs=[input, btn],
         queue=False
     )
     
@@ -9129,7 +9039,7 @@ with gr.Blocks(
     demo.load(
         handle_auth_update,
         inputs=[],
-        outputs=[input, btn, auth_status],
+        outputs=[input, btn],
         queue=False
     )
 
