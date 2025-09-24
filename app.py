@@ -79,6 +79,16 @@ COMFYUI_DOCS_UPDATE_ON_APP_UPDATE = True  # Only update when app is updated, not
 _comfyui_docs_content: str | None = None
 _comfyui_docs_last_fetched: Optional[datetime] = None
 
+# FastRTC Documentation Auto-Update System
+FASTRTC_LLMS_TXT_URL = "https://fastrtc.org/llms.txt"
+FASTRTC_DOCS_CACHE_FILE = ".fastrtc_docs_cache.txt"
+FASTRTC_DOCS_LAST_UPDATE_FILE = ".fastrtc_docs_last_update.txt"
+FASTRTC_DOCS_UPDATE_ON_APP_UPDATE = True  # Only update when app is updated, not on a timer
+
+# Global variable to store the current FastRTC documentation
+_fastrtc_docs_content: str | None = None
+_fastrtc_docs_last_fetched: Optional[datetime] = None
+
 def fetch_gradio_docs() -> str | None:
     """Fetch the latest Gradio documentation from llms.txt"""
     try:
@@ -97,6 +107,16 @@ def fetch_comfyui_docs() -> str | None:
         return response.text
     except Exception as e:
         print(f"Warning: Failed to fetch ComfyUI docs from {COMFYUI_LLMS_TXT_URL}: {e}")
+        return None
+
+def fetch_fastrtc_docs() -> str | None:
+    """Fetch the latest FastRTC documentation from llms.txt"""
+    try:
+        response = requests.get(FASTRTC_LLMS_TXT_URL, timeout=10)
+        response.raise_for_status()
+        return response.text
+    except Exception as e:
+        print(f"Warning: Failed to fetch FastRTC docs from {FASTRTC_LLMS_TXT_URL}: {e}")
         return None
 
 def filter_problematic_instructions(content: str) -> str:
@@ -171,6 +191,26 @@ def save_comfyui_docs_cache(content: str):
     except Exception as e:
         print(f"Warning: Failed to save ComfyUI docs cache: {e}")
 
+def load_fastrtc_docs_cache() -> str | None:
+    """Load FastRTC documentation from cache file"""
+    try:
+        if os.path.exists(FASTRTC_DOCS_CACHE_FILE):
+            with open(FASTRTC_DOCS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return f.read()
+    except Exception as e:
+        print(f"Warning: Failed to load cached FastRTC docs: {e}")
+    return None
+
+def save_fastrtc_docs_cache(content: str):
+    """Save FastRTC documentation to cache file"""
+    try:
+        with open(FASTRTC_DOCS_CACHE_FILE, 'w', encoding='utf-8') as f:
+            f.write(content)
+        with open(FASTRTC_DOCS_LAST_UPDATE_FILE, 'w', encoding='utf-8') as f:
+            f.write(datetime.now().isoformat())
+    except Exception as e:
+        print(f"Warning: Failed to save FastRTC docs cache: {e}")
+
 def get_last_update_time() -> Optional[datetime]:
     """Get the last update time from file"""
     try:
@@ -190,6 +230,11 @@ def should_update_comfyui_docs() -> bool:
     """Check if ComfyUI documentation should be updated"""
     # Only update if we don't have cached content (first run or cache deleted)
     return not os.path.exists(COMFYUI_DOCS_CACHE_FILE)
+
+def should_update_fastrtc_docs() -> bool:
+    """Check if FastRTC documentation should be updated"""
+    # Only update if we don't have cached content (first run or cache deleted)
+    return not os.path.exists(FASTRTC_DOCS_CACHE_FILE)
 
 def force_update_gradio_docs():
     """
@@ -239,6 +284,31 @@ def force_update_comfyui_docs():
         return True
     else:
         print("❌ Failed to update ComfyUI documentation")
+        return False
+
+def force_update_fastrtc_docs():
+    """
+    Force an update of FastRTC documentation (useful when app is updated).
+    
+    To manually refresh docs, you can call this function or simply delete the cache file:
+    rm .fastrtc_docs_cache.txt && restart the app
+    """
+    global _fastrtc_docs_content, _fastrtc_docs_last_fetched
+    
+    print("🔄 Forcing FastRTC documentation update...")
+    latest_content = fetch_fastrtc_docs()
+    
+    if latest_content:
+        # Filter out problematic instructions that cause early termination
+        filtered_content = filter_problematic_instructions(latest_content)
+        _fastrtc_docs_content = filtered_content
+        _fastrtc_docs_last_fetched = datetime.now()
+        save_fastrtc_docs_cache(filtered_content)
+        update_gradio_system_prompts()
+        print("✅ FastRTC documentation updated successfully")
+        return True
+    else:
+        print("❌ Failed to update FastRTC documentation")
         return False
 
 def get_gradio_docs_content() -> str:
@@ -327,11 +397,55 @@ def get_comfyui_docs_content() -> str:
     
     return _comfyui_docs_content or ""
 
+def get_fastrtc_docs_content() -> str:
+    """Get the current FastRTC documentation content, updating if necessary"""
+    global _fastrtc_docs_content, _fastrtc_docs_last_fetched
+    
+    # Check if we need to update
+    if (_fastrtc_docs_content is None or 
+        _fastrtc_docs_last_fetched is None or 
+        should_update_fastrtc_docs()):
+        
+        print("Updating FastRTC documentation...")
+        
+        # Try to fetch latest content
+        latest_content = fetch_fastrtc_docs()
+        
+        if latest_content:
+            # Filter out problematic instructions that cause early termination
+            filtered_content = filter_problematic_instructions(latest_content)
+            _fastrtc_docs_content = filtered_content
+            _fastrtc_docs_last_fetched = datetime.now()
+            save_fastrtc_docs_cache(filtered_content)
+            print("✅ FastRTC documentation updated successfully")
+        else:
+            # Fallback to cached content
+            cached_content = load_fastrtc_docs_cache()
+            if cached_content:
+                _fastrtc_docs_content = cached_content
+                _fastrtc_docs_last_fetched = datetime.now()
+                print("⚠️ Using cached FastRTC documentation (network fetch failed)")
+            else:
+                # Fallback to minimal content
+                _fastrtc_docs_content = """
+                # FastRTC API Reference (Offline Fallback)
+                
+                This is a minimal fallback when documentation cannot be fetched.
+                Please check your internet connection for the latest API reference.
+                
+                Basic FastRTC usage: Stream class, handlers, real-time audio/video processing.
+                Use Stream(handler, modality, mode) for real-time communication apps.
+                """
+                print("❌ Using minimal fallback documentation")
+    
+    return _fastrtc_docs_content or ""
+
 def update_gradio_system_prompts():
     """Update the global Gradio system prompts with latest documentation"""
     global GRADIO_SYSTEM_PROMPT, GRADIO_SYSTEM_PROMPT_WITH_SEARCH
     
     docs_content = get_gradio_docs_content()
+    fastrtc_content = get_fastrtc_docs_content()
     
     # Base system prompt
     base_prompt = """You are an expert Gradio developer. Create a complete, working Gradio application based on the user's request. Generate all necessary code to make the application functional and runnable.
@@ -875,6 +989,21 @@ This reference is automatically synced from https://www.gradio.app/llms.txt to e
 
 """
     
+    # Add FastRTC documentation if available
+    if fastrtc_content.strip():
+        fastrtc_section = f"""
+## FastRTC Reference Documentation
+
+When building real-time audio/video applications with Gradio, use this FastRTC reference:
+
+{fastrtc_content}
+
+This reference is automatically synced from https://fastrtc.org/llms.txt to ensure accuracy.
+
+"""
+        base_prompt += fastrtc_section
+        search_prompt += fastrtc_section
+    
     # Update the prompts
     GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
     GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
@@ -951,6 +1080,20 @@ def initialize_comfyui_docs():
             print("🚀 ComfyUI documentation system initialized (using cached content)")
     except Exception as e:
         print(f"Warning: Failed to initialize ComfyUI documentation: {e}")
+
+# Initialize FastRTC documentation on startup
+def initialize_fastrtc_docs():
+    """Initialize FastRTC documentation on application startup"""
+    try:
+        # FastRTC docs are integrated into Gradio system prompts
+        # So we call update_gradio_system_prompts to include FastRTC content
+        update_gradio_system_prompts()
+        if should_update_fastrtc_docs():
+            print("🚀 FastRTC documentation system initialized (fetched fresh content)")
+        else:
+            print("🚀 FastRTC documentation system initialized (using cached content)")
+    except Exception as e:
+        print(f"Warning: Failed to initialize FastRTC documentation: {e}")
 
 # Configuration
 HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
@@ -10093,6 +10236,9 @@ if __name__ == "__main__":
     
     # Initialize ComfyUI documentation system
     initialize_comfyui_docs()
+    
+    # Initialize FastRTC documentation system
+    initialize_fastrtc_docs()
     
     # Clean up any orphaned temporary files from previous runs
     cleanup_all_temp_media_on_startup()
