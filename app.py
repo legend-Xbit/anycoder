@@ -69,6 +69,16 @@ GRADIO_DOCS_UPDATE_ON_APP_UPDATE = True  # Only update when app is updated, not 
 _gradio_docs_content: str | None = None
 _gradio_docs_last_fetched: Optional[datetime] = None
 
+# ComfyUI Documentation Auto-Update System
+COMFYUI_LLMS_TXT_URL = "https://docs.comfy.org/llms.txt"
+COMFYUI_DOCS_CACHE_FILE = ".comfyui_docs_cache.txt"
+COMFYUI_DOCS_LAST_UPDATE_FILE = ".comfyui_docs_last_update.txt"
+COMFYUI_DOCS_UPDATE_ON_APP_UPDATE = True  # Only update when app is updated, not on a timer
+
+# Global variable to store the current ComfyUI documentation
+_comfyui_docs_content: str | None = None
+_comfyui_docs_last_fetched: Optional[datetime] = None
+
 def fetch_gradio_docs() -> str | None:
     """Fetch the latest Gradio documentation from llms.txt"""
     try:
@@ -77,6 +87,16 @@ def fetch_gradio_docs() -> str | None:
         return response.text
     except Exception as e:
         print(f"Warning: Failed to fetch Gradio docs from {GRADIO_LLMS_TXT_URL}: {e}")
+        return None
+
+def fetch_comfyui_docs() -> str | None:
+    """Fetch the latest ComfyUI documentation from llms.txt"""
+    try:
+        response = requests.get(COMFYUI_LLMS_TXT_URL, timeout=10)
+        response.raise_for_status()
+        return response.text
+    except Exception as e:
+        print(f"Warning: Failed to fetch ComfyUI docs from {COMFYUI_LLMS_TXT_URL}: {e}")
         return None
 
 def filter_problematic_instructions(content: str) -> str:
@@ -131,6 +151,26 @@ def save_gradio_docs_cache(content: str):
     except Exception as e:
         print(f"Warning: Failed to save Gradio docs cache: {e}")
 
+def load_comfyui_docs_cache() -> str | None:
+    """Load ComfyUI documentation from cache file"""
+    try:
+        if os.path.exists(COMFYUI_DOCS_CACHE_FILE):
+            with open(COMFYUI_DOCS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return f.read()
+    except Exception as e:
+        print(f"Warning: Failed to load cached ComfyUI docs: {e}")
+    return None
+
+def save_comfyui_docs_cache(content: str):
+    """Save ComfyUI documentation to cache file"""
+    try:
+        with open(COMFYUI_DOCS_CACHE_FILE, 'w', encoding='utf-8') as f:
+            f.write(content)
+        with open(COMFYUI_DOCS_LAST_UPDATE_FILE, 'w', encoding='utf-8') as f:
+            f.write(datetime.now().isoformat())
+    except Exception as e:
+        print(f"Warning: Failed to save ComfyUI docs cache: {e}")
+
 def get_last_update_time() -> Optional[datetime]:
     """Get the last update time from file"""
     try:
@@ -145,6 +185,11 @@ def should_update_gradio_docs() -> bool:
     """Check if Gradio documentation should be updated"""
     # Only update if we don't have cached content (first run or cache deleted)
     return not os.path.exists(GRADIO_DOCS_CACHE_FILE)
+
+def should_update_comfyui_docs() -> bool:
+    """Check if ComfyUI documentation should be updated"""
+    # Only update if we don't have cached content (first run or cache deleted)
+    return not os.path.exists(COMFYUI_DOCS_CACHE_FILE)
 
 def force_update_gradio_docs():
     """
@@ -169,6 +214,31 @@ def force_update_gradio_docs():
         return True
     else:
         print("❌ Failed to update Gradio documentation")
+        return False
+
+def force_update_comfyui_docs():
+    """
+    Force an update of ComfyUI documentation (useful when app is updated).
+    
+    To manually refresh docs, you can call this function or simply delete the cache file:
+    rm .comfyui_docs_cache.txt && restart the app
+    """
+    global _comfyui_docs_content, _comfyui_docs_last_fetched
+    
+    print("🔄 Forcing ComfyUI documentation update...")
+    latest_content = fetch_comfyui_docs()
+    
+    if latest_content:
+        # Filter out problematic instructions that cause early termination
+        filtered_content = filter_problematic_instructions(latest_content)
+        _comfyui_docs_content = filtered_content
+        _comfyui_docs_last_fetched = datetime.now()
+        save_comfyui_docs_cache(filtered_content)
+        update_json_system_prompts()
+        print("✅ ComfyUI documentation updated successfully")
+        return True
+    else:
+        print("❌ Failed to update ComfyUI documentation")
         return False
 
 def get_gradio_docs_content() -> str:
@@ -213,6 +283,49 @@ def get_gradio_docs_content() -> str:
                 print("❌ Using minimal fallback documentation")
     
     return _gradio_docs_content or ""
+
+def get_comfyui_docs_content() -> str:
+    """Get the current ComfyUI documentation content, updating if necessary"""
+    global _comfyui_docs_content, _comfyui_docs_last_fetched
+    
+    # Check if we need to update
+    if (_comfyui_docs_content is None or 
+        _comfyui_docs_last_fetched is None or 
+        should_update_comfyui_docs()):
+        
+        print("Updating ComfyUI documentation...")
+        
+        # Try to fetch latest content
+        latest_content = fetch_comfyui_docs()
+        
+        if latest_content:
+            # Filter out problematic instructions that cause early termination
+            filtered_content = filter_problematic_instructions(latest_content)
+            _comfyui_docs_content = filtered_content
+            _comfyui_docs_last_fetched = datetime.now()
+            save_comfyui_docs_cache(filtered_content)
+            print("✅ ComfyUI documentation updated successfully")
+        else:
+            # Fallback to cached content
+            cached_content = load_comfyui_docs_cache()
+            if cached_content:
+                _comfyui_docs_content = cached_content
+                _comfyui_docs_last_fetched = datetime.now()
+                print("⚠️ Using cached ComfyUI documentation (network fetch failed)")
+            else:
+                # Fallback to minimal content
+                _comfyui_docs_content = """
+                # ComfyUI API Reference (Offline Fallback)
+                
+                This is a minimal fallback when documentation cannot be fetched.
+                Please check your internet connection for the latest API reference.
+                
+                Basic ComfyUI workflow structure: nodes, connections, inputs, outputs.
+                Use CheckpointLoaderSimple, CLIPTextEncode, KSampler for basic workflows.
+                """
+                print("❌ Using minimal fallback documentation")
+    
+    return _comfyui_docs_content or ""
 
 def update_gradio_system_prompts():
     """Update the global Gradio system prompts with latest documentation"""
@@ -766,6 +879,55 @@ This reference is automatically synced from https://www.gradio.app/llms.txt to e
     GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
     GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
 
+def update_json_system_prompts():
+    """Update the global JSON system prompts with latest ComfyUI documentation"""
+    global JSON_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT_WITH_SEARCH
+    
+    docs_content = get_comfyui_docs_content()
+    
+    # Base system prompt
+    base_prompt = """You are an expert JSON developer. Generate clean, valid JSON data based on the user's request. Follow JSON syntax rules strictly:
+- Use double quotes for strings
+- No trailing commas
+- Proper nesting and structure
+- Valid data types (string, number, boolean, null, object, array)
+
+Generate ONLY the JSON data requested - no HTML, no applications, no explanations outside the JSON. The output should be pure, valid JSON that can be parsed directly.
+
+"""
+    
+    # Search-enabled system prompt
+    search_prompt = """You are an expert JSON developer. You have access to real-time web search. When needed, use web search to find the latest information or data structures for your JSON generation.
+
+Generate clean, valid JSON data based on the user's request. Follow JSON syntax rules strictly:
+- Use double quotes for strings
+- No trailing commas
+- Proper nesting and structure
+- Valid data types (string, number, boolean, null, object, array)
+
+Generate ONLY the JSON data requested - no HTML, no applications, no explanations outside the JSON. The output should be pure, valid JSON that can be parsed directly.
+
+"""
+    
+    # Add ComfyUI documentation if available
+    if docs_content.strip():
+        comfyui_section = f"""
+## ComfyUI Reference Documentation
+
+When generating JSON data related to ComfyUI workflows, nodes, or configurations, use this reference:
+
+{docs_content}
+
+This reference is automatically synced from https://docs.comfy.org/llms.txt to ensure accuracy.
+
+"""
+        base_prompt += comfyui_section
+        search_prompt += comfyui_section
+    
+    # Update the prompts
+    JSON_SYSTEM_PROMPT = base_prompt
+    JSON_SYSTEM_PROMPT_WITH_SEARCH = search_prompt
+
 # Initialize Gradio documentation on startup
 def initialize_gradio_docs():
     """Initialize Gradio documentation on application startup"""
@@ -777,6 +939,18 @@ def initialize_gradio_docs():
             print("🚀 Gradio documentation system initialized (using cached content)")
     except Exception as e:
         print(f"Warning: Failed to initialize Gradio documentation: {e}")
+
+# Initialize ComfyUI documentation on startup
+def initialize_comfyui_docs():
+    """Initialize ComfyUI documentation on application startup"""
+    try:
+        update_json_system_prompts()
+        if should_update_comfyui_docs():
+            print("🚀 ComfyUI documentation system initialized (fetched fresh content)")
+        else:
+            print("🚀 ComfyUI documentation system initialized (using cached content)")
+    except Exception as e:
+        print(f"Warning: Failed to initialize ComfyUI documentation: {e}")
 
 # Configuration
 HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
@@ -1226,23 +1400,11 @@ GRADIO_SYSTEM_PROMPT_WITH_SEARCH = ""
 
 # All Gradio API documentation is now dynamically loaded from https://www.gradio.app/llms.txt
 
-JSON_SYSTEM_PROMPT = """You are an expert JSON developer. Generate clean, valid JSON data based on the user's request. Follow JSON syntax rules strictly:
-- Use double quotes for strings
-- No trailing commas
-- Proper nesting and structure
-- Valid data types (string, number, boolean, null, object, array)
+# JSON system prompts will be dynamically populated by update_json_system_prompts()
+JSON_SYSTEM_PROMPT = ""
+JSON_SYSTEM_PROMPT_WITH_SEARCH = ""
 
-Generate ONLY the JSON data requested - no HTML, no applications, no explanations outside the JSON. The output should be pure, valid JSON that can be parsed directly."""
-
-JSON_SYSTEM_PROMPT_WITH_SEARCH = """You are an expert JSON developer. You have access to real-time web search. When needed, use web search to find the latest information or data structures for your JSON generation.
-
-Generate clean, valid JSON data based on the user's request. Follow JSON syntax rules strictly:
-- Use double quotes for strings
-- No trailing commas
-- Proper nesting and structure
-- Valid data types (string, number, boolean, null, object, array)
-
-Generate ONLY the JSON data requested - no HTML, no applications, no explanations outside the JSON. The output should be pure, valid JSON that can be parsed directly."""
+# All ComfyUI API documentation is now dynamically loaded from https://docs.comfy.org/llms.txt
 
 GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible.
 
@@ -9928,6 +10090,9 @@ with gr.Blocks(
 if __name__ == "__main__":
     # Initialize Gradio documentation system
     initialize_gradio_docs()
+    
+    # Initialize ComfyUI documentation system
+    initialize_comfyui_docs()
     
     # Clean up any orphaned temporary files from previous runs
     cleanup_all_temp_media_on_startup()
