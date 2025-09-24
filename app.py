@@ -5934,24 +5934,19 @@ Generate the exact search/replace blocks needed to make these changes."""
             if modified_content != last_assistant_msg:
                 _history.append([query, modified_content])
                 
-                # Generate preview based on language
-                preview_val = None
-                if language == "html":
-                    # Use full content for multipage detection, then extract for single-page rendering
-                    _mpf2 = parse_multipage_html_output(modified_content)
-                    _mpf2 = validate_and_autofix_files(_mpf2)
-                    if _mpf2 and _mpf2.get('index.html'):
-                        preview_val = send_to_sandbox_with_refresh(inline_multipage_into_single_preview(_mpf2))
-                    else:
-                        safe_preview = extract_html_document(modified_content)
-                        preview_val = send_to_sandbox_with_refresh(safe_preview)
-                elif language == "python" and is_streamlit_code(modified_content):
-                    preview_val = send_streamlit_to_stlite(modified_content)
+                # Generate deployment message instead of preview
+                deploy_message = f"""
+                <div style='padding: 1.5em; text-align: center; background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 10px; color: #0c4a6e;'>
+                    <h3 style='margin-top: 0; color: #0ea5e9;'>✅ Code Updated Successfully!</h3>
+                    <p style='margin: 0.5em 0; font-size: 1.1em;'>Your {language.upper()} code has been modified and is ready for deployment.</p>
+                    <p style='margin: 0.5em 0; font-weight: bold;'>👉 Switch to the "Deploy" tab to publish your app!</p>
+                </div>
+                """
                 
                 yield {
                     code_output: modified_content,
                     history: _history,
-                    sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview updated with your changes.</div>",
+                    sandbox: deploy_message,
                     history_output: history_to_chatbot_messages(_history),
                 }
                 return
@@ -6064,18 +6059,20 @@ This will help me create a better design for you."""
                 if chunk.choices[0].delta.content:
                     content += chunk.choices[0].delta.content
                     clean_code = remove_code_block(content)
-                    # Live streaming preview
-                    preview_val = None
-                    if language == "html":
-                        _mp = parse_multipage_html_output(clean_code)
-                        _mp = validate_and_autofix_files(_mp)
-                        preview_val = send_to_sandbox(inline_multipage_into_single_preview(_mp)) if _mp.get('index.html') else send_to_sandbox(clean_code)
-                    elif language == "python" and is_streamlit_code(clean_code):
-                        preview_val = send_streamlit_to_stlite(clean_code)
+                    # Show generation progress message
+                    progress_message = f"""
+                    <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 10px;'>
+                        <h3 style='margin-top: 0; color: white;'>⚡ Generating Your {language.upper()} App...</h3>
+                        <p style='margin: 0.5em 0; opacity: 0.9;'>Code is being generated in real-time!</p>
+                        <div style='background: rgba(255,255,255,0.2); padding: 1em; border-radius: 8px; margin: 1em 0;'>
+                            <p style='margin: 0; font-size: 1.1em;'>🚀 Get ready to deploy once generation completes!</p>
+                        </div>
+                    </div>
+                    """
                     yield {
                         code_output: gr.update(value=clean_code, language=get_gradio_language(language)),
                         history_output: history_to_chatbot_messages(_history),
-                        sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
+                        sandbox: progress_message,
                     }
             
         except Exception as e:
@@ -6136,29 +6133,57 @@ This will help me create a better design for you."""
                 yield {
                     code_output: clean_content,
                     history: _history,
-                    sandbox: send_to_sandbox(clean_content) if language == "html" else "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>",
+                    sandbox: f"""
+                    <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 10px;'>
+                        <h3 style='margin-top: 0; color: white;'>✅ {language.upper()} Code Generated!</h3>
+                        <p style='margin: 0.5em 0; opacity: 0.9;'>Your code is ready for deployment.</p>
+                        <p style='margin: 0.5em 0; font-weight: bold;'>👉 Switch to the "Deploy" tab to publish your app!</p>
+                    </div>
+                    """,
                     history_output: history_to_chatbot_messages(_history),
                 }
             else:
                 # Use clean code as final content without media generation
                 final_content = clean_code
                 
-                preview_val = None
-                if language == "html":
-                    # Use full content for multipage detection, then extract for single-page rendering
-                    _mpf2 = parse_multipage_html_output(final_content)
-                    _mpf2 = validate_and_autofix_files(_mpf2)
-                    if _mpf2 and _mpf2.get('index.html'):
-                        preview_val = send_to_sandbox_with_refresh(inline_multipage_into_single_preview(_mpf2))
-                    else:
-                        safe_preview = extract_html_document(final_content)
-                        preview_val = send_to_sandbox_with_refresh(safe_preview)
-                elif language == "python" and is_streamlit_code(final_content):
-                    preview_val = send_streamlit_to_stlite(final_content)
+                # Generate deployment message instead of preview
+                deploy_message = f"""
+                <div style='padding: 2em; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);'>
+                    <h2 style='margin-top: 0; font-size: 2em;'>🎉 Code Generated Successfully!</h2>
+                    <p style='font-size: 1.2em; margin: 1em 0; opacity: 0.95;'>Your {language.upper()} application is ready to deploy!</p>
+                    
+                    <div style='background: rgba(255,255,255,0.15); padding: 1.5em; border-radius: 10px; margin: 1.5em 0;'>
+                        <h3 style='margin-top: 0; font-size: 1.3em;'>🚀 Next Steps:</h3>
+                        <div style='text-align: left; max-width: 500px; margin: 0 auto;'>
+                            <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
+                                <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>1</span>
+                                Switch to the <strong>"Deploy"</strong> tab above
+                            </p>
+                            <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
+                                <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>2</span>
+                                Enter your app name below
+                            </p>
+                            <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
+                                <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>3</span>
+                                Click <strong>"Deploy App"</strong>
+                            </p>
+                            <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
+                                <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>4</span>
+                                Share your creation! 🌍
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <p style='font-size: 1em; opacity: 0.9; margin-bottom: 0;'>
+                        💡 Your app will be live on Hugging Face Spaces in seconds!
+                    </p>
+                </div>
+                """
+                
                 yield {
                     code_output: final_content,
                     history: _history,
-                    sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
+                    sandbox: deploy_message,
                     history_output: history_to_chatbot_messages(_history),
                 }
         return
@@ -6575,24 +6600,45 @@ This will help me create a better design for you."""
             # Use final content without media generation
             
             _history.append([query, final_content])
-            preview_val = None
-            if language == "html":
-                # Use full content for multipage detection, then extract for single-page rendering
-                _mpf = parse_multipage_html_output(final_content)
-                _mpf = validate_and_autofix_files(_mpf)
-                if _mpf and _mpf.get('index.html'):
-                    preview_val = send_to_sandbox_with_refresh(inline_multipage_into_single_preview(_mpf))
-                else:
-                    safe_preview = extract_html_document(final_content)
-                    preview_val = send_to_sandbox_with_refresh(safe_preview)
-            elif language == "python" and is_streamlit_code(final_content):
-                preview_val = send_streamlit_to_stlite(final_content)
-            elif language == "gradio" or (language == "python" and is_gradio_code(final_content)):
-                preview_val = send_gradio_to_lite(final_content)
+            
+            # Generate deployment message instead of preview
+            deploy_message = f"""
+            <div style='padding: 2em; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);'>
+                <h2 style='margin-top: 0; font-size: 2em;'>🎉 Code Generated Successfully!</h2>
+                <p style='font-size: 1.2em; margin: 1em 0; opacity: 0.95;'>Your {language.upper()} application is ready to deploy!</p>
+                
+                <div style='background: rgba(255,255,255,0.15); padding: 1.5em; border-radius: 10px; margin: 1.5em 0;'>
+                    <h3 style='margin-top: 0; font-size: 1.3em;'>🚀 Next Steps:</h3>
+                    <div style='text-align: left; max-width: 500px; margin: 0 auto;'>
+                        <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
+                            <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>1</span>
+                            Switch to the <strong>"Deploy"</strong> tab above
+                        </p>
+                        <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
+                            <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>2</span>
+                            Enter your app name below
+                        </p>
+                        <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
+                            <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>3</span>
+                            Click <strong>"Deploy App"</strong>
+                        </p>
+                        <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
+                            <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>4</span>
+                            Share your creation! 🌍
+                        </p>
+                    </div>
+                </div>
+                
+                <p style='font-size: 1em; opacity: 0.9; margin-bottom: 0;'>
+                    💡 Your app will be live on Hugging Face Spaces in seconds!
+                </p>
+            </div>
+            """
+            
             yield {
                 code_output: final_content,
                 history: _history,
-                sandbox: preview_val or "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML or Streamlit-in-Python.</div>",
+                sandbox: deploy_message,
                 history_output: history_to_chatbot_messages(_history),
             }
     except Exception as e:
@@ -7728,12 +7774,13 @@ with gr.Blocks(
         with gr.Row():
             btn = gr.Button("Generate", variant="secondary", size="lg", scale=2, visible=True, interactive=False)
             clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)
-        # --- Deploy/app name/sdk components ---
+        # --- Deploy/app name/sdk components (visible by default) ---
+        deploy_header_md = gr.Markdown("## 🚀 Deploy Your App", visible=True)
         space_name_input = gr.Textbox(
-            label="app name (e.g. my-cool-app)",
-            placeholder="Enter your app name",
+            label="App Name (e.g. my-cool-app)",
+            placeholder="Enter your app name to deploy",
             lines=1,
-            visible=False
+            visible=True
         )
         sdk_choices = [
             ("Gradio (Python)", "gradio"),
@@ -7746,9 +7793,9 @@ with gr.Blocks(
             choices=[x[0] for x in sdk_choices],
             value="Static (HTML)",
             label="App SDK",
-            visible=False
+            visible=True
         )
-        deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=False)
+        deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=True)
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
         # --- End move ---
         # Removed media generation and web search UI components
@@ -7791,14 +7838,34 @@ with gr.Blocks(
 
     with gr.Column() as main_column:
         with gr.Tabs():
-            with gr.Tab("Preview"):
-                sandbox = gr.HTML(label="Live preview")
             with gr.Tab("Code"):
                 code_output = gr.Code(
                     language="html", 
                     lines=25, 
                     interactive=True,
                     label="Generated code"
+                )
+            with gr.Tab("Deploy"):
+                sandbox = gr.HTML(
+                    value="""
+                    <div style='padding: 2em; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin: 1em 0;'>
+                        <h2 style='margin-top: 0; font-size: 2em;'>🚀 Ready to Deploy?</h2>
+                        <p style='font-size: 1.2em; margin: 1em 0;'>Your code is generated! Now it's time to bring it to life.</p>
+                        <div style='background: rgba(255,255,255,0.1); padding: 1.5em; border-radius: 8px; margin: 1em 0;'>
+                            <h3 style='margin-top: 0;'>📝 Steps to Deploy:</h3>
+                            <ol style='text-align: left; max-width: 600px; margin: 0 auto; font-size: 1.1em; line-height: 1.6;'>
+                                <li><strong>Enter your app name</strong> in the field below</li>
+                                <li><strong>Choose your deployment platform</strong> (Gradio, Streamlit, Static HTML, etc.)</li>
+                                <li><strong>Click "Deploy App"</strong> to create your Hugging Face Space</li>
+                                <li><strong>Share your creation</strong> with the world! 🌍</li>
+                            </ol>
+                        </div>
+                        <p style='font-size: 1em; opacity: 0.9; margin-bottom: 0;'>
+                            💡 <strong>Tip:</strong> Your app will be live and accessible to everyone once deployed!
+                        </p>
+                    </div>
+                    """,
+                    label="Deployment Guide"
                 )
                 
                 
@@ -8192,53 +8259,31 @@ with gr.Blocks(
         outputs=[tjs_html_code, tjs_js_code, tjs_css_code, tjs_group],
     )
 
-    def preview_logic(code, language, html_part=None, js_part=None, css_part=None):
-        if language == "html":
-            # If the content is a multi-page block, inline for preview; else render directly
-            files = parse_multipage_html_output(code)
-            files = validate_and_autofix_files(files)
-            if files and files.get('index.html'):
-                merged = inline_multipage_into_single_preview(files)
-                return send_to_sandbox(merged)
-            return send_to_sandbox(code)
-        if language == "streamlit":
-            return send_streamlit_to_stlite(code) if is_streamlit_code(code) else "<div style='padding:1em;color:#888;text-align:center;'>Add `import streamlit as st` to enable Streamlit preview.</div>"
-        if language == "gradio":
-            return send_gradio_to_lite(code) if is_gradio_code(code) else "<div style='padding:1em;color:#888;text-align:center;'>Add `import gradio as gr` to enable Gradio preview.</div>"
-        if language == "python" or is_streamlit_code(code):
-            if is_streamlit_code(code):
-                return send_streamlit_to_stlite(code)
-            return "<div style='padding:1em;color:#888;text-align:center;'>Preview available only for Streamlit apps in Python. Add `import streamlit as st`.</div>"
-        if language == "transformers.js":
-            # Prefer values passed from multi-file editors if present; fallback to parsing single editor content
-            files = {'index.html': html_part or '', 'index.js': js_part or '', 'style.css': css_part or ''}
-            if not (files['index.html'] or files['index.js'] or files['style.css']):
-                files = parse_transformers_js_output(code)
-            if files['index.html']:
-                return send_transformers_to_sandbox(files)
-            return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your code using the download button above.</div>"
-        if language == "svelte":
-            return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML. Please download your Svelte code and deploy it to see the result.</div>"
-        if language == "json":
-            return "<div style='padding:1em;color:#888;text-align:center;'>JSON data generated successfully. Use the download button to save your JSON file.</div>"
-        return "<div style='padding:1em;color:#888;text-align:center;'>Preview is only available for HTML.</div>"
+    # Preview functions removed - replaced with deployment messaging
+    # The following functions are no longer used as preview has been removed:
+    # - preview_logic: replaced with deployment messages
+    # - preview_from_tjs_editors: replaced with deployment messages
+    # - send_to_sandbox: still used in some places but could be removed in future cleanup
 
-    # Direct preview updates from multi-file editor changes
-    def preview_from_tjs_editors(html_code, js_code, css_code):
-        files = {'index.html': html_code or '', 'index.js': js_code or '', 'style.css': css_code or ''}
-        if files['index.html']:
-            return send_transformers_to_sandbox(files)
-        return gr.update()
-
-    tjs_html_code.change(preview_from_tjs_editors, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
-    tjs_js_code.change(preview_from_tjs_editors, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
-    tjs_css_code.change(preview_from_tjs_editors, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
+    # Show deployment message for transformers.js editors
+    def show_tjs_deployment_message(*args):
+        return """
+        <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 10px;'>
+            <h3 style='margin-top: 0; color: white;'>🚀 Transformers.js App Ready!</h3>
+            <p style='margin: 0.5em 0; opacity: 0.9;'>Your multi-file Transformers.js application is ready for deployment.</p>
+            <p style='margin: 0.5em 0; font-weight: bold;'>👉 Switch to the "Deploy" tab to publish your app!</p>
+        </div>
+        """
+    
+    tjs_html_code.change(show_tjs_deployment_message, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
+    tjs_js_code.change(show_tjs_deployment_message, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
+    tjs_css_code.change(show_tjs_deployment_message, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
 
     def show_deploy_components(*args):
-        return [gr.Textbox(visible=True), gr.Dropdown(visible=False), gr.Button(visible=True)]
+        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
 
     def hide_deploy_components(*args):
-        return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False)]
+        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
     
     def update_deploy_button_text(space_name):
         """Update deploy button text based on whether it's a new space or update"""
@@ -8376,9 +8421,20 @@ with gr.Blocks(
         return match.group(0) if match else None
 
 
-    # Update preview when code or language changes (supports multi-file path via optional args)
-    code_output.change(preview_logic, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
-    language_dropdown.change(preview_logic, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
+    # Show deployment message when code or language changes
+    def show_deployment_message(code, language, *args):
+        if not code or not code.strip():
+            return "<div style='padding:1em;color:#888;text-align:center;'>Generate some code to see deployment options.</div>"
+        return f"""
+        <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 10px;'>
+            <h3 style='margin-top: 0; color: white;'>🚀 Ready to Deploy!</h3>
+            <p style='margin: 0.5em 0; opacity: 0.9;'>Your {language.upper()} code is ready for deployment.</p>
+            <p style='margin: 0.5em 0; font-weight: bold;'>👉 Switch to the "Deploy" tab to publish your app!</p>
+        </div>
+        """
+    
+    code_output.change(show_deployment_message, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
+    language_dropdown.change(show_deployment_message, inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
     # Update deploy button text when space name changes
     space_name_input.change(update_deploy_button_text, inputs=[space_name_input], outputs=[deploy_btn])
     clear_btn.click(clear_history, outputs=[history, history_output, website_url_input])
