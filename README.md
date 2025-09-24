@@ -66,7 +66,7 @@ python app.py
 4. Click "Generate" to create your code
 5. View the generated code in the Code tab or see it in action in the Preview tab
 6. Use the History tab to review previous generations
-7. **Deploy to Space**: Enter a title, select SDK, and click "🚀 Deploy App" to publish your application (OAuth login required)
+7. **Deploy to Space**: Enter a title and click "🚀 Deploy App" to publish your application (OAuth login required) - the SDK is automatically matched to your selected code language
 
 ## Supported Models
 

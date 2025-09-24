@@ -8235,7 +8235,7 @@ with gr.Blocks(
     tjs_css_code.change(preview_from_tjs_editors, inputs=[tjs_html_code, tjs_js_code, tjs_css_code], outputs=sandbox)
 
     def show_deploy_components(*args):
-        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
+        return [gr.Textbox(visible=True), gr.Dropdown(visible=False), gr.Button(visible=True)]
 
     def hide_deploy_components(*args):
         return [gr.Textbox(visible=False), gr.Dropdown(visible=False), gr.Button(visible=False)]
