@@ -5939,7 +5939,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                 <div style='padding: 1.5em; text-align: center; background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 10px; color: #0c4a6e;'>
                     <h3 style='margin-top: 0; color: #0ea5e9;'>✅ Code Updated Successfully!</h3>
                     <p style='margin: 0.5em 0; font-size: 1.1em;'>Your {language.upper()} code has been modified and is ready for deployment.</p>
-                    <p style='margin: 0.5em 0; font-weight: bold;'>👉 Switch to the "Deploy" tab to publish your app!</p>
+                    <p style='margin: 0.5em 0; font-weight: bold;'>👉 Use the Deploy button in the sidebar to publish your app!</p>
                 </div>
                 """
                 
@@ -6137,7 +6137,7 @@ This will help me create a better design for you."""
                     <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 10px;'>
                         <h3 style='margin-top: 0; color: white;'>✅ {language.upper()} Code Generated!</h3>
                         <p style='margin: 0.5em 0; opacity: 0.9;'>Your code is ready for deployment.</p>
-                        <p style='margin: 0.5em 0; font-weight: bold;'>👉 Switch to the "Deploy" tab to publish your app!</p>
+                        <p style='margin: 0.5em 0; font-weight: bold;'>👉 Use the Deploy button in the sidebar to publish your app!</p>
                     </div>
                     """,
                     history_output: history_to_chatbot_messages(_history),
@@ -6157,7 +6157,7 @@ This will help me create a better design for you."""
                         <div style='text-align: left; max-width: 500px; margin: 0 auto;'>
                             <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
                                 <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>1</span>
-                                Switch to the <strong>"Deploy"</strong> tab above
+                                Use the <strong>Deploy button</strong> in the sidebar
                             </p>
                             <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
                                 <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>2</span>
@@ -6612,7 +6612,7 @@ This will help me create a better design for you."""
                     <div style='text-align: left; max-width: 500px; margin: 0 auto;'>
                         <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
                             <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>1</span>
-                            Switch to the <strong>"Deploy"</strong> tab above
+                            Use the <strong>Deploy button</strong> in the sidebar
                         </p>
                         <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
                             <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>2</span>
@@ -7845,28 +7845,6 @@ with gr.Blocks(
                     interactive=True,
                     label="Generated code"
                 )
-            with gr.Tab("Deploy"):
-                sandbox = gr.HTML(
-                    value="""
-                    <div style='padding: 2em; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 10px; margin: 1em 0;'>
-                        <h2 style='margin-top: 0; font-size: 2em;'>🚀 Ready to Deploy?</h2>
-                        <p style='font-size: 1.2em; margin: 1em 0;'>Your code is generated! Now it's time to bring it to life.</p>
-                        <div style='background: rgba(255,255,255,0.1); padding: 1.5em; border-radius: 8px; margin: 1em 0;'>
-                            <h3 style='margin-top: 0;'>📝 Steps to Deploy:</h3>
-                            <ol style='text-align: left; max-width: 600px; margin: 0 auto; font-size: 1.1em; line-height: 1.6;'>
-                                <li><strong>Enter your app name</strong> in the field below</li>
-                                <li><strong>Choose your deployment platform</strong> (Gradio, Streamlit, Static HTML, etc.)</li>
-                                <li><strong>Click "Deploy App"</strong> to create your Hugging Face Space</li>
-                                <li><strong>Share your creation</strong> with the world! 🌍</li>
-                            </ol>
-                        </div>
-                        <p style='font-size: 1em; opacity: 0.9; margin-bottom: 0;'>
-                            💡 <strong>Tip:</strong> Your app will be live and accessible to everyone once deployed!
-                        </p>
-                    </div>
-                    """,
-                    label="Deployment Guide"
-                )
                 
                 
                 
@@ -8271,7 +8249,7 @@ with gr.Blocks(
         <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 10px;'>
             <h3 style='margin-top: 0; color: white;'>🚀 Transformers.js App Ready!</h3>
             <p style='margin: 0.5em 0; opacity: 0.9;'>Your multi-file Transformers.js application is ready for deployment.</p>
-            <p style='margin: 0.5em 0; font-weight: bold;'>👉 Switch to the "Deploy" tab to publish your app!</p>
+            <p style='margin: 0.5em 0; font-weight: bold;'>👉 Use the Deploy button in the sidebar to publish your app!</p>
         </div>
         """
     
@@ -8429,7 +8407,7 @@ with gr.Blocks(
         <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 10px;'>
             <h3 style='margin-top: 0; color: white;'>🚀 Ready to Deploy!</h3>
             <p style='margin: 0.5em 0; opacity: 0.9;'>Your {language.upper()} code is ready for deployment.</p>
-            <p style='margin: 0.5em 0; font-weight: bold;'>👉 Switch to the "Deploy" tab to publish your app!</p>
+            <p style='margin: 0.5em 0; font-weight: bold;'>👉 Use the Deploy button in the sidebar to publish your app!</p>
         </div>
         """
     
