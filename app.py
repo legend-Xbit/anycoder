@@ -8579,7 +8579,7 @@ with gr.Blocks(
                 error_prefix = "Error duplicating Streamlit space" if not is_update else "Error updating Streamlit space"
                 return gr.update(value=f"{error_prefix}: {e}", visible=True)
         # Transformers.js logic
-        elif sdk_name == "Transformers.js":
+        elif language == "transformers.js":
             try:
                 # For new spaces, duplicate the template. For updates, just verify access.
                 if not is_update:
@@ -8701,7 +8701,7 @@ with gr.Blocks(
                 action_verb = "updating" if is_update else "duplicating"
                 return gr.update(value=f"Error {action_verb} Transformers.js space: {error_msg}", visible=True)
         # Svelte logic
-        elif sdk_name == "Svelte":
+        elif language == "svelte":
             try:
                 actual_repo_id = repo_id
                 # For new spaces, duplicate the template first
@@ -8826,7 +8826,7 @@ with gr.Blocks(
                 import os
                 
                 # Upload temporary media files to HF and replace URLs (only for Static HTML, not Transformers.js)
-                if sdk == "static" and sdk_name == "Static (HTML)":
+                if sdk == "static" and language == "html":
                     print("[Deploy] Uploading temporary media files to HF and updating URLs for multi-file static HTML app")
                     # Update the index.html file with permanent media URLs
                     if 'index.html' in files:
@@ -8862,7 +8862,7 @@ with gr.Blocks(
             file_name = "index.html"
             
             # Upload temporary media files to HF and replace URLs (only for Static HTML, not Transformers.js)
-            if sdk == "static" and sdk_name == "Static (HTML)":
+            if sdk == "static" and language == "html":
                 print("[Deploy] Uploading temporary media files to HF and updating URLs for single-file static HTML app")
                 code = upload_temp_files_to_hf_and_replace_urls(code, token)
             
