@@ -6556,6 +6556,175 @@ def wrap_html_in_static_app(html_code):
     # For static Spaces, just use the HTML code as-is
     return html_code
 
+def prettify_comfyui_json_for_html(json_content: str) -> str:
+    """Convert ComfyUI JSON to prettified HTML display"""
+    try:
+        import json
+        # Parse and prettify the JSON
+        parsed_json = json.loads(json_content)
+        prettified_json = json.dumps(parsed_json, indent=2, ensure_ascii=False)
+        
+        # Create HTML wrapper with syntax highlighting
+        html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI Workflow</title>
+    <style>
+        body {{
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.4;
+        }}
+        .header {{
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 2em;
+        }}
+        .header a {{
+            color: #ffffff;
+            text-decoration: none;
+            font-weight: bold;
+            opacity: 0.9;
+        }}
+        .header a:hover {{
+            opacity: 1;
+            text-decoration: underline;
+        }}
+        .json-container {{
+            background-color: #2d2d30;
+            border-radius: 8px;
+            padding: 20px;
+            overflow-x: auto;
+            border: 1px solid #3e3e42;
+        }}
+        pre {{
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }}
+        .json-key {{
+            color: #9cdcfe;
+        }}
+        .json-string {{
+            color: #ce9178;
+        }}
+        .json-number {{
+            color: #b5cea8;
+        }}
+        .json-boolean {{
+            color: #569cd6;
+        }}
+        .json-null {{
+            color: #569cd6;
+        }}
+        .copy-btn {{
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }}
+        .copy-btn:hover {{
+            background: #005a9e;
+        }}
+        .download-btn {{
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            margin-left: 10px;
+            font-family: inherit;
+        }}
+        .download-btn:hover {{
+            background: #218838;
+        }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ComfyUI Workflow</h1>
+        <p>Built with <a href="https://huggingface.co/spaces/akhaliq/anycoder" target="_blank">anycoder</a></p>
+    </div>
+    
+    <button class="copy-btn" onclick="copyToClipboard()">📋 Copy JSON</button>
+    <button class="download-btn" onclick="downloadJSON()">💾 Download JSON</button>
+    
+    <div class="json-container">
+        <pre id="json-content">{prettified_json}</pre>
+    </div>
+
+    <script>
+        function copyToClipboard() {{
+            const jsonContent = document.getElementById('json-content').textContent;
+            navigator.clipboard.writeText(jsonContent).then(() => {{
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                setTimeout(() => {{
+                    btn.textContent = originalText;
+                }}, 2000);
+            }});
+        }}
+
+        function downloadJSON() {{
+            const jsonContent = document.getElementById('json-content').textContent;
+            const blob = new Blob([jsonContent], {{ type: 'application/json' }});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'comfyui_workflow.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }}
+
+        // Add syntax highlighting
+        function highlightJSON() {{
+            const content = document.getElementById('json-content');
+            let html = content.innerHTML;
+            
+            // Highlight different JSON elements
+            html = html.replace(/"([^"]+)":/g, '<span class="json-key">"$1":</span>');
+            html = html.replace(/: "([^"]*)"/g, ': <span class="json-string">"$1"</span>');
+            html = html.replace(/: (-?\d+\.?\d*)/g, ': <span class="json-number">$1</span>');
+            html = html.replace(/: (true|false)/g, ': <span class="json-boolean">$1</span>');
+            html = html.replace(/: null/g, ': <span class="json-null">null</span>');
+            
+            content.innerHTML = html;
+        }}
+
+        // Apply syntax highlighting after page load
+        window.addEventListener('load', highlightJSON);
+    </script>
+</body>
+</html>"""
+        return html_content
+    except json.JSONDecodeError:
+        # If it's not valid JSON, return as-is
+        return json_content
+    except Exception as e:
+        print(f"Error prettifying ComfyUI JSON: {e}")
+        return json_content
+
 def deploy_to_spaces_static(code):
     if not code or not code.strip():
         return  # Do nothing if code is empty
@@ -8134,7 +8303,8 @@ with gr.Blocks(
             "streamlit": "docker",  # Use 'docker' for Streamlit Spaces
             "html": "static",
             "transformers.js": "static",  # Transformers.js uses static SDK
-            "svelte": "static"  # Svelte uses static SDK
+            "svelte": "static",  # Svelte uses static SDK
+            "comfyui": "static"  # ComfyUI uses static SDK
         }
         sdk = language_to_sdk_map.get(language, "gradio")
         
@@ -8531,6 +8701,11 @@ with gr.Blocks(
             
             # Fallback: single-file static HTML (upload index.html only)
             file_name = "index.html"
+            
+            # Special handling for ComfyUI: prettify JSON and wrap in HTML
+            if language == "comfyui":
+                print("[Deploy] Converting ComfyUI JSON to prettified HTML display")
+                code = prettify_comfyui_json_for_html(code)
             
             # Upload temporary media files to HF and replace URLs (only for Static HTML, not Transformers.js)
             if sdk == "static" and language == "html":
