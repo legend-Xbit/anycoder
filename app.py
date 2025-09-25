@@ -47,6 +47,8 @@ def get_gradio_language(language):
         return "python"
     if language == "gradio":
         return "python"
+    if language == "comfyui":
+        return "json"
     return language if language in GRADIO_SUPPORTED_LANGUAGES else None
 
 # Search/Replace Constants
@@ -1009,7 +1011,7 @@ def update_json_system_prompts():
     
     docs_content = get_comfyui_docs_content()
     
-    # Base system prompt
+    # Base system prompt for regular JSON
     base_prompt = """You are an expert JSON developer. Generate clean, valid JSON data based on the user's request. Follow JSON syntax rules strictly:
 - Use double quotes for strings
 - No trailing commas
@@ -1020,7 +1022,7 @@ Generate ONLY the JSON data requested - no HTML, no applications, no explanation
 
 """
     
-    # Search-enabled system prompt
+    # Search-enabled system prompt for regular JSON
     search_prompt = """You are an expert JSON developer. You have access to real-time web search. When needed, use web search to find the latest information or data structures for your JSON generation.
 
 Generate clean, valid JSON data based on the user's request. Follow JSON syntax rules strictly:
@@ -1051,6 +1053,48 @@ This reference is automatically synced from https://docs.comfy.org/llms.txt to e
     # Update the prompts
     JSON_SYSTEM_PROMPT = base_prompt
     JSON_SYSTEM_PROMPT_WITH_SEARCH = search_prompt
+
+def get_comfyui_system_prompt():
+    """Get ComfyUI-specific system prompt with enhanced guidance"""
+    docs_content = get_comfyui_docs_content()
+    
+    base_prompt = """You are an expert ComfyUI developer. Generate clean, valid JSON workflows for ComfyUI based on the user's request. 
+
+ComfyUI workflows are JSON structures that define:
+- Nodes: Individual processing units with specific functions
+- Connections: Links between nodes that define data flow
+- Parameters: Configuration values for each node
+- Inputs/Outputs: Data flow between nodes
+
+Follow JSON syntax rules strictly:
+- Use double quotes for strings
+- No trailing commas
+- Proper nesting and structure
+- Valid data types (string, number, boolean, null, object, array)
+
+Generate ONLY the ComfyUI workflow JSON - no HTML, no applications, no explanations outside the JSON. The output should be a complete, valid ComfyUI workflow that can be loaded directly into ComfyUI.
+
+"""
+    
+    # Add ComfyUI documentation if available
+    if docs_content.strip():
+        comfyui_section = f"""
+## ComfyUI Reference Documentation
+
+Use this reference for accurate node types, parameters, and workflow structures:
+
+{docs_content}
+
+This reference is automatically synced from https://docs.comfy.org/llms.txt to ensure accuracy.
+
+"""
+        base_prompt += comfyui_section
+    
+    base_prompt += """
+IMPORTANT: Always include "Built with anycoder" as a comment or metadata field in your ComfyUI workflow JSON that references https://huggingface.co/spaces/akhaliq/anycoder
+"""
+    
+    return base_prompt
 
 # Initialize Gradio documentation on startup
 def initialize_gradio_docs():
@@ -5654,6 +5698,8 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = GRADIO_SYSTEM_PROMPT
         elif language == "json":
             system_prompt = JSON_SYSTEM_PROMPT
+        elif language == "comfyui":
+            system_prompt = get_comfyui_system_prompt()
         else:
             system_prompt = GENERIC_SYSTEM_PROMPT.format(language=language)
 
