@@ -7760,7 +7760,7 @@ with gr.Blocks(
             choices=[x[0] for x in sdk_choices],
             value="Static (HTML)",
             label="App SDK",
-            visible=True
+            visible=False
         )
         deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=True)
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
@@ -7977,22 +7977,8 @@ with gr.Blocks(
     def update_code_language(language):
         return gr.update(language=get_gradio_language(language))
 
-    def update_sdk_based_on_language(language):
-        if language == "transformers.js":
-            return gr.update(value="Transformers.js")
-        elif language == "svelte":
-            return gr.update(value="Svelte")
-        elif language == "html":
-            return gr.update(value="Static (HTML)")
-        elif language == "streamlit":
-            return gr.update(value="Streamlit (Python)")
-        elif language == "gradio":
-            return gr.update(value="Gradio (Python)")
-        else:
-            return gr.update(value="Gradio (Python)")
 
     language_dropdown.change(update_code_language, inputs=language_dropdown, outputs=code_output)
-    language_dropdown.change(update_sdk_based_on_language, inputs=language_dropdown, outputs=sdk_dropdown)
 
     # Toggle single vs multi-file editors for transformers.js and populate when switching
     def toggle_editors(language, code_text):
@@ -8219,10 +8205,10 @@ with gr.Blocks(
     
 
     def show_deploy_components(*args):
-        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
+        return [gr.Textbox(visible=True), gr.Button(visible=True)]
 
     def hide_deploy_components(*args):
-        return [gr.Textbox(visible=True), gr.Dropdown(visible=True), gr.Button(visible=True)]
+        return [gr.Textbox(visible=True), gr.Button(visible=True)]
     
     def update_deploy_button_text(space_name):
         """Update deploy button text based on whether it's a new space or update"""
@@ -8315,7 +8301,7 @@ with gr.Blocks(
     ).then(
         show_deploy_components,
         None,
-        [space_name_input, sdk_dropdown, deploy_btn]
+        [space_name_input, deploy_btn]
     ).then(
         preserve_space_info_for_followup,
         inputs=[history],
@@ -8339,7 +8325,7 @@ with gr.Blocks(
     ).then(
         show_deploy_components,
         None,
-        [space_name_input, sdk_dropdown, deploy_btn]
+        [space_name_input, deploy_btn]
     ).then(
         preserve_space_info_for_followup,
         inputs=[history],
@@ -8374,7 +8360,7 @@ with gr.Blocks(
     # Update deploy button text when space name changes
     space_name_input.change(update_deploy_button_text, inputs=[space_name_input], outputs=[deploy_btn])
     clear_btn.click(clear_history, outputs=[history, history_output, website_url_input])
-    clear_btn.click(hide_deploy_components, None, [space_name_input, sdk_dropdown, deploy_btn])
+    clear_btn.click(hide_deploy_components, None, [space_name_input, deploy_btn])
     # Reset space name and button text when clearing
     clear_btn.click(
         lambda: [gr.update(value=""), gr.update(value="🚀 Deploy App")],
@@ -8434,7 +8420,7 @@ with gr.Blocks(
     def deploy_to_user_space(
         code, 
         space_name, 
-        sdk_name,  # new argument
+        language,  # changed from sdk_name to language
         profile: gr.OAuthProfile | None = None, 
         token: gr.OAuthToken | None = None
     ):
@@ -8471,20 +8457,20 @@ with gr.Blocks(
             # This is a new space, create repo_id with current user
             username = profile.username
             repo_id = f"{username}/{space_name.strip()}"
-        # Map SDK name to HF SDK slug
-        sdk_map = {
-            "Gradio (Python)": "gradio",
-            "Streamlit (Python)": "docker",  # Use 'docker' for Streamlit Spaces
-            "Static (HTML)": "static",
-            "Transformers.js": "static",  # Transformers.js uses static SDK
-            "Svelte": "static"  # Svelte uses static SDK
+        # Map language to HF SDK slug
+        language_to_sdk_map = {
+            "gradio": "gradio",
+            "streamlit": "docker",  # Use 'docker' for Streamlit Spaces
+            "html": "static",
+            "transformers.js": "static",  # Transformers.js uses static SDK
+            "svelte": "static"  # Svelte uses static SDK
         }
-        sdk = sdk_map.get(sdk_name, "gradio")
+        sdk = language_to_sdk_map.get(language, "gradio")
         
         # Create API client with user's token for proper authentication
         api = HfApi(token=token.token)
         # Only create the repo for new spaces (not updates) and non-Transformers.js, non-Streamlit, and non-Svelte SDKs
-        if not is_update and sdk != "docker" and sdk_name not in ["Transformers.js", "Svelte"]:
+        if not is_update and sdk != "docker" and language not in ["transformers.js", "svelte"]:
             try:
                 api.create_repo(
                     repo_id=repo_id,  # e.g. username/space_name
@@ -9008,7 +8994,7 @@ with gr.Blocks(
         queue=False,
     ).then(
         deploy_to_user_space,
-        inputs=[code_output, space_name_input, sdk_dropdown],
+        inputs=[code_output, space_name_input, language_dropdown],
         outputs=deploy_status
     )
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
