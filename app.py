@@ -1834,6 +1834,16 @@ AVAILABLE_MODELS = [
         "description": "Google Gemini 2.5 Pro via OpenAI-compatible API"
     },
     {
+        "name": "Gemini Flash Latest",
+        "id": "gemini-flash-latest",
+        "description": "Google Gemini Flash Latest model via native Gemini API"
+    },
+    {
+        "name": "Gemini Flash Lite Latest",
+        "id": "gemini-flash-lite-latest",
+        "description": "Google Gemini Flash Lite Latest model via OpenAI-compatible API"
+    },
+    {
         "name": "GPT-OSS-120B",
         "id": "openai/gpt-oss-120b",
         "description": "OpenAI GPT-OSS-120B model for advanced code generation and general tasks"
@@ -1886,7 +1896,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Qwen3-Max-2025-09-23"
+DEFAULT_MODEL_NAME = "Gemini Flash Latest"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -2059,6 +2069,18 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "gemini-2.5-pro":
         # Use Google Gemini Pro (OpenAI-compatible) client
+        return OpenAI(
+            api_key=os.getenv("GEMINI_API_KEY"),
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+    elif model_id == "gemini-flash-latest":
+        # Use Google Gemini Flash Latest (OpenAI-compatible) client
+        return OpenAI(
+            api_key=os.getenv("GEMINI_API_KEY"),
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
+    elif model_id == "gemini-flash-lite-latest":
+        # Use Google Gemini Flash Lite Latest (OpenAI-compatible) client
         return OpenAI(
             api_key=os.getenv("GEMINI_API_KEY"),
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
