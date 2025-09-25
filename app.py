@@ -1093,17 +1093,6 @@ def initialize_fastrtc_docs():
 # Configuration
 HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
-For website redesign tasks:
-- Use the provided original HTML code as the starting point for redesign
-- Preserve all original content, structure, and functionality
-- Keep the same semantic HTML structure but enhance the styling
-- Reuse all original images and their URLs from the HTML code
-- Create a modern, responsive design with improved typography and spacing
-- Use modern CSS frameworks and design patterns
-- Ensure accessibility and mobile responsiveness
-- Maintain the same navigation and user flow
-- Enhance the visual design while keeping the original layout structure
-
 If an image is provided, analyze it and use the visual information to better understand the user's requirements.
 
 Always respond with code that can be executed or rendered directly.
@@ -1901,10 +1890,6 @@ DEMO_LIST = [
     {
         "title": "Extract Text from Image",
         "description": "Upload an image containing text and I'll extract and process the text content"
-    },
-    {
-        "title": "Website Redesign",
-        "description": "Enter a website URL to extract its content and redesign it with a modern, responsive layout"
     },
     {
         "title": "Modify HTML",
@@ -5447,339 +5432,6 @@ def demo_card_click(e: gr.EventData):
         # Return the first demo description as fallback
         return DEMO_LIST[0]['description']
 
-def extract_website_content(url: str) -> str:
-    """Extract HTML code and content from a website URL"""
-    try:
-        # Validate URL
-        parsed_url = urlparse(url)
-        if not parsed_url.scheme:
-            url = "https://" + url
-            parsed_url = urlparse(url)
-        
-        if not parsed_url.netloc:
-            return "Error: Invalid URL provided"
-        
-        # Set comprehensive headers to mimic a real browser request
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Sec-Fetch-User': '?1',
-            'Cache-Control': 'max-age=0'
-        }
-        
-        # Create a session to maintain cookies and handle redirects
-        session = requests.Session()
-        session.headers.update(headers)
-        
-        # Make the request with retry logic
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = session.get(url, timeout=15, allow_redirects=True)
-                response.raise_for_status()
-                break
-            except requests.exceptions.HTTPError as e:
-                if e.response.status_code == 403 and attempt < max_retries - 1:
-                    # Try with different User-Agent on 403
-                    session.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                    continue
-                else:
-                    raise
-        
-        # Get the raw HTML content with proper encoding
-        try:
-            # Try to get the content with automatic encoding detection
-            response.encoding = response.apparent_encoding
-            raw_html = response.text
-        except:
-            # Fallback to UTF-8 if encoding detection fails
-            raw_html = response.content.decode('utf-8', errors='ignore')
-        
-        # Debug: Check if we got valid HTML
-        if not raw_html.strip().startswith('<!DOCTYPE') and not raw_html.strip().startswith('<html'):
-            print(f"Warning: Response doesn't look like HTML. First 200 chars: {raw_html[:200]}")
-            print(f"Response headers: {dict(response.headers)}")
-            print(f"Response encoding: {response.encoding}")
-            print(f"Apparent encoding: {response.apparent_encoding}")
-            
-            # Try alternative approaches
-            try:
-                raw_html = response.content.decode('latin-1', errors='ignore')
-                print("Tried latin-1 decoding")
-            except:
-                try:
-                    raw_html = response.content.decode('utf-8', errors='ignore')
-                    print("Tried UTF-8 decoding")
-                except:
-                    raw_html = response.content.decode('cp1252', errors='ignore')
-                    print("Tried cp1252 decoding")
-        
-        # Parse HTML content for analysis
-        soup = BeautifulSoup(raw_html, 'html.parser')
-        
-        # Check if this is a JavaScript-heavy site
-        script_tags = soup.find_all('script')
-        if len(script_tags) > 10:
-            print(f"Warning: This site has {len(script_tags)} script tags - it may be a JavaScript-heavy site")
-            print("The content might be loaded dynamically and not available in the initial HTML")
-        
-        # Extract title
-        title = soup.find('title')
-        title_text = title.get_text().strip() if title else "No title found"
-        
-        # Extract meta description
-        meta_desc = soup.find('meta', attrs={'name': 'description'})
-        description = meta_desc.get('content', '') if meta_desc else ""
-        
-        # Extract main content areas for analysis
-        content_sections = []
-        main_selectors = [
-            'main', 'article', '.content', '.main-content', '.post-content',
-            '#content', '#main', '.entry-content', '.post-body'
-        ]
-        
-        for selector in main_selectors:
-            elements = soup.select(selector)
-            for element in elements:
-                text = element.get_text().strip()
-                if len(text) > 100:  # Only include substantial content
-                    content_sections.append(text)
-        
-        # Extract navigation links for analysis
-        nav_links = []
-        nav_elements = soup.find_all(['nav', 'header'])
-        for nav in nav_elements:
-            links = nav.find_all('a')
-            for link in links:
-                link_text = link.get_text().strip()
-                link_href = link.get('href', '')
-                if link_text and link_href:
-                    nav_links.append(f"{link_text}: {link_href}")
-        
-        # Extract and fix image URLs in the HTML
-        img_elements = soup.find_all('img')
-        for img in img_elements:
-            src = img.get('src', '')
-            if src:
-                # Handle different URL formats
-                if src.startswith('//'):
-                    # Protocol-relative URL
-                    absolute_src = 'https:' + src
-                    img['src'] = absolute_src
-                elif src.startswith('/'):
-                    # Root-relative URL
-                    absolute_src = urljoin(url, src)
-                    img['src'] = absolute_src
-                elif not src.startswith(('http://', 'https://')):
-                    # Relative URL
-                    absolute_src = urljoin(url, src)
-                    img['src'] = absolute_src
-                # If it's already absolute, keep it as is
-                
-                # Also check for data-src (lazy loading) and other common attributes
-                data_src = img.get('data-src', '')
-                if data_src and not src:
-                    # Use data-src if src is empty
-                    if data_src.startswith('//'):
-                        absolute_data_src = 'https:' + data_src
-                        img['src'] = absolute_data_src
-                    elif data_src.startswith('/'):
-                        absolute_data_src = urljoin(url, data_src)
-                        img['src'] = absolute_data_src
-                    elif not data_src.startswith(('http://', 'https://')):
-                        absolute_data_src = urljoin(url, data_src)
-                        img['src'] = absolute_data_src
-                    else:
-                        img['src'] = data_src
-        
-        # Also fix background image URLs in style attributes
-        elements_with_style = soup.find_all(attrs={'style': True})
-        for element in elements_with_style:
-            style_attr = element.get('style', '')
-            # Find and replace relative URLs in background-image
-            import re
-            bg_pattern = r'background-image:\s*url\(["\']?([^"\']+)["\']?\)'
-            matches = re.findall(bg_pattern, style_attr, re.IGNORECASE)
-            for match in matches:
-                if match:
-                    if match.startswith('//'):
-                        absolute_bg = 'https:' + match
-                        style_attr = style_attr.replace(match, absolute_bg)
-                    elif match.startswith('/'):
-                        absolute_bg = urljoin(url, match)
-                        style_attr = style_attr.replace(match, absolute_bg)
-                    elif not match.startswith(('http://', 'https://')):
-                        absolute_bg = urljoin(url, match)
-                        style_attr = style_attr.replace(match, absolute_bg)
-            element['style'] = style_attr
-        
-        # Fix background images in <style> tags
-        style_elements = soup.find_all('style')
-        for style in style_elements:
-            if style.string:
-                style_content = style.string
-                # Find and replace relative URLs in background-image
-                bg_pattern = r'background-image:\s*url\(["\']?([^"\']+)["\']?\)'
-                matches = re.findall(bg_pattern, style_content, re.IGNORECASE)
-                for match in matches:
-                    if match:
-                        if match.startswith('//'):
-                            absolute_bg = 'https:' + match
-                            style_content = style_content.replace(match, absolute_bg)
-                        elif match.startswith('/'):
-                            absolute_bg = urljoin(url, match)
-                            style_content = style_content.replace(match, absolute_bg)
-                        elif not match.startswith(('http://', 'https://')):
-                            absolute_bg = urljoin(url, match)
-                            style_content = style_content.replace(match, absolute_bg)
-                style.string = style_content
-        
-        # Extract images for analysis (after fixing URLs)
-        images = []
-        img_elements = soup.find_all('img')
-        for img in img_elements:
-            src = img.get('src', '')
-            alt = img.get('alt', '')
-            if src:
-                images.append({'src': src, 'alt': alt})
-        
-        # Debug: Print some image URLs to see what we're getting
-        print(f"Found {len(images)} images:")
-        for i, img in enumerate(images[:5]):  # Show first 5 images
-            print(f"  {i+1}. {img['alt'] or 'No alt'} - {img['src']}")
-        
-        # Test a few image URLs to see if they're accessible
-        def test_image_url(img_url):
-            try:
-                test_response = requests.head(img_url, timeout=5, allow_redirects=True)
-                return test_response.status_code == 200
-            except:
-                return False
-        
-        # Test first few images
-        working_images = []
-        for img in images[:10]:  # Test first 10 images
-            if test_image_url(img['src']):
-                working_images.append(img)
-            else:
-                print(f"  ❌ Broken image: {img['src']}")
-        
-        print(f"Working images: {len(working_images)} out of {len(images)}")
-        
-        # Get the modified HTML with absolute URLs
-        modified_html = str(soup)
-        
-        # Clean and format the HTML for better readability
-        # Remove unnecessary whitespace and comments
-        import re
-        cleaned_html = re.sub(r'<!--.*?-->', '', modified_html, flags=re.DOTALL)  # Remove HTML comments
-        cleaned_html = re.sub(r'\s+', ' ', cleaned_html)  # Normalize whitespace
-        cleaned_html = re.sub(r'>\s+<', '><', cleaned_html)  # Remove whitespace between tags
-        
-        # Limit HTML size to avoid token limits (keep first 15000 chars)
-        if len(cleaned_html) > 15000:
-            cleaned_html = cleaned_html[:15000] + "\n<!-- ... HTML truncated for length ... -->"
-        
-                # Check if we got any meaningful content
-        if not title_text or title_text == "No title found":
-            title_text = url.split('/')[-1] or url.split('/')[-2] or "Website"
-        
-        # If we couldn't extract any meaningful content, provide a fallback
-        if len(cleaned_html.strip()) < 100:
-            website_content = f"""
-WEBSITE REDESIGN - EXTRACTION FAILED
-====================================
-
-URL: {url}
-Title: {title_text}
-
-ERROR: Could not extract meaningful HTML content from this website. This could be due to:
-1. The website uses heavy JavaScript to load content dynamically
-2. The website has anti-bot protection
-3. The website requires authentication
-4. The website is using advanced compression or encoding
-
-FALLBACK APPROACH:
-Please create a modern, responsive website design for a {title_text.lower()} website. Since I couldn't extract the original content, you can:
-
-1. Create a typical layout for this type of website
-2. Use placeholder content that would be appropriate
-3. Include modern design elements and responsive features
-4. Use a clean, professional design with good typography
-5. Make it mobile-friendly and accessible
-
-The website appears to be: {title_text}
-"""
-            return website_content.strip()
-        
-        # Compile the extracted content with the actual HTML code
-        website_content = f"""
-WEBSITE REDESIGN - ORIGINAL HTML CODE
-=====================================
-
-URL: {url}
-Title: {title_text}
-Description: {description}
-
-PAGE ANALYSIS:
-- This appears to be a {title_text.lower()} website
-- Contains {len(content_sections)} main content sections
-- Has {len(nav_links)} navigation links
-- Includes {len(images)} images
-
-IMAGES FOUND (use these exact URLs in your redesign):
-{chr(10).join([f"• {img['alt'] or 'Image'} - {img['src']}" for img in working_images[:20]]) if working_images else "No working images found"}
-
-ALL IMAGES (including potentially broken ones):
-{chr(10).join([f"• {img['alt'] or 'Image'} - {img['src']}" for img in images[:20]]) if images else "No images found"}
-
-ORIGINAL HTML CODE (use this as the base for redesign):
-```html
-{cleaned_html}
-```
-
-REDESIGN INSTRUCTIONS:
-Please redesign this website with a modern, responsive layout while:
-1. Preserving all the original content and structure
-2. Maintaining the same navigation and functionality
-3. Using the original images and their URLs (listed above)
-4. Creating a modern, clean design with improved typography and spacing
-5. Making it fully responsive for mobile devices
-6. Using modern CSS frameworks and best practices
-7. Keeping the same semantic structure but with enhanced styling
-
-IMPORTANT: All image URLs in the HTML code above have been converted to absolute URLs and are ready to use. Make sure to preserve these exact image URLs in your redesigned version.
-
-The HTML code above contains the complete original website structure with all images properly linked. Use it as your starting point and create a modernized version.
-"""
-        
-        return website_content.strip()
-        
-    except requests.exceptions.HTTPError as e:
-        if e.response.status_code == 403:
-            return f"Error: Website blocked access (403 Forbidden). This website may have anti-bot protection. Try a different website or provide a description of what you want to build instead."
-        elif e.response.status_code == 404:
-            return f"Error: Website not found (404). Please check the URL and try again."
-        elif e.response.status_code >= 500:
-            return f"Error: Website server error ({e.response.status_code}). Please try again later."
-        else:
-            return f"Error accessing website: HTTP {e.response.status_code} - {str(e)}"
-    except requests.exceptions.Timeout:
-        return "Error: Request timed out. The website may be slow or unavailable."
-    except requests.exceptions.ConnectionError:
-        return "Error: Could not connect to the website. Please check your internet connection and the URL."
-    except requests.exceptions.RequestException as e:
-        return f"Error accessing website: {str(e)}"
-    except Exception as e:
-        return f"Error extracting website content: {str(e)}"
 
 
 stop_generation = False
@@ -5819,7 +5471,7 @@ def update_ui_for_auth_status(profile: gr.OAuthProfile | None = None, token: gr.
         }
 
 
-def generation_code(query: str | None, vlm_image: Optional[gr.Image], website_url: str | None, _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, language: str = "html", provider: str = "auto", profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
+def generation_code(query: str | None, vlm_image: Optional[gr.Image], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, language: str = "html", provider: str = "auto", profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
     # Check authentication first
     is_authenticated, auth_message = check_authentication(profile, token)
     if not is_authenticated:
@@ -6008,25 +5660,6 @@ Generate the exact search/replace blocks needed to make these changes."""
     messages = history_to_messages(_history, system_prompt)
 
 
-    # Extract website content and append to query if website URL is present
-    website_text = ""
-    if website_url and website_url.strip():
-        website_text = extract_website_content(website_url.strip())
-        if website_text and not website_text.startswith("Error"):
-            website_text = website_text[:8000]  # Limit to 8000 chars for prompt size
-            query = f"{query}\n\n[Website content to redesign below]\n{website_text}"
-        elif website_text.startswith("Error"):
-            # Provide helpful guidance when website extraction fails
-            fallback_guidance = """
-Since I couldn't extract the website content, please provide additional details about what you'd like to build:
-
-1. What type of website is this? (e.g., e-commerce, blog, portfolio, dashboard)
-2. What are the main features you want?
-3. What's the target audience?
-4. Any specific design preferences? (colors, style, layout)
-
-This will help me create a better design for you."""
-            query = f"{query}\n\n[Error extracting website: {website_text}]{fallback_guidance}"
 
     # Use the original query without search enhancement
     enhanced_query = query
@@ -7678,12 +7311,10 @@ with gr.Blocks(
                     "### Command Reference\n"
                     "- **Language**: 'use streamlit' | 'use gradio' | 'use html'\n"
                     "- **Model**: 'model <name>' (exact match to items in the Model dropdown)\n"
-                    "- **Website redesign**: include a URL in your message (e.g., 'https://example.com')\n"
                     "- **Files**: attach documents or images directly for reference\n"
                     "- **Multiple directives**: separate with commas. The first segment is the main build prompt.\n\n"
                     "Examples:\n"
                     "- anycoder coffee shop website\n"
-                    "- redesign https://example.com, use streamlit\n"
                     "- dashboard ui with minimalist design"
                 )
             )
@@ -7725,12 +7356,6 @@ with gr.Blocks(
             choices=language_choices,
             value="html",
             label="Code Language",
-            visible=True
-        )
-        website_url_input = gr.Textbox(
-            label="website for redesign",
-            placeholder="https://example.com",
-            lines=1,
             visible=True
         )
         image_input = gr.Image(
@@ -8275,7 +7900,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
+        inputs=[input, image_input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, history_output]
     ).then(
         end_generation_ui,
@@ -8316,7 +7941,7 @@ with gr.Blocks(
         show_progress="hidden",
     ).then(
         generation_code,
-        inputs=[input, image_input, website_url_input, setting, history, current_model, language_dropdown, provider_state],
+        inputs=[input, image_input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, history_output]
     ).then(
         end_generation_ui,
@@ -8359,7 +7984,7 @@ with gr.Blocks(
     
     # Update deploy button text when space name changes
     space_name_input.change(update_deploy_button_text, inputs=[space_name_input], outputs=[deploy_btn])
-    clear_btn.click(clear_history, outputs=[history, history_output, website_url_input])
+    clear_btn.click(clear_history, outputs=[history, history_output])
     clear_btn.click(hide_deploy_components, None, [space_name_input, deploy_btn])
     # Reset space name and button text when clearing
     clear_btn.click(
