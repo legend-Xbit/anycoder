@@ -8294,9 +8294,9 @@ with gr.Blocks(
         
         # Update history if deployment was successful
         updated_history = history
-        if "✅" in status.value:
-            action_type = "Deploy" if "Deployed!" in status.value else "Update"
-            updated_history = history + [[f"{action_type} {language} app", status.value]]
+        if isinstance(status, dict) and "value" in status and "✅" in status["value"]:
+            action_type = "Deploy" if "Deployed!" in status["value"] else "Update"
+            updated_history = history + [[f"{action_type} {language} app", status["value"]]]
         
         return [status, updated_history]
 
