@@ -8199,8 +8199,8 @@ with gr.Blocks(
         return [gr.update(open=False), gr.update(visible=False)]
 
     def end_generation_ui():
-        # Keep sidebar as is; hide the status
-        return [gr.update(), gr.update(visible=False)]
+        # Open sidebar after generation; hide the status
+        return [gr.update(open=True), gr.update(visible=False)]
 
     btn.click(
         begin_generation_ui,
@@ -8252,6 +8252,23 @@ with gr.Blocks(
         end_generation_ui,
         inputs=None,
         outputs=[sidebar, generating_status]
+    ).then(
+        # After generation, toggle editors for transformers.js and populate
+        toggle_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code]
+    ).then(
+        # After generation, toggle static multi-file editors for HTML
+        toggle_static_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[
+            code_output, 
+            static_group_2, static_group_3, static_group_4, static_group_5plus,
+            static_tab_2_1, static_code_2_1, static_tab_2_2, static_code_2_2,
+            static_tab_3_1, static_code_3_1, static_tab_3_2, static_code_3_2, static_tab_3_3, static_code_3_3,
+            static_tab_4_1, static_code_4_1, static_tab_4_2, static_code_4_2, static_tab_4_3, static_code_4_3, static_tab_4_4, static_code_4_4,
+            static_tab_5_1, static_code_5_1, static_tab_5_2, static_code_5_2, static_tab_5_3, static_code_5_3, static_tab_5_4, static_code_5_4, static_tab_5_5, static_code_5_5,
+        ]
     ).then(
         show_deploy_components,
         None,
