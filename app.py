@@ -7714,7 +7714,7 @@ with gr.Blocks(
             btn = gr.Button("Generate", variant="secondary", size="lg", scale=2, visible=True, interactive=False)
             clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)
         # --- Deploy components (visible by default) ---
-        deploy_header_md = gr.Markdown("## 🚀 Deploy Your App", visible=True)
+        deploy_header_md = gr.Markdown("", visible=False)
         sdk_choices = [
             ("Gradio (Python)", "gradio"),
             ("Streamlit (Python)", "streamlit"),
