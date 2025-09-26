@@ -5285,7 +5285,7 @@ def send_to_sandbox(code):
                 max-width: 300px;
                 text-align: center;
             ">
-                🚀 Deploy app to see videos with permanent URLs!
+                Deploy app to see videos with permanent URLs!
             </div>
             '''
             # Insert the notice right after the opening body tag
@@ -5370,7 +5370,7 @@ def send_to_sandbox_with_refresh(code):
                 max-width: 300px;
                 text-align: center;
             ">
-                🚀 Deploy app to see videos with permanent URLs!
+                Deploy app to see videos with permanent URLs!
             </div>
             '''
             # Insert the notice right after the opening body tag
@@ -5764,7 +5764,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                         <h3 style='margin-top: 0; color: white;'>⚡ Generating Your {language.upper()} App...</h3>
                         <p style='margin: 0.5em 0; opacity: 0.9;'>Code is being generated in real-time!</p>
                         <div style='background: rgba(255,255,255,0.2); padding: 1em; border-radius: 8px; margin: 1em 0;'>
-                            <p style='margin: 0; font-size: 1.1em;'>🚀 Get ready to deploy once generation completes!</p>
+                            <p style='margin: 0; font-size: 1.1em;'>Get ready to deploy once generation completes!</p>
                         </div>
                     </div>
                     """
@@ -5852,7 +5852,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                             </p>
                             <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
                                 <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>3</span>
-                                Click <strong>"Deploy App"</strong>
+                                Click <strong>"Publish"</strong>
                             </p>
                             <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
                                 <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>4</span>
@@ -6289,7 +6289,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                         </p>
                         <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
                             <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>3</span>
-                            Click <strong>"Deploy App"</strong>
+                            Click <strong>"Publish"</strong>
                         </p>
                         <p style='margin: 0.8em 0; font-size: 1.1em; display: flex; align-items: center;'>
                             <span style='background: rgba(255,255,255,0.2); border-radius: 50%; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; margin-right: 10px; font-weight: bold;'>4</span>
@@ -7728,7 +7728,7 @@ with gr.Blocks(
             label="App SDK",
             visible=False
         )
-        deploy_btn = gr.Button("🚀 Deploy App", variant="primary", visible=True)
+        deploy_btn = gr.Button("Publish", variant="primary", visible=True)
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
         # --- End move ---
         # Removed media generation and web search UI components
@@ -7851,7 +7851,7 @@ with gr.Blocks(
                 gr.update(),
                 [],
                 [],
-                gr.update(value="🚀 Deploy App", visible=False),
+                gr.update(value="Publish", visible=False),
                 gr.update(),  # keep import header as-is
                 gr.update(),  # keep import button as-is
                 gr.update()   # language dropdown - no change
@@ -7883,7 +7883,7 @@ with gr.Blocks(
                 gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
-                gr.update(value="🚀 Deploy App", visible=True),
+                gr.update(value="Publish", visible=True),
                 gr.update(visible=False),  # hide import header
                 gr.update(visible=False),  # hide import button
                 gr.update(value=framework_type)  # set language dropdown to framework type
@@ -7907,7 +7907,7 @@ with gr.Blocks(
                 gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
-                gr.update(value="🚀 Deploy App", visible=False),
+                gr.update(value="Publish", visible=False),
                 gr.update(visible=False),  # hide import header
                 gr.update(visible=False),  # hide import button
                 gr.update(value=framework_type)  # set language dropdown to detected language
@@ -8277,7 +8277,7 @@ with gr.Blocks(
             return "<div style='padding:1em;color:#888;text-align:center;'>Generate some code to see deployment options.</div>"
         return f"""
         <div style='padding: 1.5em; text-align: center; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 10px;'>
-            <h3 style='margin-top: 0; color: white;'>🚀 Ready to Deploy!</h3>
+            <h3 style='margin-top: 0; color: white;'>Ready to Deploy!</h3>
             <p style='margin: 0.5em 0; opacity: 0.9;'>Your {language.upper()} code is ready for deployment.</p>
             <p style='margin: 0.5em 0; font-weight: bold;'>👉 Use the Deploy button in the sidebar to publish your app!</p>
         </div>
@@ -8287,7 +8287,7 @@ with gr.Blocks(
     clear_btn.click(hide_deploy_components, None, [deploy_btn])
     # Reset button text when clearing
     clear_btn.click(
-        lambda: gr.update(value="🚀 Deploy App"),
+        lambda: gr.update(value="Publish"),
         outputs=[deploy_btn]
     )
 
