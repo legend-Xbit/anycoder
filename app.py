@@ -7603,14 +7603,8 @@ with gr.Blocks(
         with gr.Row():
             btn = gr.Button("Generate", variant="secondary", size="lg", scale=2, visible=True, interactive=False)
             clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)
-        # --- Deploy/app name/sdk components (visible by default) ---
+        # --- Deploy components (visible by default) ---
         deploy_header_md = gr.Markdown("## 🚀 Deploy Your App", visible=True)
-        space_name_input = gr.Textbox(
-            label="App Name (e.g. my-cool-app)",
-            placeholder="Enter your app name to deploy",
-            lines=1,
-            visible=True
-        )
         sdk_choices = [
             ("Gradio (Python)", "gradio"),
             ("Streamlit (Python)", "streamlit"),
@@ -7747,7 +7741,6 @@ with gr.Blocks(
                 gr.update(),
                 [],
                 [],
-                gr.update(value="", visible=False),
                 gr.update(value="🚀 Deploy App", visible=False),
                 gr.update(),  # keep import header as-is
                 gr.update(),  # keep import button as-is
@@ -7780,8 +7773,7 @@ with gr.Blocks(
                 gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
-                gr.update(value=space_info, visible=True),
-                gr.update(value="Update Existing Space", visible=True),
+                gr.update(value="🚀 Deploy App", visible=True),
                 gr.update(visible=False),  # hide import header
                 gr.update(visible=False),  # hide import button
                 gr.update(value=framework_type)  # set language dropdown to framework type
@@ -7805,7 +7797,6 @@ with gr.Blocks(
                 gr.update(value="", visible=False),  # hide import textbox after submit
                 loaded_history,
                 history_to_chatbot_messages(loaded_history),
-                gr.update(value="", visible=False),
                 gr.update(value="🚀 Deploy App", visible=False),
                 gr.update(visible=False),  # hide import header
                 gr.update(visible=False),  # hide import button
@@ -8067,38 +8058,15 @@ with gr.Blocks(
     
 
     def show_deploy_components(*args):
-        return [gr.Textbox(visible=True), gr.Button(visible=True)]
+        return gr.Button(visible=True)
 
     def hide_deploy_components(*args):
-        return [gr.Textbox(visible=True), gr.Button(visible=True)]
-    
-    def update_deploy_button_text(space_name):
-        """Update deploy button text based on whether it's a new space or update"""
-        if "/" in space_name.strip():
-            return gr.update(value="🔄 Update Space")
-        else:
-            return gr.update(value="🚀 Deploy App")
+        return gr.Button(visible=True)
     
     def preserve_space_info_for_followup(history):
-        """Check if this is a followup on an imported project and preserve space info"""
-        if not history or len(history) == 0:
-            return [gr.update(), gr.update()]
-        
-        # Look for imported project pattern in history
-        for user_msg, assistant_msg in history:
-            if assistant_msg and 'IMPORTED PROJECT FROM HUGGING FACE SPACE' in assistant_msg:
-                # Extract space name from the imported project info
-                import re
-                space_match = re.search(r'Space:\s*([^\s\n]+)', assistant_msg)
-                if space_match:
-                    space_name = space_match.group(1)
-                    return [
-                        gr.update(value=space_name, visible=True),  # Update space name
-                        gr.update(value="🔄 Update Space", visible=True)  # Update button text
-                    ]
-        
-        # No imported project found, return no changes
-        return [gr.update(), gr.update()]
+        """Check if this is a followup on an imported project - no longer needed with random names"""
+        # Always return standard deploy button since we use random names
+        return gr.update(value="🚀 Deploy App")
 
     # Unified import event
     load_project_btn.click(
@@ -8110,7 +8078,6 @@ with gr.Blocks(
             load_project_url,
             history,
             history_output,
-            space_name_input,
             deploy_btn,
             import_header_md,
             load_project_btn,
@@ -8163,11 +8130,7 @@ with gr.Blocks(
     ).then(
         show_deploy_components,
         None,
-        [space_name_input, deploy_btn]
-    ).then(
-        preserve_space_info_for_followup,
-        inputs=[history],
-        outputs=[space_name_input, deploy_btn]
+        [deploy_btn]
     )
 
     # Pressing Enter in the main input should trigger generation and collapse the sidebar
@@ -8187,11 +8150,7 @@ with gr.Blocks(
     ).then(
         show_deploy_components,
         None,
-        [space_name_input, deploy_btn]
-    ).then(
-        preserve_space_info_for_followup,
-        inputs=[history],
-        outputs=[space_name_input, deploy_btn]
+        [deploy_btn]
     )
 
     # --- Chat-based sidebar controller logic ---
@@ -8219,14 +8178,12 @@ with gr.Blocks(
         </div>
         """
     
-    # Update deploy button text when space name changes
-    space_name_input.change(update_deploy_button_text, inputs=[space_name_input], outputs=[deploy_btn])
     clear_btn.click(clear_history, outputs=[history, history_output])
-    clear_btn.click(hide_deploy_components, None, [space_name_input, deploy_btn])
-    # Reset space name and button text when clearing
+    clear_btn.click(hide_deploy_components, None, [deploy_btn])
+    # Reset button text when clearing
     clear_btn.click(
-        lambda: [gr.update(value=""), gr.update(value="🚀 Deploy App")],
-        outputs=[space_name_input, deploy_btn]
+        lambda: gr.update(value="🚀 Deploy App"),
+        outputs=[deploy_btn]
     )
 
     # Theme switching handlers
@@ -8278,11 +8235,75 @@ with gr.Blocks(
     )
 
     # Deploy to Spaces logic
+    
+    def generate_random_app_name():
+        """Generate a random app name that's unlikely to clash with existing apps"""
+        import random
+        import string
+        
+        # Common app prefixes
+        prefixes = ["my", "cool", "awesome", "smart", "quick", "super", "mini", "auto", "fast", "easy"]
+        # Common app suffixes  
+        suffixes = ["app", "tool", "hub", "space", "demo", "ai", "gen", "bot", "lab", "studio"]
+        # Random adjectives
+        adjectives = ["blue", "red", "green", "bright", "dark", "light", "swift", "bold", "clean", "fresh"]
+        
+        # Generate different patterns
+        patterns = [
+            lambda: f"{random.choice(prefixes)}-{random.choice(suffixes)}-{random.randint(100, 999)}",
+            lambda: f"{random.choice(adjectives)}-{random.choice(suffixes)}-{random.randint(10, 99)}",
+            lambda: f"{random.choice(prefixes)}-{random.choice(adjectives)}-{random.choice(suffixes)}",
+            lambda: f"app-{''.join(random.choices(string.ascii_lowercase, k=6))}-{random.randint(10, 99)}",
+            lambda: f"{random.choice(suffixes)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=8))}"
+        ]
+        
+        return random.choice(patterns)()
 
-    def deploy_to_user_space(
+    def deploy_with_history_tracking(
         code, 
-        space_name, 
-        language,  # changed from sdk_name to language
+        language, 
+        history,
+        profile: gr.OAuthProfile | None = None, 
+        token: gr.OAuthToken | None = None
+    ):
+        """Wrapper function that handles history tracking for deployments"""
+        # Check if we have a previously deployed space in the history
+        username = profile.username if profile else None
+        existing_space = None
+        
+        # Look for previous deployment in history
+        if history and username:
+            for user_msg, assistant_msg in history:
+                if assistant_msg and "✅ Deployed!" in assistant_msg:
+                    import re
+                    # Look for space URL pattern
+                    match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', assistant_msg)
+                    if match:
+                        existing_space = match.group(1)
+                        break
+                elif assistant_msg and "✅ Updated!" in assistant_msg:
+                    import re
+                    # Look for space URL pattern
+                    match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', assistant_msg)
+                    if match:
+                        existing_space = match.group(1)
+                        break
+        
+        # Call the original deploy function
+        status = deploy_to_user_space_original(code, language, existing_space, profile, token)
+        
+        # Update history if deployment was successful
+        updated_history = history
+        if "✅" in status.value:
+            action_type = "Deploy" if "Deployed!" in status.value else "Update"
+            updated_history = history + [[f"{action_type} {language} app", status.value]]
+        
+        return [status, updated_history]
+
+    def deploy_to_user_space_original(
+        code, 
+        language, 
+        existing_space_name=None,  # Pass existing space name if updating
         profile: gr.OAuthProfile | None = None, 
         token: gr.OAuthToken | None = None
     ):
@@ -8296,29 +8317,18 @@ with gr.Blocks(
         if not token.token or token.token == "hf_":
             return gr.update(value="Error: Invalid token. Please log in again with your Hugging Face account to get a valid write token.", visible=True)
         
-        # Check if this is an update to an existing space (contains /)
-        is_update = "/" in space_name.strip()
-        if is_update:
-            # This is an existing space, use the provided space_name as repo_id
-            repo_id = space_name.strip()
-            # Extract username from repo_id for permission check
-            space_username = repo_id.split('/')[0]
-            if space_username != profile.username:
-                return gr.update(value=f"Error: You can only update your own spaces. This space belongs to {space_username}.", visible=True)
-            
-            # Verify the user has write access to this space
-            try:
-                api = HfApi(token=token.token)
-                # Try to get space info to verify access
-                space_info = api.space_info(repo_id)
-                if not space_info:
-                    return gr.update(value=f"Error: Could not access space {repo_id}. Please check your permissions.", visible=True)
-            except Exception as e:
-                return gr.update(value=f"Error: No write access to space {repo_id}. Please ensure you have the correct permissions. Error: {str(e)}", visible=True)
+        # Determine if this is an update or new deployment
+        username = profile.username
+        if existing_space_name and existing_space_name.startswith(f"{username}/"):
+            # This is an update to existing space
+            repo_id = existing_space_name
+            space_name = existing_space_name.split('/')[-1]
+            is_update = True
         else:
-            # This is a new space, create repo_id with current user
-            username = profile.username
-            repo_id = f"{username}/{space_name.strip()}"
+            # Generate a random space name for new deployment
+            space_name = generate_random_app_name()
+            repo_id = f"{username}/{space_name}"
+            is_update = False
         # Map language to HF SDK slug
         language_to_sdk_map = {
             "gradio": "gradio",
@@ -8861,9 +8871,9 @@ with gr.Blocks(
         outputs=[code_output],
         queue=False,
     ).then(
-        deploy_to_user_space,
-        inputs=[code_output, space_name_input, language_dropdown],
-        outputs=deploy_status
+        deploy_with_history_tracking,
+        inputs=[code_output, language_dropdown, history],
+        outputs=[deploy_status, history]
     )
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
     # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.
