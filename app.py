@@ -6838,6 +6838,133 @@ Type: Transformers.js Application
     
     return combined
 
+def fetch_all_space_files(api, username: str, project_name: str, sdk: str) -> dict:
+    """Fetch all relevant files from a Hugging Face Space"""
+    files = {}
+    
+    try:
+        from huggingface_hub import list_repo_files
+        all_files = list_repo_files(repo_id=f"{username}/{project_name}", repo_type="space")
+        
+        # Filter out unwanted files
+        relevant_files = []
+        for file in all_files:
+            # Skip hidden files, git files, and certain extensions
+            if (file.startswith('.') or 
+                file.endswith('.md') or 
+                (file.endswith('.txt') and file not in ['requirements.txt', 'packages.txt']) or
+                file.endswith('.log') or
+                file.endswith('.pyc') or
+                '__pycache__' in file):
+                continue
+            relevant_files.append(file)
+        
+        # Define priority files based on SDK
+        priority_files = []
+        if sdk == "gradio":
+            priority_files = ["app.py", "main.py", "gradio_app.py", "requirements.txt", "packages.txt"]
+        elif sdk == "streamlit":
+            priority_files = ["streamlit_app.py", "app.py", "main.py", "requirements.txt", "packages.txt"]
+        elif sdk == "static":
+            priority_files = ["index.html", "index.js", "style.css", "script.js"]
+        
+        # Add priority files first, then other Python files, then other files
+        files_to_fetch = []
+        
+        # Add priority files that exist
+        for pfile in priority_files:
+            if pfile in relevant_files:
+                files_to_fetch.append(pfile)
+                relevant_files.remove(pfile)
+        
+        # Add other Python files
+        python_files = [f for f in relevant_files if f.endswith('.py')]
+        files_to_fetch.extend(python_files)
+        for pf in python_files:
+            if pf in relevant_files:
+                relevant_files.remove(pf)
+        
+        # Add other important files (JS, CSS, JSON, etc.)
+        other_important = [f for f in relevant_files if any(f.endswith(ext) for ext in ['.js', '.css', '.json', '.html', '.yml', '.yaml'])]
+        files_to_fetch.extend(other_important)
+        
+        # Limit to reasonable number of files to avoid overwhelming
+        files_to_fetch = files_to_fetch[:20]  # Max 20 files
+        
+        # Download each file
+        for file_name in files_to_fetch:
+            try:
+                content_path = api.hf_hub_download(
+                    repo_id=f"{username}/{project_name}",
+                    filename=file_name,
+                    repo_type="space"
+                )
+                
+                # Read file content with appropriate encoding
+                try:
+                    with open(content_path, 'r', encoding='utf-8') as f:
+                        files[file_name] = f.read()
+                except UnicodeDecodeError:
+                    # For binary files or files with different encoding
+                    with open(content_path, 'rb') as f:
+                        content = f.read()
+                        # Skip binary files that are too large or not text
+                        if len(content) > 100000:  # Skip files > 100KB
+                            files[file_name] = f"[Binary file: {file_name} - {len(content)} bytes]"
+                        else:
+                            try:
+                                files[file_name] = content.decode('utf-8')
+                            except:
+                                files[file_name] = f"[Binary file: {file_name} - {len(content)} bytes]"
+            except Exception as e:
+                files[file_name] = f"[Error loading {file_name}: {str(e)}]"
+                
+    except Exception as e:
+        # Fallback to single file loading
+        return {}
+    
+    return files
+
+def format_multi_file_space(files: dict, username: str, project_name: str, sdk: str) -> str:
+    """Format multiple files from a space into a readable format"""
+    if not files:
+        return ""
+    
+    header = f"""IMPORTED PROJECT FROM HUGGING FACE SPACE
+==============================================
+
+Space: {username}/{project_name}
+SDK: {sdk}
+Files: {len(files)} files loaded
+
+"""
+    
+    # Sort files to show main files first
+    main_files = []
+    other_files = []
+    
+    priority_order = ["app.py", "main.py", "streamlit_app.py", "gradio_app.py", "index.html", "requirements.txt"]
+    
+    for priority_file in priority_order:
+        if priority_file in files:
+            main_files.append(priority_file)
+    
+    for file_name in sorted(files.keys()):
+        if file_name not in main_files:
+            other_files.append(file_name)
+    
+    content = header
+    
+    # Add main files first
+    for file_name in main_files:
+        content += f"=== {file_name} ===\n{files[file_name]}\n\n"
+    
+    # Add other files
+    for file_name in other_files:
+        content += f"=== {file_name} ===\n{files[file_name]}\n\n"
+    
+    return content
+
 def fetch_hf_space_content(username: str, project_name: str) -> str:
     """Fetch content from a Hugging Face Space"""
     try:
@@ -6853,70 +6980,53 @@ def fetch_hf_space_content(username: str, project_name: str) -> str:
             files = fetch_transformers_js_files(api, username, project_name)
             return combine_transformers_js_files(files, username, project_name)
         
-        # Try to fetch the main file based on SDK
+        # Use the new multi-file loading approach for all space types
         sdk = space_info.sdk
-        main_file = None
+        files = fetch_all_space_files(api, username, project_name, sdk)
         
-        # Define file patterns to try based on SDK
-        if sdk == "static":
-            file_patterns = ["index.html"]
-        elif sdk == "gradio":
-            file_patterns = ["app.py", "main.py", "gradio_app.py"]
-        elif sdk == "streamlit":
-            file_patterns = ["streamlit_app.py", "src/streamlit_app.py", "app.py", "src/app.py", "main.py", "src/main.py", "Home.py", "src/Home.py", "🏠_Home.py", "src/🏠_Home.py", "1_🏠_Home.py", "src/1_🏠_Home.py"]
+        if files:
+            # Use the multi-file format
+            return format_multi_file_space(files, username, project_name, sdk)
         else:
-            # Try common files for unknown SDKs
-            file_patterns = ["app.py", "src/app.py", "index.html", "streamlit_app.py", "src/streamlit_app.py", "main.py", "src/main.py", "Home.py", "src/Home.py"]
-        
-        # Try to find and download the main file
-        for file in file_patterns:
-            try:
+            # Fallback to single file loading for compatibility
+            main_file = None
+            
+            # Define file patterns to try based on SDK
+            if sdk == "static":
+                file_patterns = ["index.html"]
+            elif sdk == "gradio":
+                file_patterns = ["app.py", "main.py", "gradio_app.py"]
+            elif sdk == "streamlit":
+                file_patterns = ["streamlit_app.py", "src/streamlit_app.py", "app.py", "src/app.py", "main.py", "src/main.py", "Home.py", "src/Home.py", "🏠_Home.py", "src/🏠_Home.py", "1_🏠_Home.py", "src/1_🏠_Home.py"]
+            else:
+                # Try common files for unknown SDKs
+                file_patterns = ["app.py", "src/app.py", "index.html", "streamlit_app.py", "src/streamlit_app.py", "main.py", "src/main.py", "Home.py", "src/Home.py"]
+            
+            # Try to find and download the main file
+            for file in file_patterns:
+                try:
+                    content = api.hf_hub_download(
+                        repo_id=f"{username}/{project_name}",
+                        filename=file,
+                        repo_type="space"
+                    )
+                    main_file = file
+                    break
+                except:
+                    continue
+            
+            if main_file:
                 content = api.hf_hub_download(
                     repo_id=f"{username}/{project_name}",
-                    filename=file,
+                    filename=main_file,
                     repo_type="space"
                 )
-                main_file = file
-                break
-            except:
-                continue
-        
-        # If still no main file found, try to list repository files and find Python files
-        if not main_file and sdk in ["streamlit", "gradio"]:
-            try:
-                from huggingface_hub import list_repo_files
-                files = list_repo_files(repo_id=f"{username}/{project_name}", repo_type="space")
                 
-                # Look for Python files that might be the main file (root and src/ directory)
-                python_files = [f for f in files if f.endswith('.py') and not f.startswith('.') and 
-                              (('/' not in f) or f.startswith('src/'))]
+                # Read the file content
+                with open(content, 'r', encoding='utf-8') as f:
+                    file_content = f.read()
                 
-                for py_file in python_files:
-                    try:
-                        content = api.hf_hub_download(
-                            repo_id=f"{username}/{project_name}",
-                            filename=py_file,
-                            repo_type="space"
-                        )
-                        main_file = py_file
-                        break
-                    except:
-                        continue
-            except:
-                pass
-        
-        if main_file:
-            content = api.hf_hub_download(
-                repo_id=f"{username}/{project_name}",
-                filename=main_file,
-                repo_type="space"
-            )
-            
-            # Read the file content
-            with open(content, 'r', encoding='utf-8') as f:
-                file_content = f.read()
-            
-            return f"""IMPORTED PROJECT FROM HUGGING FACE SPACE
+                return f"""IMPORTED PROJECT FROM HUGGING FACE SPACE
 ==============================================
 
 Space: {username}/{project_name}
@@ -6924,15 +7034,15 @@ SDK: {sdk}
 Main File: {main_file}
 
 {file_content}"""
-        else:
-            # Try to get more information about available files for debugging
-            try:
-                from huggingface_hub import list_repo_files
-                files = list_repo_files(repo_id=f"{username}/{project_name}", repo_type="space")
-                available_files = [f for f in files if not f.startswith('.') and not f.endswith('.md')]
-                return f"Error: Could not find main file in space {username}/{project_name}.\n\nSDK: {sdk}\nAvailable files: {', '.join(available_files[:10])}{'...' if len(available_files) > 10 else ''}\n\nTried looking for: {', '.join(file_patterns)}"
-            except:
-                return f"Error: Could not find main file in space {username}/{project_name}. Expected files for {sdk} SDK: {', '.join(file_patterns) if 'file_patterns' in locals() else 'standard files'}"
+            else:
+                # Try to get more information about available files for debugging
+                try:
+                    from huggingface_hub import list_repo_files
+                    files_list = list_repo_files(repo_id=f"{username}/{project_name}", repo_type="space")
+                    available_files = [f for f in files_list if not f.startswith('.') and not f.endswith('.md')]
+                    return f"Error: Could not find main file in space {username}/{project_name}.\n\nSDK: {sdk}\nAvailable files: {', '.join(available_files[:10])}{'...' if len(available_files) > 10 else ''}\n\nTried looking for: {', '.join(file_patterns)}"
+                except:
+                    return f"Error: Could not find main file in space {username}/{project_name}. Expected files for {sdk} SDK: {', '.join(file_patterns) if 'file_patterns' in locals() else 'standard files'}"
             
     except Exception as e:
         return f"Error fetching space content: {str(e)}"
