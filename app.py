@@ -8063,11 +8063,6 @@ with gr.Blocks(
     def hide_deploy_components(*args):
         return gr.Button(visible=True)
     
-    def preserve_space_info_for_followup(history):
-        """Check if this is a followup on an imported project - no longer needed with random names"""
-        # Always return standard deploy button since we use random names
-        return gr.update(value="🚀 Deploy App")
-
     # Unified import event
     load_project_btn.click(
         handle_import_project,
@@ -8271,7 +8266,7 @@ with gr.Blocks(
         username = profile.username if profile else None
         existing_space = None
         
-        # Look for previous deployment in history
+        # Look for previous deployment or imported space in history
         if history and username:
             for user_msg, assistant_msg in history:
                 if assistant_msg and "✅ Deployed!" in assistant_msg:
@@ -8288,6 +8283,18 @@ with gr.Blocks(
                     if match:
                         existing_space = match.group(1)
                         break
+                elif user_msg and user_msg.startswith("Imported Space from"):
+                    import re
+                    # Extract space name from import message
+                    match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', user_msg)
+                    if match:
+                        imported_space = match.group(1)
+                        # Only use imported space if user owns it (can update it)
+                        if imported_space.startswith(f"{username}/"):
+                            existing_space = imported_space
+                            break
+                        # If user doesn't own the imported space, we'll create a new one
+                        # (existing_space remains None, triggering new deployment)
         
         # Call the original deploy function
         status = deploy_to_user_space_original(code, language, existing_space, profile, token)
@@ -8296,7 +8303,10 @@ with gr.Blocks(
         updated_history = history
         if isinstance(status, dict) and "value" in status and "✅" in status["value"]:
             action_type = "Deploy" if "Deployed!" in status["value"] else "Update"
-            updated_history = history + [[f"{action_type} {language} app", status["value"]]]
+            if existing_space:
+                updated_history = history + [[f"{action_type} {language} app to {existing_space}", status["value"]]]
+            else:
+                updated_history = history + [[f"{action_type} {language} app", status["value"]]]
         
         return [status, updated_history]
 
