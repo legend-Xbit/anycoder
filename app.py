@@ -447,6 +447,41 @@ def update_gradio_system_prompts():
     # Base system prompt
     base_prompt = """You are an expert Gradio developer. Create a complete, working Gradio application based on the user's request. Generate all necessary code to make the application functional and runnable.
 
+## Multi-File Application Structure
+
+When creating complex Gradio applications, organize your code into multiple files for better maintainability:
+
+**File Organization:**
+- `app.py` - Main application entry point with Gradio interface
+- `utils.py` - Utility functions and helpers
+- `models.py` - Model loading and inference functions
+- `config.py` - Configuration and constants
+- `requirements.txt` - Python dependencies
+- Additional modules as needed (e.g., `data_processing.py`, `ui_components.py`)
+
+**Output Format for Multi-File Apps:**
+When generating multi-file applications, use this exact format:
+
+```
+=== app.py ===
+[main application code]
+
+=== utils.py ===
+[utility functions]
+
+=== requirements.txt ===
+[dependencies]
+```
+
+**Single vs Multi-File Decision:**
+- Use single file for simple applications (< 100 lines)
+- Use multi-file structure for complex applications with:
+  - Multiple models or processing pipelines
+  - Extensive utility functions
+  - Complex UI with many components
+  - Data processing workflows
+  - When user specifically requests modular structure
+
 🚨 IMPORTANT: If the user is asking to use external APIs (like OpenRouter, OpenAI API, Hugging Face Inference API, etc.), DO NOT use @spaces.GPU decorators or any ZeroGPU features. External APIs handle the model inference remotely, so GPU allocation on the Spaces instance is not needed.
 
 🚨 CRITICAL REQUIREMENT: If the user provides ANY diffusion model code (FLUX, Stable Diffusion, etc.) that runs locally (not via API), you MUST implement ZeroGPU ahead-of-time (AoT) compilation. This is mandatory and provides 1.3x-1.8x performance improvements. Do not create basic Gradio apps without AoT optimization for diffusion models.
@@ -715,6 +750,41 @@ This reference is automatically synced from https://www.gradio.app/llms.txt to e
     
     # Search-enabled prompt
     search_prompt = """You are an expert Gradio developer with access to real-time web search. Create a complete, working Gradio application based on the user's request. When needed, use web search to find current best practices or verify latest Gradio features. Generate all necessary code to make the application functional and runnable.
+
+## Multi-File Application Structure
+
+When creating complex Gradio applications, organize your code into multiple files for better maintainability:
+
+**File Organization:**
+- `app.py` - Main application entry point with Gradio interface
+- `utils.py` - Utility functions and helpers
+- `models.py` - Model loading and inference functions
+- `config.py` - Configuration and constants
+- `requirements.txt` - Python dependencies
+- Additional modules as needed (e.g., `data_processing.py`, `ui_components.py`)
+
+**Output Format for Multi-File Apps:**
+When generating multi-file applications, use this exact format:
+
+```
+=== app.py ===
+[main application code]
+
+=== utils.py ===
+[utility functions]
+
+=== requirements.txt ===
+[dependencies]
+```
+
+**Single vs Multi-File Decision:**
+- Use single file for simple applications (< 100 lines)
+- Use multi-file structure for complex applications with:
+  - Multiple models or processing pipelines
+  - Extensive utility functions
+  - Complex UI with many components
+  - Data processing workflows
+  - When user specifically requests modular structure
 
 🚨 IMPORTANT: If the user is asking to use external APIs (like OpenRouter, OpenAI API, Hugging Face Inference API, etc.), DO NOT use @spaces.GPU decorators or any ZeroGPU features. External APIs handle the model inference remotely, so GPU allocation on the Spaces instance is not needed.
 
@@ -1356,6 +1426,70 @@ Generate complete, working code files as shown above.
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
+STREAMLIT_SYSTEM_PROMPT = """You are an expert Streamlit developer. Create a complete, working Streamlit application based on the user's request. Generate all necessary code to make the application functional and runnable.
+
+## Multi-File Application Structure
+
+When creating complex Streamlit applications, organize your code into multiple files for better maintainability:
+
+**File Organization:**
+- `app.py` or `streamlit_app.py` - Main application entry point
+- `utils.py` - Utility functions and helpers
+- `models.py` - Model loading and inference functions
+- `config.py` - Configuration and constants
+- `requirements.txt` - Python dependencies
+- `pages/` - Additional pages for multi-page apps
+- Additional modules as needed (e.g., `data_processing.py`, `components.py`)
+
+**Output Format for Multi-File Apps:**
+When generating multi-file applications, use this exact format:
+
+```
+=== streamlit_app.py ===
+[main application code]
+
+=== utils.py ===
+[utility functions]
+
+=== requirements.txt ===
+[dependencies]
+```
+
+**Single vs Multi-File Decision:**
+- Use single file for simple applications (< 100 lines)
+- Use multi-file structure for complex applications with:
+  - Multiple pages or sections
+  - Extensive data processing
+  - Complex UI components
+  - Multiple models or APIs
+  - When user specifically requests modular structure
+
+**Multi-Page Apps:**
+For multi-page Streamlit apps, use the pages/ directory structure:
+```
+=== streamlit_app.py ===
+[main page]
+
+=== pages/1_📊_Analytics.py ===
+[analytics page]
+
+=== pages/2_⚙️_Settings.py ===
+[settings page]
+```
+
+Requirements:
+1. Create a modern, responsive Streamlit application
+2. Use appropriate Streamlit components and layouts
+3. Include proper error handling and loading states
+4. Follow Streamlit best practices for performance
+5. Use caching (@st.cache_data, @st.cache_resource) appropriately
+6. Include proper session state management when needed
+7. Make the UI intuitive and user-friendly
+8. Add helpful tooltips and documentation
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
+"""
+
 SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application.
 
 File selection policy (dynamic, model-decided):
@@ -1513,9 +1647,21 @@ IMPORTANT: When the user reports an ERROR MESSAGE, analyze it carefully to deter
 - Configuration errors → Fix config files, Docker files, etc.
 
 For Python applications (Gradio/Streamlit), the project structure typically includes:
-- app.py (main application file)
+- app.py or streamlit_app.py (main application file)
 - requirements.txt (dependencies)
+- utils.py (utility functions)
+- models.py (model loading and inference)
+- config.py (configuration)
+- pages/ (for multi-page Streamlit apps)
 - Other supporting files as needed
+
+For multi-file projects, identify which specific file needs modification based on the user's request:
+- Main application logic → app.py or streamlit_app.py
+- Helper functions → utils.py
+- Model-related code → models.py
+- Configuration changes → config.py
+- Dependencies → requirements.txt
+- New pages → pages/filename.py
 
 Format Rules:
 1. Start with {SEARCH_START}
@@ -5401,6 +5547,91 @@ def is_streamlit_code(code: str) -> bool:
     lowered = code.lower()
     return ("import streamlit" in lowered) or ("from streamlit" in lowered) or ("st." in code and "streamlit" in lowered)
 
+def parse_multi_file_python_output(code: str) -> dict:
+    """Parse multi-file Python output (Gradio/Streamlit) into separate files"""
+    files = {}
+    if not code:
+        return files
+    
+    # Look for file separators like === filename.py ===
+    import re
+    file_pattern = r'=== ([^=]+) ==='
+    parts = re.split(file_pattern, code)
+    
+    if len(parts) > 1:
+        # Multi-file format detected
+        for i in range(1, len(parts), 2):
+            if i + 1 < len(parts):
+                filename = parts[i].strip()
+                content = parts[i + 1].strip()
+                files[filename] = content
+    else:
+        # Single file - check if it's a space import or regular code
+        if "IMPORTED PROJECT FROM HUGGING FACE SPACE" in code:
+            # This is already a multi-file import, try to parse it
+            lines = code.split('\n')
+            current_file = None
+            current_content = []
+            
+            for line in lines:
+                if line.startswith('=== ') and line.endswith(' ==='):
+                    # Save previous file
+                    if current_file and current_content:
+                        files[current_file] = '\n'.join(current_content)
+                    # Start new file
+                    current_file = line[4:-4].strip()
+                    current_content = []
+                elif current_file:
+                    current_content.append(line)
+            
+            # Save last file
+            if current_file and current_content:
+                files[current_file] = '\n'.join(current_content)
+        else:
+            # Single file code - determine appropriate filename
+            if is_streamlit_code(code):
+                files['streamlit_app.py'] = code
+            elif 'import gradio' in code.lower() or 'from gradio' in code.lower():
+                files['app.py'] = code
+            else:
+                files['app.py'] = code
+    
+    return files
+
+def format_multi_file_python_output(files: dict) -> str:
+    """Format multiple Python files into the standard multi-file format"""
+    if not files:
+        return ""
+    
+    if len(files) == 1:
+        # Single file - return as is
+        return list(files.values())[0]
+    
+    # Multi-file format
+    output = []
+    
+    # Order files: main app first, then utils, models, config, requirements
+    file_order = ['app.py', 'streamlit_app.py', 'main.py', 'utils.py', 'models.py', 'config.py', 'requirements.txt']
+    ordered_files = []
+    
+    # Add files in preferred order
+    for preferred_file in file_order:
+        if preferred_file in files:
+            ordered_files.append(preferred_file)
+    
+    # Add remaining files
+    for filename in sorted(files.keys()):
+        if filename not in ordered_files:
+            ordered_files.append(filename)
+    
+    # Format output
+    for filename in ordered_files:
+        output.append(f"=== {filename} ===")
+        output.append(files[filename])
+        output.append("")  # Empty line between files
+    
+    return '\n'.join(output)
+
 def send_streamlit_to_stlite(code: str) -> str:
     """Render Streamlit code using stlite inside a sandboxed iframe for preview."""
     # Build an HTML document that loads stlite and mounts the Streamlit app defined inline
@@ -5718,6 +5949,8 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = SVELTE_SYSTEM_PROMPT
         elif language == "gradio":
             system_prompt = GRADIO_SYSTEM_PROMPT
+        elif language == "streamlit":
+            system_prompt = STREAMLIT_SYSTEM_PROMPT
         elif language == "json":
             system_prompt = JSON_SYSTEM_PROMPT
         elif language == "comfyui":
@@ -7781,15 +8014,56 @@ with gr.Blocks(
                 
                 
                 
-                # Transformers.js multi-file editors (hidden by default)
-                with gr.Group(visible=False) as tjs_group:
-                    with gr.Tabs():
-                        with gr.Tab("index.html"):
-                            tjs_html_code = gr.Code(language="html", lines=20, interactive=True, label="index.html")
-                        with gr.Tab("index.js"):
-                            tjs_js_code = gr.Code(language="javascript", lines=20, interactive=True, label="index.js")
-                        with gr.Tab("style.css"):
-                            tjs_css_code = gr.Code(language="css", lines=20, interactive=True, label="style.css")
+            # Transformers.js multi-file editors (hidden by default)
+            with gr.Group(visible=False) as tjs_group:
+                with gr.Tabs():
+                    with gr.Tab("index.html"):
+                        tjs_html_code = gr.Code(language="html", lines=20, interactive=True, label="index.html")
+                    with gr.Tab("index.js"):
+                        tjs_js_code = gr.Code(language="javascript", lines=20, interactive=True, label="index.js")
+                    with gr.Tab("style.css"):
+                        tjs_css_code = gr.Code(language="css", lines=20, interactive=True, label="style.css")
+
+            # Python multi-file editors (hidden by default) for Gradio/Streamlit
+            with gr.Group(visible=False) as python_group_2:
+                with gr.Tabs():
+                    with gr.Tab("app.py") as python_tab_2_1:
+                        python_code_2_1 = gr.Code(language="python", lines=20, interactive=True, label="app.py")
+                    with gr.Tab("file 2") as python_tab_2_2:
+                        python_code_2_2 = gr.Code(language="python", lines=18, interactive=True, label="file 2")
+            
+            with gr.Group(visible=False) as python_group_3:
+                with gr.Tabs():
+                    with gr.Tab("app.py") as python_tab_3_1:
+                        python_code_3_1 = gr.Code(language="python", lines=20, interactive=True, label="app.py")
+                    with gr.Tab("file 2") as python_tab_3_2:
+                        python_code_3_2 = gr.Code(language="python", lines=18, interactive=True, label="file 2")
+                    with gr.Tab("file 3") as python_tab_3_3:
+                        python_code_3_3 = gr.Code(language="python", lines=18, interactive=True, label="file 3")
+            
+            with gr.Group(visible=False) as python_group_4:
+                with gr.Tabs():
+                    with gr.Tab("app.py") as python_tab_4_1:
+                        python_code_4_1 = gr.Code(language="python", lines=20, interactive=True, label="app.py")
+                    with gr.Tab("file 2") as python_tab_4_2:
+                        python_code_4_2 = gr.Code(language="python", lines=18, interactive=True, label="file 2")
+                    with gr.Tab("file 3") as python_tab_4_3:
+                        python_code_4_3 = gr.Code(language="python", lines=18, interactive=True, label="file 3")
+                    with gr.Tab("file 4") as python_tab_4_4:
+                        python_code_4_4 = gr.Code(language="python", lines=18, interactive=True, label="file 4")
+            
+            with gr.Group(visible=False) as python_group_5plus:
+                with gr.Tabs():
+                    with gr.Tab("app.py") as python_tab_5_1:
+                        python_code_5_1 = gr.Code(language="python", lines=20, interactive=True, label="app.py")
+                    with gr.Tab("file 2") as python_tab_5_2:
+                        python_code_5_2 = gr.Code(language="python", lines=18, interactive=True, label="file 2")
+                    with gr.Tab("file 3") as python_tab_5_3:
+                        python_code_5_3 = gr.Code(language="python", lines=18, interactive=True, label="file 3")
+                    with gr.Tab("file 4") as python_tab_5_4:
+                        python_code_5_4 = gr.Code(language="python", lines=18, interactive=True, label="file 4")
+                    with gr.Tab("file 5") as python_tab_5_5:
+                        python_code_5_5 = gr.Code(language="python", lines=18, interactive=True, label="file 5")
                 
                 # Static HTML multi-file editors (hidden by default). Use separate tab groups for different file counts.
                 with gr.Group(visible=False) as static_group_2:
@@ -7872,10 +8146,10 @@ with gr.Blocks(
             # Check imports to determine framework for Python code
             if is_streamlit_code(code):
                 code_lang = "python"
-                framework_type = "python"
+                framework_type = "streamlit"
             elif is_gradio_code(code):
                 code_lang = "python"
-                framework_type = "python"
+                framework_type = "gradio"
             elif "=== index.html ===" in code and "=== index.js ===" in code and "=== style.css ===" in code:
                 # This is a transformers.js app with the combined format
                 code_lang = "html"  # Use html for code display
@@ -7903,7 +8177,7 @@ with gr.Blocks(
             status, code, _ = import_repo_to_app(url)
             loaded_history = [[f"Imported Repo/Model from {url}", code]]
             code_lang = "python"
-            framework_type = "python"
+            framework_type = "gradio"  # Default to gradio for Python code
             lower = (code or "").lower()
             if code.strip().startswith("<!doctype html>") or code.strip().startswith("<html"):
                 code_lang = "html"
@@ -7979,6 +8253,148 @@ with gr.Blocks(
         toggle_editors,
         inputs=[language_dropdown, code_output],
         outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code],
+    )
+
+    # Toggle Python multi-file editors for Gradio/Streamlit
+    def toggle_python_editors(language, code_text):
+        if language not in ["gradio", "streamlit"]:
+            return [
+                gr.update(visible=True),     # code_output
+                gr.update(visible=False),    # python_group_2
+                gr.update(visible=False),    # python_group_3
+                gr.update(visible=False),    # python_group_4
+                gr.update(visible=False),    # python_group_5plus
+                # All tab and code components get empty updates
+                gr.update(), gr.update(), gr.update(), gr.update(),  # 2-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 3-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 4-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()  # 5-file group
+            ]
+
+        files = parse_multi_file_python_output(code_text or "")
+
+        if not isinstance(files, dict) or len(files) <= 1:
+            # No multi-file content; keep single editor
+            return [
+                gr.update(visible=True),     # code_output
+                gr.update(visible=False),    # python_group_2
+                gr.update(visible=False),    # python_group_3
+                gr.update(visible=False),    # python_group_4
+                gr.update(visible=False),    # python_group_5plus
+                # All tab and code components get empty updates
+                gr.update(), gr.update(), gr.update(), gr.update(),  # 2-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 3-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 4-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()  # 5-file group
+            ]
+
+        # We have multi-file Python output: hide single editor, show appropriate group
+        # Order: main app first, then others sorted by name
+        ordered_paths = []
+        main_files = ['app.py', 'streamlit_app.py', 'main.py']
+        for main_file in main_files:
+            if main_file in files:
+                ordered_paths.append(main_file)
+                break
+        
+        for p in sorted(files.keys()):
+            if p not in ordered_paths:
+                ordered_paths.append(p)
+
+        num_files = len(ordered_paths)
+        
+        # Hide single editor, show appropriate group based on file count
+        updates = [gr.update(visible=False)]  # code_output
+        
+        if num_files == 2:
+            updates.extend([
+                gr.update(visible=True),     # python_group_2
+                gr.update(visible=False),    # python_group_3
+                gr.update(visible=False),    # python_group_4
+                gr.update(visible=False),    # python_group_5plus
+            ])
+            # Populate 2-file group
+            path1, path2 = ordered_paths[0], ordered_paths[1]
+            updates.extend([
+                gr.update(label=path1), gr.update(value=files.get(path1, ''), label=path1, language="python"),
+                gr.update(label=path2), gr.update(value=files.get(path2, ''), label=path2, language="python"),
+                # Empty updates for unused groups
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+            ])
+        elif num_files == 3:
+            updates.extend([
+                gr.update(visible=False),    # python_group_2
+                gr.update(visible=True),     # python_group_3
+                gr.update(visible=False),    # python_group_4
+                gr.update(visible=False),    # python_group_5plus
+            ])
+            # Populate 3-file group
+            path1, path2, path3 = ordered_paths[0], ordered_paths[1], ordered_paths[2]
+            updates.extend([
+                # Empty updates for 2-file group
+                gr.update(), gr.update(), gr.update(), gr.update(),
+                # Populate 3-file group
+                gr.update(label=path1), gr.update(value=files.get(path1, ''), label=path1, language="python"),
+                gr.update(label=path2), gr.update(value=files.get(path2, ''), label=path2, language="python"),
+                gr.update(label=path3), gr.update(value=files.get(path3, ''), label=path3, language="python"),
+                # Empty updates for unused groups
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+            ])
+        elif num_files == 4:
+            updates.extend([
+                gr.update(visible=False),    # python_group_2
+                gr.update(visible=False),    # python_group_3
+                gr.update(visible=True),     # python_group_4
+                gr.update(visible=False),    # python_group_5plus
+            ])
+            # Populate 4-file group
+            paths = ordered_paths[:4]
+            updates.extend([
+                # Empty updates for 2-file and 3-file groups
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                # Populate 4-file group
+                gr.update(label=paths[0]), gr.update(value=files.get(paths[0], ''), label=paths[0], language="python"),
+                gr.update(label=paths[1]), gr.update(value=files.get(paths[1], ''), label=paths[1], language="python"),
+                gr.update(label=paths[2]), gr.update(value=files.get(paths[2], ''), label=paths[2], language="python"),
+                gr.update(label=paths[3]), gr.update(value=files.get(paths[3], ''), label=paths[3], language="python"),
+                # Empty updates for 5-file group
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+            ])
+        else:  # 5+ files
+            updates.extend([
+                gr.update(visible=False),    # python_group_2
+                gr.update(visible=False),    # python_group_3
+                gr.update(visible=False),    # python_group_4
+                gr.update(visible=True),     # python_group_5plus
+            ])
+            # Populate 5-file group (show first 5 files)
+            paths = ordered_paths[:5]
+            updates.extend([
+                # Empty updates for 2-file, 3-file, and 4-file groups
+                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
+                # Populate 5-file group
+                gr.update(label=paths[0]), gr.update(value=files.get(paths[0], ''), label=paths[0], language="python"),
+                gr.update(label=paths[1]), gr.update(value=files.get(paths[1], ''), label=paths[1], language="python"),
+                gr.update(label=paths[2]), gr.update(value=files.get(paths[2], ''), label=paths[2], language="python"),
+                gr.update(label=paths[3]), gr.update(value=files.get(paths[3], ''), label=paths[3], language="python"),
+                gr.update(label=paths[4]), gr.update(value=files.get(paths[4], ''), label=paths[4], language="python"),
+            ])
+
+        return updates
+
+    language_dropdown.change(
+        toggle_python_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[
+            code_output, python_group_2, python_group_3, python_group_4, python_group_5plus,
+            python_tab_2_1, python_code_2_1, python_tab_2_2, python_code_2_2,
+            python_tab_3_1, python_code_3_1, python_tab_3_2, python_code_3_2, python_tab_3_3, python_code_3_3,
+            python_tab_4_1, python_code_4_1, python_tab_4_2, python_code_4_2, python_tab_4_3, python_code_4_3, python_tab_4_4, python_code_4_4,
+            python_tab_5_1, python_code_5_1, python_tab_5_2, python_code_5_2, python_tab_5_3, python_code_5_3, python_tab_5_4, python_code_5_4, python_tab_5_5, python_code_5_5
+        ],
     )
 
     # Static HTML multi-file toggling and population
