@@ -473,8 +473,18 @@ When generating multi-file applications, use this exact format:
 [dependencies]
 ```
 
+**🚨 CRITICAL: Always Generate requirements.txt for New Applications**
+- ALWAYS include requirements.txt when creating new Gradio applications
+- Generate comprehensive, production-ready dependencies based on your code
+- Include not just direct imports but also commonly needed companion packages
+- Use correct PyPI package names (e.g., PIL → Pillow, sklearn → scikit-learn)
+- For diffusers: use `git+https://github.com/huggingface/diffusers`
+- For transformers: use `git+https://github.com/huggingface/transformers`
+- Include supporting packages (accelerate, torch, tokenizers, etc.) when using ML libraries
+- Your requirements.txt should ensure the application works smoothly in production
+
 **Single vs Multi-File Decision:**
-- Use single file for simple applications (< 100 lines)
+- Use single file for simple applications (< 100 lines) - but still generate requirements.txt if dependencies exist
 - Use multi-file structure for complex applications with:
   - Multiple models or processing pipelines
   - Extensive utility functions
@@ -778,7 +788,7 @@ When generating multi-file applications, use this exact format:
 ```
 
 **Single vs Multi-File Decision:**
-- Use single file for simple applications (< 100 lines)
+- Use single file for simple applications (< 100 lines) - but still generate requirements.txt if dependencies exist
 - Use multi-file structure for complex applications with:
   - Multiple models or processing pipelines
   - Extensive utility functions
@@ -1456,7 +1466,7 @@ When generating multi-file applications, use this exact format:
 ```
 
 **Single vs Multi-File Decision:**
-- Use single file for simple applications (< 100 lines)
+- Use single file for simple applications (< 100 lines) - but still generate requirements.txt if dependencies exist
 - Use multi-file structure for complex applications with:
   - Multiple pages or sections
   - Extensive data processing
@@ -1726,22 +1736,31 @@ CRITICAL: For imported spaces that lack anycoder attribution, you MUST add it as
 GradioFollowUpSystemPrompt = """You are an expert Gradio developer modifying an existing Gradio application.
 The user wants to apply changes based on their request.
 
-CRITICAL: You MUST maintain the original multi-file structure when making modifications. 
-Do NOT use SEARCH/REPLACE blocks. Instead, output the complete modified files using the same format as the original generation.
+🚨 CRITICAL INSTRUCTION: You MUST maintain the original multi-file structure when making modifications. 
+❌ Do NOT use SEARCH/REPLACE blocks. 
+❌ Do NOT output everything in one combined block.
+✅ Instead, output the complete modified files using the EXACT same multi-file format as the original generation.
 
-**Output Format for Modified Gradio Apps:**
-When modifying multi-file Gradio applications, use this exact format:
+**MANDATORY Output Format for Modified Gradio Apps:**
+You MUST use this exact format with file separators. DO NOT deviate from this format:
 
-```
 === app.py ===
 [complete modified app.py content]
 
-=== utils.py ===
-[complete modified utils.py content - only if it exists and needs changes]
+**CRITICAL FORMATTING RULES:**
+- ALWAYS start each file with exactly "=== filename ===" (three equals signs before and after)
+- NEVER combine files into one block
+- NEVER use SEARCH/REPLACE blocks like <<<<<<< SEARCH
+- ALWAYS include app.py if it needs changes
+- Only include other files (utils.py, models.py, etc.) if they exist and need changes
+- Each file section must be complete and standalone
+- The format MUST match the original multi-file structure exactly
 
-=== requirements.txt ===
-[complete modified requirements.txt content]
-```
+**🚨 CRITICAL: DO NOT GENERATE requirements.txt**
+- requirements.txt is automatically generated from your app.py imports
+- Do NOT include requirements.txt in your output unless the user specifically asks to modify dependencies
+- The system will automatically extract imports from app.py and generate requirements.txt
+- This prevents unnecessary changes to dependencies
 
 **File Modification Guidelines:**
 - Only output files that actually need changes
@@ -5848,7 +5867,9 @@ def generation_code(query: str | None, vlm_image: Optional[gr.Image], _setting: 
             '=== index.html ===' in last_assistant_msg or
             '=== index.js ===' in last_assistant_msg or
             '=== style.css ===' in last_assistant_msg or
-            '=== src/App.svelte ===' in last_assistant_msg):
+            '=== src/App.svelte ===' in last_assistant_msg or
+            '=== app.py ===' in last_assistant_msg or
+            '=== requirements.txt ===' in last_assistant_msg):
             has_existing_content = True
 
     # If this is a modification request, try to apply search/replace first
@@ -6524,7 +6545,18 @@ Generate the exact search/replace blocks needed to make these changes."""
         elif language == "gradio":
             # Handle Gradio output - check if it's multi-file format or single file
             if ('=== app.py ===' in content or '=== requirements.txt ===' in content):
-                # Model returned complete multi-file Gradio output (new generation or followup with multi-file format)
+                # Model returned multi-file Gradio output - ensure requirements.txt is present
+                files = parse_multi_file_python_output(content)
+                if files and 'app.py' in files:
+                    # Check if requirements.txt is missing and auto-generate it
+                    if 'requirements.txt' not in files:
+                        import_statements = extract_import_statements(files['app.py'])
+                        requirements_content = generate_requirements_txt_with_llm(import_statements)
+                        files['requirements.txt'] = requirements_content
+                        
+                        # Reformat with the auto-generated requirements.txt
+                        content = format_multi_file_python_output(files)
+                
                 _history.append([query, content])
                 yield {
                     code_output: content,
@@ -6532,15 +6564,61 @@ Generate the exact search/replace blocks needed to make these changes."""
                     history_output: history_to_chatbot_messages(_history),
                 }
             elif has_existing_content:
-                # Model returned search/replace changes for Gradio - apply them
+                # Check if this is a followup that should maintain multi-file structure
                 last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
-                modified_content = apply_search_replace_changes(last_content, content)
-                _history.append([query, modified_content])
-                yield {
-                    code_output: modified_content,
-                    history: _history,
-                    history_output: history_to_chatbot_messages(_history),
-                }
+                
+                # If the original was multi-file but the response isn't, try to convert it
+                if ('=== app.py ===' in last_content or '=== requirements.txt ===' in last_content):
+                    # Original was multi-file, but response is single block - need to convert
+                    if not ('=== app.py ===' in content or '=== requirements.txt ===' in content):
+                        # Try to parse as single-block Gradio code and convert to multi-file format
+                        clean_content = remove_code_block(content)
+                        if 'import gradio' in clean_content or 'from gradio' in clean_content:
+                            # This looks like Gradio code, convert to multi-file format
+                            files = parse_multi_file_python_output(clean_content)
+                            if not files:
+                                # Single file - create multi-file structure
+                                files = {'app.py': clean_content}
+                                
+                                # Extract requirements from imports
+                                import_statements = extract_import_statements(clean_content)
+                                requirements_content = generate_requirements_txt_with_llm(import_statements)
+                                files['requirements.txt'] = requirements_content
+                            
+                            # Format as multi-file output
+                            formatted_content = format_multi_file_python_output(files)
+                            _history.append([query, formatted_content])
+                            yield {
+                                code_output: formatted_content,
+                                history: _history,
+                                history_output: history_to_chatbot_messages(_history),
+                            }
+                        else:
+                            # Not Gradio code, apply search/replace
+                            modified_content = apply_search_replace_changes(last_content, content)
+                            _history.append([query, modified_content])
+                            yield {
+                                code_output: modified_content,
+                                history: _history,
+                                history_output: history_to_chatbot_messages(_history),
+                            }
+                    else:
+                        # Response is already multi-file format
+                        _history.append([query, content])
+                        yield {
+                            code_output: content,
+                            history: _history,
+                            history_output: history_to_chatbot_messages(_history),
+                        }
+                else:
+                    # Original was single file, apply search/replace
+                    modified_content = apply_search_replace_changes(last_content, content)
+                    _history.append([query, modified_content])
+                    yield {
+                        code_output: modified_content,
+                        history: _history,
+                        history_output: history_to_chatbot_messages(_history),
+                    }
             else:
                 # Fallback - treat as single file Gradio app
                 _history.append([query, content])
@@ -9437,34 +9515,78 @@ with gr.Blocks(
                     # File doesn't exist or can't be accessed, so we should upload
                     should_upload_requirements = True
             
-            # Upload requirements.txt only if needed
-            if should_upload_requirements:
-                try:
-                    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
-                        f.write(requirements_content)
-                        requirements_temp_path = f.name
-                    
-                    api.upload_file(
-                        path_or_fileobj=requirements_temp_path,
-                        path_in_repo="requirements.txt",
-                        repo_id=repo_id,
-                        repo_type="space"
-                    )
-                except Exception as e:
-                    error_msg = str(e)
-                    if "403 Forbidden" in error_msg and "write token" in error_msg:
-                        return gr.update(value=f"Error uploading requirements.txt: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
-                    else:
-                        return gr.update(value=f"Error uploading requirements.txt: {e}", visible=True)
-                finally:
-                    import os
-                    if 'requirements_temp_path' in locals():
-                        os.unlink(requirements_temp_path)
+            # Note: requirements.txt upload is now handled by the multi-file commit logic below
+            # This ensures all files are committed atomically in a single operation
             
             # Add anycoder tag to existing README
             add_anycoder_tag_to_readme(api, repo_id)
             
-            # Now upload the main app.py file
+            # Check if code contains multi-file format
+            if ('=== app.py ===' in code or '=== requirements.txt ===' in code):
+                # Parse multi-file format and upload each file separately
+                files = parse_multi_file_python_output(code)
+                if files:
+                    # Ensure requirements.txt is present - auto-generate if missing
+                    if 'app.py' in files and 'requirements.txt' not in files:
+                        import_statements = extract_import_statements(files['app.py'])
+                        requirements_content = generate_requirements_txt_with_llm(import_statements)
+                        files['requirements.txt'] = requirements_content
+                    try:
+                        from huggingface_hub import CommitOperationAdd
+                        operations = []
+                        temp_files = []
+                        
+                        # Create CommitOperation for each file
+                        for filename, content in files.items():
+                            # Create temporary file
+                            with tempfile.NamedTemporaryFile("w", suffix=f".{filename.split('.')[-1]}", delete=False) as f:
+                                f.write(content)
+                                temp_path = f.name
+                                temp_files.append(temp_path)
+                            
+                            # Add to operations
+                            operations.append(CommitOperationAdd(
+                                path_in_repo=filename,
+                                path_or_fileobj=temp_path
+                            ))
+                        
+                        # Commit all files at once
+                        api.create_commit(
+                            repo_id=repo_id,
+                            operations=operations,
+                            commit_message=f"{'Update' if is_update else 'Deploy'} Gradio app with multiple files",
+                            repo_type="space"
+                        )
+                        
+                        # Clean up temp files
+                        for temp_path in temp_files:
+                            try:
+                                os.unlink(temp_path)
+                            except Exception:
+                                pass
+                        
+                        space_url = f"https://huggingface.co/spaces/{repo_id}"
+                        action_text = "Updated" if is_update else "Deployed"
+                        return gr.update(value=f"✅ {action_text}! [Open your Space here]({space_url})", visible=True)
+                        
+                    except Exception as e:
+                        # Clean up temp files on error
+                        for temp_path in temp_files:
+                            try:
+                                os.unlink(temp_path)
+                            except Exception:
+                                pass
+                        
+                        error_msg = str(e)
+                        if "403 Forbidden" in error_msg and "write token" in error_msg:
+                            return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                        else:
+                            return gr.update(value=f"Error uploading multi-file app: {e}", visible=True)
+                else:
+                    # Fallback to single file if parsing failed
+                    pass
+            
+            # Single file upload (fallback or non-multi-file format)
             file_name = "app.py"
             with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
                 f.write(code)
