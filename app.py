@@ -6876,16 +6876,19 @@ Generate a comprehensive requirements.txt that ensures the application will work
         
         # Clean up the response in case it includes extra formatting
         if '```' in requirements_content:
-            # Extract content between code blocks
+            # Use the existing remove_code_block function for consistent cleaning
+            requirements_content = remove_code_block(requirements_content)
+            
+            # Additional cleanup for any remaining backticks
+            # Remove any remaining standalone backticks at start/end of lines
             lines = requirements_content.split('\n')
-            in_code_block = False
             clean_lines = []
             for line in lines:
-                if line.strip().startswith('```'):
-                    in_code_block = not in_code_block
+                stripped_line = line.strip()
+                # Skip lines that are just backticks or backticks with language markers
+                if stripped_line == '```' or stripped_line.startswith('```'):
                     continue
-                if in_code_block:
-                    clean_lines.append(line)
+                clean_lines.append(line)
             requirements_content = '\n'.join(clean_lines).strip()
         
         # Ensure it ends with a newline
@@ -9538,9 +9541,23 @@ with gr.Blocks(
                         
                         # Create CommitOperation for each file
                         for filename, content in files.items():
+                            # Clean content to ensure no stray backticks are deployed
+                            cleaned_content = content
+                            if filename.endswith('.txt') or filename.endswith('.py'):
+                                # Additional safety: remove any standalone backtick lines
+                                lines = cleaned_content.split('\n')
+                                clean_lines = []
+                                for line in lines:
+                                    stripped = line.strip()
+                                    # Skip lines that are just backticks
+                                    if stripped == '```' or (stripped.startswith('```') and len(stripped) <= 10):
+                                        continue
+                                    clean_lines.append(line)
+                                cleaned_content = '\n'.join(clean_lines)
+                            
                             # Create temporary file
                             with tempfile.NamedTemporaryFile("w", suffix=f".{filename.split('.')[-1]}", delete=False) as f:
-                                f.write(content)
+                                f.write(cleaned_content)
                                 temp_path = f.name
                                 temp_files.append(temp_path)
                             
