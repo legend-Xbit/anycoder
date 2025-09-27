@@ -1722,6 +1722,51 @@ IMPORTANT: Always ensure "Built with anycoder" appears as clickable text in the 
 
 CRITICAL: For imported spaces that lack anycoder attribution, you MUST add it as part of your modifications. Add it to the header/navigation area as clickable text linking to https://huggingface.co/spaces/akhaliq/anycoder"""
 
+# Follow-up system prompt for modifying existing Gradio applications
+GradioFollowUpSystemPrompt = """You are an expert Gradio developer modifying an existing Gradio application.
+The user wants to apply changes based on their request.
+
+CRITICAL: You MUST maintain the original multi-file structure when making modifications. 
+Do NOT use SEARCH/REPLACE blocks. Instead, output the complete modified files using the same format as the original generation.
+
+**Output Format for Modified Gradio Apps:**
+When modifying multi-file Gradio applications, use this exact format:
+
+```
+=== app.py ===
+[complete modified app.py content]
+
+=== utils.py ===
+[complete modified utils.py content - only if it exists and needs changes]
+
+=== requirements.txt ===
+[complete modified requirements.txt content]
+```
+
+**File Modification Guidelines:**
+- Only output files that actually need changes
+- If a file doesn't need modification, don't include it in the output
+- Maintain the exact same file structure as the original
+- Preserve all existing functionality unless specifically asked to change it
+- Keep all imports, dependencies, and configurations intact unless modification is requested
+
+**Common Modification Scenarios:**
+- Adding new features → Modify app.py and possibly utils.py
+- Fixing bugs → Modify the relevant file (usually app.py)
+- Adding dependencies → Modify requirements.txt
+- UI improvements → Modify app.py
+- Performance optimizations → Modify app.py and/or utils.py
+
+**ZeroGPU and Performance:**
+- Maintain all existing @spaces.GPU decorators
+- Keep AoT compilation if present
+- Preserve all performance optimizations
+- Add ZeroGPU decorators for new GPU-dependent functions
+
+IMPORTANT: Always ensure "Built with anycoder" appears as clickable text in the header/top section linking to https://huggingface.co/spaces/akhaliq/anycoder - if it's missing from the existing code, add it; if it exists, preserve it.
+
+CRITICAL: For imported spaces that lack anycoder attribution, you MUST add it as part of your modifications. Add it to the header/navigation area as clickable text linking to https://huggingface.co/spaces/akhaliq/anycoder"""
+
 # Follow-up system prompt for modifying existing transformers.js applications
 TransformersJSFollowUpSystemPrompt = f"""You are an expert web developer modifying an existing transformers.js application.
 The user wants to apply changes based on their request.
@@ -5934,6 +5979,8 @@ Generate the exact search/replace blocks needed to make these changes."""
         # Use follow-up prompt for modifying existing content
         if language == "transformers.js":
             system_prompt = TransformersJSFollowUpSystemPrompt
+        elif language == "gradio":
+            system_prompt = GradioFollowUpSystemPrompt
         elif language == "svelte":
             system_prompt = FollowUpSystemPrompt  # Use generic follow-up for Svelte
         else:
@@ -6468,6 +6515,34 @@ Generate the exact search/replace blocks needed to make these changes."""
                 }
             else:
                 # Fallback if parsing failed - just use the raw content
+                _history.append([query, content])
+                yield {
+                    code_output: content,
+                    history: _history,
+                    history_output: history_to_chatbot_messages(_history),
+                }
+        elif language == "gradio":
+            # Handle Gradio output - check if it's multi-file format or single file
+            if ('=== app.py ===' in content or '=== requirements.txt ===' in content):
+                # Model returned complete multi-file Gradio output (new generation or followup with multi-file format)
+                _history.append([query, content])
+                yield {
+                    code_output: content,
+                    history: _history,
+                    history_output: history_to_chatbot_messages(_history),
+                }
+            elif has_existing_content:
+                # Model returned search/replace changes for Gradio - apply them
+                last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
+                modified_content = apply_search_replace_changes(last_content, content)
+                _history.append([query, modified_content])
+                yield {
+                    code_output: modified_content,
+                    history: _history,
+                    history_output: history_to_chatbot_messages(_history),
+                }
+            else:
+                # Fallback - treat as single file Gradio app
                 _history.append([query, content])
                 yield {
                     code_output: content,
