@@ -7862,19 +7862,29 @@ with gr.Blocks(
             status, code = load_project_from_url(url)
             # Extract space info for deployment
             is_valid, username, project_name = check_hf_space_url(url)
-            space_info = f"{username}/{project_name}" if is_valid else ""
+            space_name = f"{username}/{project_name}" if is_valid else ""
             loaded_history = [[f"Imported Space from {url}", code]]
             
             # Determine the correct language/framework based on the imported content
             code_lang = "html"  # default
             framework_type = "html"  # for language dropdown
-            if is_streamlit_code(code) or is_gradio_code(code):
+            
+            # Check imports to determine framework for Python code
+            if is_streamlit_code(code):
+                code_lang = "python"
+                framework_type = "python"
+            elif is_gradio_code(code):
                 code_lang = "python"
                 framework_type = "python"
             elif "=== index.html ===" in code and "=== index.js ===" in code and "=== style.css ===" in code:
                 # This is a transformers.js app with the combined format
                 code_lang = "html"  # Use html for code display
                 framework_type = "transformers.js"  # But set dropdown to transformers.js
+            elif ("import " in code or "def " in code) and not ("<!DOCTYPE html>" in code or "<html" in code):
+                # This looks like Python code but doesn't match Streamlit/Gradio patterns
+                # Default to Gradio for Python spaces
+                code_lang = "python"
+                framework_type = "gradio"
             
             # Return the updates with proper language settings
             return [
