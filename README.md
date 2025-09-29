@@ -73,6 +73,9 @@ python app.py
 - Moonshot Kimi-K2
 - Kimi K2 Turbo (Preview)
 - DeepSeek V3
+- DeepSeek V3.1
+- DeepSeek V3.1 Terminus
+- DeepSeek V3.2-Exp
 - DeepSeek R1
 - ERNIE-4.5-VL (multimodal)
 - MiniMax M1

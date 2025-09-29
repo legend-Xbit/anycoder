@@ -1906,6 +1906,11 @@ AVAILABLE_MODELS = [
         "description": "DeepSeek V3.1 Terminus model for advanced code generation and reasoning tasks"
     },
     {
+        "name": "DeepSeek V3.2-Exp",
+        "id": "deepseek-ai/DeepSeek-V3.2-Exp",
+        "description": "DeepSeek V3.2 Experimental model for cutting-edge code generation and reasoning"
+    },
+    {
         "name": "DeepSeek R1", 
         "id": "deepseek-ai/DeepSeek-R1-0528",
         "description": "DeepSeek R1 model for code generation"
@@ -2106,7 +2111,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Gemini Flash Latest"
+DEFAULT_MODEL_NAME = "DeepSeek V3.2-Exp"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -2338,6 +2343,8 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "deepseek-ai/DeepSeek-V3.1":
         provider = "novita"
     elif model_id == "deepseek-ai/DeepSeek-V3.1-Terminus":
+        provider = "novita"
+    elif model_id == "deepseek-ai/DeepSeek-V3.2-Exp":
         provider = "novita"
     elif model_id == "zai-org/GLM-4.5":
         provider = "fireworks-ai"
