@@ -8577,11 +8577,13 @@ with gr.Blocks(
                 gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()  # 5-file group
             ]
 
-        files = parse_multipage_html_output(code_text or "")
-        files = validate_and_autofix_files(files)
-
-        if not isinstance(files, dict) or len(files) <= 1:
-            # No multi-file content; keep single editor
+        # Parse multi-file output first
+        original_files = parse_multipage_html_output(code_text or "")
+        
+        # Check if we actually have multi-file content BEFORE validation
+        # (validate_and_autofix_files can create additional files from single-file HTML)
+        if not isinstance(original_files, dict) or len(original_files) <= 1:
+            # No genuine multi-file content; keep single editor
             return [
                 gr.update(visible=True),     # code_output
                 gr.update(visible=False),    # static_group_2
@@ -8594,6 +8596,9 @@ with gr.Blocks(
                 gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 4-file group
                 gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()  # 5-file group
             ]
+        
+        # We have genuine multi-file content - now validate and proceed with multi-file display
+        files = validate_and_autofix_files(original_files)
 
         # We have multi-file static output: hide single editor, show appropriate static group
         # Order: index.html first, then others sorted by path
@@ -8622,87 +8627,26 @@ with gr.Blocks(
 
         num_files = len(ordered_paths)
         
-        # Hide single editor, show appropriate group based on file count
-        updates = [gr.update(visible=False)]  # code_output
+        # TEMPORARY FIX: For now, always keep single editor visible for HTML multi-file
+        # This ensures code is always visible while we debug the multi-file editors
+        # TODO: Remove this once multi-file editors are working properly
+        updates = [
+            gr.update(visible=True),     # code_output - keep visible
+            gr.update(visible=False),    # static_group_2 - hide multi-file editors for now
+            gr.update(visible=False),    # static_group_3
+            gr.update(visible=False),    # static_group_4
+            gr.update(visible=False),    # static_group_5plus
+        ]
         
-        if num_files == 2:
-            updates.extend([
-                gr.update(visible=True),     # static_group_2
-                gr.update(visible=False),    # static_group_3  
-                gr.update(visible=False),    # static_group_4
-                gr.update(visible=False),    # static_group_5plus
-            ])
-            # Populate 2-file group (tab labels + code content)
-            path1, path2 = ordered_paths[0], ordered_paths[1]
-            updates.extend([
-                gr.update(label=path1), gr.update(value=files.get(path1, ''), label=path1, language=_lang_for(path1)),
-                gr.update(label=path2), gr.update(value=files.get(path2, ''), label=path2, language=_lang_for(path2)),
-                # Empty updates for unused groups
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
-            ])
-        elif num_files == 3:
-            updates.extend([
-                gr.update(visible=False),    # static_group_2
-                gr.update(visible=True),     # static_group_3  
-                gr.update(visible=False),    # static_group_4
-                gr.update(visible=False),    # static_group_5plus
-            ])
-            # Populate 3-file group (tab labels + code content)
-            path1, path2, path3 = ordered_paths[0], ordered_paths[1], ordered_paths[2]
-            updates.extend([
-                # Empty updates for 2-file group
-                gr.update(), gr.update(), gr.update(), gr.update(),
-                # Populate 3-file group
-                gr.update(label=path1), gr.update(value=files.get(path1, ''), label=path1, language=_lang_for(path1)),
-                gr.update(label=path2), gr.update(value=files.get(path2, ''), label=path2, language=_lang_for(path2)),
-                gr.update(label=path3), gr.update(value=files.get(path3, ''), label=path3, language=_lang_for(path3)),
-                # Empty updates for unused groups
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
-            ])
-        elif num_files == 4:
-            updates.extend([
-                gr.update(visible=False),    # static_group_2
-                gr.update(visible=False),    # static_group_3  
-                gr.update(visible=True),     # static_group_4
-                gr.update(visible=False),    # static_group_5plus
-            ])
-            # Populate 4-file group (tab labels + code content)
-            paths = ordered_paths[:4]
-            updates.extend([
-                # Empty updates for 2-file and 3-file groups
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
-                # Populate 4-file group
-                gr.update(label=paths[0]), gr.update(value=files.get(paths[0], ''), label=paths[0], language=_lang_for(paths[0])),
-                gr.update(label=paths[1]), gr.update(value=files.get(paths[1], ''), label=paths[1], language=_lang_for(paths[1])),
-                gr.update(label=paths[2]), gr.update(value=files.get(paths[2], ''), label=paths[2], language=_lang_for(paths[2])),
-                gr.update(label=paths[3]), gr.update(value=files.get(paths[3], ''), label=paths[3], language=_lang_for(paths[3])),
-                # Empty updates for 5+ group
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
-            ])
-        else:  # 5+ files
-            updates.extend([
-                gr.update(visible=False),    # static_group_2
-                gr.update(visible=False),    # static_group_3  
-                gr.update(visible=False),    # static_group_4
-                gr.update(visible=True),     # static_group_5plus
-            ])
-            # Populate 5+ file group (show first 5) (tab labels + code content)
-            paths = ordered_paths[:5]
-            updates.extend([
-                # Empty updates for 2-file, 3-file, and 4-file groups
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
-                gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),
-                # Populate 5+ file group
-                gr.update(label=paths[0]), gr.update(value=files.get(paths[0], ''), label=paths[0], language=_lang_for(paths[0])),
-                gr.update(label=paths[1]), gr.update(value=files.get(paths[1], ''), label=paths[1], language=_lang_for(paths[1])),
-                gr.update(label=paths[2]), gr.update(value=files.get(paths[2], ''), label=paths[2], language=_lang_for(paths[2])),
-                gr.update(label=paths[3]), gr.update(value=files.get(paths[3], ''), label=paths[3], language=_lang_for(paths[3])),
-                gr.update(label=paths[4]), gr.update(value=files.get(paths[4], ''), label=paths[4], language=_lang_for(paths[4]))
-            ])
-
+        # Add empty updates for all the tab and code components
+        updates.extend([
+            # All tab and code components get empty updates (tab, code, tab, code, ...)
+            gr.update(), gr.update(), gr.update(), gr.update(),  # 2-file group
+            gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 3-file group
+            gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(),  # 4-file group
+            gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()  # 5-file group
+        ])
+        
         return updates
 
     # Respond to language change to show/hide static multi-file editors appropriately
@@ -8822,6 +8766,17 @@ with gr.Blocks(
             static_tab_5_1, static_code_5_1, static_tab_5_2, static_code_5_2, static_tab_5_3, static_code_5_3, static_tab_5_4, static_code_5_4, static_tab_5_5, static_code_5_5,
         ]
     ).then(
+        # After generation, toggle Python multi-file editors for Gradio/Streamlit
+        toggle_python_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[
+            code_output, python_group_2, python_group_3, python_group_4, python_group_5plus,
+            python_tab_2_1, python_code_2_1, python_tab_2_2, python_code_2_2,
+            python_tab_3_1, python_code_3_1, python_tab_3_2, python_code_3_2, python_tab_3_3, python_code_3_3,
+            python_tab_4_1, python_code_4_1, python_tab_4_2, python_code_4_2, python_tab_4_3, python_code_4_3, python_tab_4_4, python_code_4_4,
+            python_tab_5_1, python_code_5_1, python_tab_5_2, python_code_5_2, python_tab_5_3, python_code_5_3, python_tab_5_4, python_code_5_4, python_tab_5_5, python_code_5_5
+        ]
+    ).then(
         show_deploy_components,
         None,
         [deploy_btn]
@@ -8857,6 +8812,17 @@ with gr.Blocks(
             static_tab_3_1, static_code_3_1, static_tab_3_2, static_code_3_2, static_tab_3_3, static_code_3_3,
             static_tab_4_1, static_code_4_1, static_tab_4_2, static_code_4_2, static_tab_4_3, static_code_4_3, static_tab_4_4, static_code_4_4,
             static_tab_5_1, static_code_5_1, static_tab_5_2, static_code_5_2, static_tab_5_3, static_code_5_3, static_tab_5_4, static_code_5_4, static_tab_5_5, static_code_5_5,
+        ]
+    ).then(
+        # After generation, toggle Python multi-file editors for Gradio/Streamlit
+        toggle_python_editors,
+        inputs=[language_dropdown, code_output],
+        outputs=[
+            code_output, python_group_2, python_group_3, python_group_4, python_group_5plus,
+            python_tab_2_1, python_code_2_1, python_tab_2_2, python_code_2_2,
+            python_tab_3_1, python_code_3_1, python_tab_3_2, python_code_3_2, python_tab_3_3, python_code_3_3,
+            python_tab_4_1, python_code_4_1, python_tab_4_2, python_code_4_2, python_tab_4_3, python_code_4_3, python_tab_4_4, python_code_4_4,
+            python_tab_5_1, python_code_5_1, python_tab_5_2, python_code_5_2, python_tab_5_3, python_code_5_3, python_tab_5_4, python_code_5_4, python_tab_5_5, python_code_5_5
         ]
     ).then(
         show_deploy_components,
