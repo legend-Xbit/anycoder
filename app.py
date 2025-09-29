@@ -2089,6 +2089,11 @@ AVAILABLE_MODELS = [
         "description": "Anthropic Claude Opus 4.1 via Poe (OpenAI-compatible)"
     },
     {
+        "name": "Claude-Sonnet-4.5",
+        "id": "claude-sonnet-4.5",
+        "description": "Anthropic Claude Sonnet 4.5 via Poe (OpenAI-compatible)"
+    },
+    {
         "name": "Qwen3 Max Preview",
         "id": "qwen3-max-preview",
         "description": "Qwen3 Max Preview model via DashScope International API"
@@ -2229,6 +2234,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "claude-opus-4.1":
         # Use Poe (OpenAI-compatible) client for Claude-Opus-4.1
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
+    elif model_id == "claude-sonnet-4.5":
+        # Use Poe (OpenAI-compatible) client for Claude-Sonnet-4.5
         return OpenAI(
             api_key=os.getenv("POE_API_KEY"),
             base_url="https://api.poe.com/v1"
@@ -6304,6 +6315,13 @@ Generate the exact search/replace blocks needed to make these changes."""
             elif _current_model["id"] == "claude-opus-4.1":
                 completion = client.chat.completions.create(
                     model="Claude-Opus-4.1",
+                    messages=messages,
+                    stream=True,
+                    max_tokens=16384
+                )
+            elif _current_model["id"] == "claude-sonnet-4.5":
+                completion = client.chat.completions.create(
+                    model="Claude-Sonnet-4.5",
                     messages=messages,
                     stream=True,
                     max_tokens=16384
