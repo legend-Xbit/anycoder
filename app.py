@@ -8100,13 +8100,13 @@ with gr.Blocks(
             theme_status = gr.Markdown("")
         
         # Unified Import section
-        import_header_md = gr.Markdown("📥 Import Project (Space, GitHub, or Model)")
+        import_header_md = gr.Markdown("📥 Import Project (Space, GitHub, or Model)", visible=False)
         load_project_url = gr.Textbox(
             label="Project URL",
             placeholder="https://huggingface.co/spaces/user/space OR https://huggingface.co/user/model OR https://github.com/owner/repo",
             lines=1
-        , visible=True)
-        load_project_btn = gr.Button("Import Project", variant="secondary", size="sm", visible=True)
+        , visible=False)
+        load_project_btn = gr.Button("Import Project", variant="secondary", size="sm", visible=False)
         load_project_status = gr.Markdown(visible=False)
         
         input = gr.Textbox(
