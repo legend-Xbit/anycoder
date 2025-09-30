@@ -8106,7 +8106,7 @@ with gr.Blocks(
             placeholder="https://huggingface.co/spaces/user/space OR https://huggingface.co/user/model OR https://github.com/owner/repo",
             lines=1
         , visible=False)
-        load_project_btn = gr.Button("Import Project", variant="secondary", size="sm", visible=False)
+        load_project_btn = gr.Button("📥 Import Project", variant="secondary", size="sm", visible=True)
         load_project_status = gr.Markdown(visible=False)
         
         input = gr.Textbox(
@@ -8731,8 +8731,17 @@ with gr.Blocks(
     def hide_deploy_components(*args):
         return gr.Button(visible=True)
     
-    # Unified import event
+    # Show textbox when import button is clicked
+    def toggle_import_textbox(url_visible):
+        # If textbox is already visible and has content, proceed with import
+        # Otherwise, just show the textbox
+        return gr.update(visible=True)
+    
     load_project_btn.click(
+        fn=toggle_import_textbox,
+        inputs=[load_project_url],
+        outputs=[load_project_url]
+    ).then(
         handle_import_project,
         inputs=[load_project_url],
         outputs=[
