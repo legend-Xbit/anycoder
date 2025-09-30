@@ -1946,6 +1946,11 @@ AVAILABLE_MODELS = [
         "description": "GLM-4.5V multimodal model with image understanding for code generation"
     },
     {
+        "name": "GLM-4.6",
+        "id": "zai-org/GLM-4.6",
+        "description": "GLM-4.6 model for advanced code generation and general tasks"
+    },
+    {
         "name": "GLM-4.1V-9B-Thinking",
         "id": "THUDM/GLM-4.1V-9B-Thinking",
         "description": "GLM-4.1V-9B-Thinking model for multimodal code generation with image support"
@@ -2359,6 +2364,8 @@ def get_inference_client(model_id, provider="auto"):
         provider = "novita"
     elif model_id == "zai-org/GLM-4.5":
         provider = "fireworks-ai"
+    elif model_id == "zai-org/GLM-4.6":
+        provider = "zai-org"
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
