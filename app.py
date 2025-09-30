@@ -2121,7 +2121,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "DeepSeek V3.2-Exp"
+DEFAULT_MODEL_NAME = "GLM-4.6"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
