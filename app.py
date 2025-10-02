@@ -1886,11 +1886,6 @@ AVAILABLE_MODELS = [
         "description": "Moonshot AI Kimi K2 Turbo via OpenAI-compatible API"
     },
     {
-        "name": "Carrot",
-        "id": "stealth-model-1",
-        "description": "High-performance AI model for code generation and complex reasoning tasks"
-    },
-    {
         "name": "DeepSeek V3",
         "id": "deepseek-ai/DeepSeek-V3-0324",
         "description": "DeepSeek V3 model for code generation"
@@ -1916,11 +1911,6 @@ AVAILABLE_MODELS = [
         "description": "DeepSeek R1 model for code generation"
     },
     {
-        "name": "ERNIE-4.5-VL",
-        "id": "baidu/ERNIE-4.5-VL-424B-A47B-Base-PT",
-        "description": "ERNIE-4.5-VL model for multimodal code generation with image support"
-    },
-    {
         "name": "MiniMax M1",
         "id": "MiniMaxAI/MiniMax-M1-80k",
         "description": "MiniMax M1 model for code generation and general tasks"
@@ -1929,11 +1919,6 @@ AVAILABLE_MODELS = [
         "name": "Qwen3-235B-A22B",
         "id": "Qwen/Qwen3-235B-A22B",
         "description": "Qwen3-235B-A22B model for code generation and general tasks"
-    },
-    {
-        "name": "SmolLM3-3B",
-        "id": "HuggingFaceTB/SmolLM3-3B",
-        "description": "SmolLM3-3B model for code generation and general tasks"
     },
     {
         "name": "GLM-4.5",
@@ -1949,11 +1934,6 @@ AVAILABLE_MODELS = [
         "name": "GLM-4.6",
         "id": "zai-org/GLM-4.6",
         "description": "GLM-4.6 model for advanced code generation and general tasks"
-    },
-    {
-        "name": "GLM-4.1V-9B-Thinking",
-        "id": "THUDM/GLM-4.1V-9B-Thinking",
-        "description": "GLM-4.1V-9B-Thinking model for multimodal code generation with image support"
     },
     {
         "name": "Qwen3-235B-A22B-Instruct-2507",

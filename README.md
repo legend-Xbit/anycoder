@@ -58,7 +58,7 @@ python app.py
 ```
 2. Open your browser and navigate to the provided URL
 3. Describe your application in the text input field, or:
-   - Upload a UI design image (for ERNIE-4.5-VL or GLM-4.1V-9B-Thinking)
+   - Upload a UI design image (for multimodal models)
    - Upload a reference file (PDF, TXT, MD, CSV, DOCX, or image)
    - Enter a website URL for redesign (the app will extract and analyze the HTML and content)
    - Enable web search for up-to-date information
@@ -77,15 +77,12 @@ python app.py
 - DeepSeek V3.1 Terminus
 - DeepSeek V3.2-Exp
 - DeepSeek R1
-- ERNIE-4.5-VL (multimodal)
 - MiniMax M1
 - Qwen3-235B-A22B
 - Qwen3-4B-Instruct-2507
 - Qwen3-4B-Thinking-2507
 - Qwen3-30B-A3B-Instruct-2507 (via DashScope)
 - Qwen3-30B-A3B-Thinking-2507 (via DashScope)
-- SmolLM3-3B
-- GLM-4.1V-9B-Thinking (multimodal)
 - GPT-5 (via Poe)
 - Grok-4 (via Poe)
  - Claude-Opus-4.1 (via Poe)
