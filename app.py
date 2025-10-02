@@ -8095,8 +8095,8 @@ with gr.Blocks(
             visible=True
         )
         provider_state = gr.State("auto")
-        quick_start_md = gr.Markdown("**Quick start**", visible=True)
-        with gr.Column(visible=True) as quick_examples_col:
+        quick_start_md = gr.Markdown("**Quick start**", visible=False)
+        with gr.Column(visible=False) as quick_examples_col:
             for i, demo_item in enumerate(DEMO_LIST[:3]):
                 demo_card = gr.Button(
                     value=demo_item['title'], 
