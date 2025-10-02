@@ -7189,9 +7189,9 @@ def check_hf_space_url(url: str) -> Tuple[bool, str | None, str | None]:
     """Check if URL is a valid Hugging Face Spaces URL and extract username/project"""
     import re
     
-    # Pattern to match HF Spaces URLs
+    # Pattern to match HF Spaces URLs (allows dots in space names)
     url_pattern = re.compile(
-        r'^(https?://)?(huggingface\.co|hf\.co)/spaces/([\w-]+)/([\w-]+)$',
+        r'^(https?://)?(huggingface\.co|hf\.co)/spaces/([\w.-]+)/([\w.-]+)$',
         re.IGNORECASE
     )
     
