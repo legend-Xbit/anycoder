@@ -2107,16 +2107,6 @@ AVAILABLE_MODELS = [
         "name": "Qwen3-Max-2025-09-23",
         "id": "qwen3-max-2025-09-23",
         "description": "Qwen3-Max-2025-09-23 model - latest flagship model via Alibaba Cloud DashScope API"
-    },
-    {
-        "name": "Sonoma Dusk Alpha",
-        "id": "openrouter/sonoma-dusk-alpha",
-        "description": "OpenRouter Sonoma Dusk Alpha model with vision capabilities"
-    },
-    {
-        "name": "Sonoma Sky Alpha",
-        "id": "openrouter/sonoma-sky-alpha",
-        "description": "OpenRouter Sonoma Sky Alpha model with vision capabilities"
     }
 ]
 
@@ -2129,64 +2119,7 @@ for _m in AVAILABLE_MODELS:
         break
 if DEFAULT_MODEL is None and AVAILABLE_MODELS:
     DEFAULT_MODEL = AVAILABLE_MODELS[0]
-DEMO_LIST = [
-    {
-        "title": "Todo App",
-        "description": "Create a simple todo application with add, delete, and mark as complete functionality"
-    },
-    {
-        "title": "Calculator",
-        "description": "Build a basic calculator with addition, subtraction, multiplication, and division"
-    },
-    {
-        "title": "Chat Interface",
-        "description": "Build a chat interface with message history and user input"
-    },
-    {
-        "title": "E-commerce Product Card",
-        "description": "Create a product card component for an e-commerce website"
-    },
-    {
-        "title": "Login Form",
-        "description": "Build a responsive login form with validation"
-    },
-    {
-        "title": "Dashboard Layout",
-        "description": "Create a dashboard layout with sidebar navigation and main content area"
-    },
-    {
-        "title": "Data Table",
-        "description": "Build a data table with sorting and filtering capabilities"
-    },
-    {
-        "title": "Image Gallery",
-        "description": "Create an image gallery with lightbox functionality and responsive grid layout"
-    },
-    {
-        "title": "UI from Image",
-        "description": "Upload an image of a UI design and I'll generate the HTML/CSS code for it"
-    },
-    {
-        "title": "Extract Text from Image",
-        "description": "Upload an image containing text and I'll extract and process the text content"
-    },
-    {
-        "title": "Modify HTML",
-        "description": "After generating HTML, ask me to modify it with specific changes using search/replace format"
-    },
-    {
-        "title": "Search/Replace Example",
-        "description": "Generate HTML first, then ask: 'Change the title to My New Title' or 'Add a blue background to the body'"
-    },
-    {
-        "title": "Transformers.js App",
-        "description": "Create a transformers.js application with AI/ML functionality using the transformers.js library"
-    },
-    {
-        "title": "Svelte App",
-        "description": "Create a modern Svelte application with TypeScript, Vite, and responsive design"
-    }
-]
+DEMO_LIST = []
 
 # HF Inference Client
 HF_TOKEN = os.getenv('HF_TOKEN')
