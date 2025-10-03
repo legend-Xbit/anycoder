@@ -5764,7 +5764,7 @@ def update_ui_for_auth_status(profile: gr.OAuthProfile | None = None, token: gr.
             # Disable main input and button with clear messaging
             input: gr.update(
                 interactive=False, 
-                placeholder="🔒 Please log in with Hugging Face to use AnyCoder..."
+                placeholder="🔒 Click Sign in with Hugging Face button to use AnyCoder for free"
             ),
             btn: gr.update(interactive=False, variant="secondary")
         }
