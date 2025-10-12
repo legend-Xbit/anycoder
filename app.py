@@ -483,6 +483,23 @@ When generating multi-file applications, use this exact format:
 - Include supporting packages (accelerate, torch, tokenizers, etc.) when using ML libraries
 - Your requirements.txt should ensure the application works smoothly in production
 
+**🚨 CRITICAL: requirements.txt Formatting Rules**
+- Output ONLY plain text package names, one per line
+- Do NOT use markdown formatting (no ```, no bold, no headings, no lists with * or -)
+- Do NOT add explanatory text or descriptions
+- Do NOT wrap in code blocks
+- Just raw package names as they would appear in a real requirements.txt file
+- Example of CORRECT format:
+  gradio
+  torch
+  transformers
+- Example of INCORRECT format (DO NOT DO THIS):
+  ```
+  gradio  # For web interface
+  **Core dependencies:**
+  - torch
+  ```
+
 **Single vs Multi-File Decision:**
 - Use single file for simple applications (< 100 lines) - but still generate requirements.txt if dependencies exist
 - Use multi-file structure for complex applications with:
@@ -786,6 +803,23 @@ When generating multi-file applications, use this exact format:
 === requirements.txt ===
 [dependencies]
 ```
+
+**🚨 CRITICAL: requirements.txt Formatting Rules**
+- Output ONLY plain text package names, one per line
+- Do NOT use markdown formatting (no ```, no bold, no headings, no lists with * or -)
+- Do NOT add explanatory text or descriptions
+- Do NOT wrap in code blocks
+- Just raw package names as they would appear in a real requirements.txt file
+- Example of CORRECT format:
+  gradio
+  torch
+  transformers
+- Example of INCORRECT format (DO NOT DO THIS):
+  ```
+  gradio  # For web interface
+  **Core dependencies:**
+  - torch
+  ```
 
 **Single vs Multi-File Decision:**
 - Use single file for simple applications (< 100 lines) - but still generate requirements.txt if dependencies exist
@@ -1465,6 +1499,23 @@ When generating multi-file applications, use this exact format:
 [dependencies]
 ```
 
+**🚨 CRITICAL: requirements.txt Formatting Rules**
+- Output ONLY plain text package names, one per line
+- Do NOT use markdown formatting (no ```, no bold, no headings, no lists with * or -)
+- Do NOT add explanatory text or descriptions
+- Do NOT wrap in code blocks
+- Just raw package names as they would appear in a real requirements.txt file
+- Example of CORRECT format:
+  streamlit
+  pandas
+  numpy
+- Example of INCORRECT format (DO NOT DO THIS):
+  ```
+  streamlit  # For web interface
+  **Core dependencies:**
+  - pandas
+  ```
+
 **Single vs Multi-File Decision:**
 - Use single file for simple applications (< 100 lines) - but still generate requirements.txt if dependencies exist
 - Use multi-file structure for complex applications with:
@@ -1761,6 +1812,23 @@ You MUST use this exact format with file separators. DO NOT deviate from this fo
 - Do NOT include requirements.txt in your output unless the user specifically asks to modify dependencies
 - The system will automatically extract imports from app.py and generate requirements.txt
 - This prevents unnecessary changes to dependencies
+
+**IF User Specifically Asks to Modify requirements.txt:**
+- Output ONLY plain text package names, one per line
+- Do NOT use markdown formatting (no ```, no bold, no headings, no lists with * or -)
+- Do NOT add explanatory text or descriptions
+- Do NOT wrap in code blocks
+- Just raw package names as they would appear in a real requirements.txt file
+- Example of CORRECT format:
+  gradio
+  torch
+  transformers
+- Example of INCORRECT format (DO NOT DO THIS):
+  ```
+  gradio  # For web interface
+  **Core dependencies:**
+  - torch
+  ```
 
 **File Modification Guidelines:**
 - Only output files that actually need changes
@@ -5549,6 +5617,73 @@ def is_streamlit_code(code: str) -> bool:
     lowered = code.lower()
     return ("import streamlit" in lowered) or ("from streamlit" in lowered) or ("st." in code and "streamlit" in lowered)
 
+def clean_requirements_txt_content(content: str) -> str:
+    """
+    Clean up requirements.txt content to remove markdown formatting.
+    This function removes code blocks, markdown lists, headers, and other formatting
+    that might be mistakenly included by LLMs.
+    """
+    if not content:
+        return content
+    
+    # First, remove code blocks if present
+    if '```' in content:
+        content = remove_code_block(content)
+    
+    # Process line by line to remove markdown formatting
+    lines = content.split('\n')
+    clean_lines = []
+    
+    for line in lines:
+        stripped_line = line.strip()
+        
+        # Skip empty lines
+        if not stripped_line:
+            continue
+        
+        # Skip lines that are markdown formatting
+        if (stripped_line == '```' or 
+            stripped_line.startswith('```') or
+            # Skip markdown headers (## Header) but keep comments (# comment)
+            (stripped_line.startswith('#') and len(stripped_line) > 1 and stripped_line[1] != ' ') or
+            stripped_line.startswith('**') or  # Skip bold text
+            stripped_line.startswith('===') or  # Skip section dividers
+            stripped_line.startswith('---') or  # Skip horizontal rules
+            # Skip common explanatory text patterns
+            stripped_line.lower().startswith('here') or
+            stripped_line.lower().startswith('this') or
+            stripped_line.lower().startswith('the ') or
+            stripped_line.lower().startswith('based on') or
+            stripped_line.lower().startswith('dependencies') or
+            stripped_line.lower().startswith('requirements')):
+            continue
+        
+        # Handle markdown list items (- item or * item)
+        if (stripped_line.startswith('- ') or stripped_line.startswith('* ')):
+            # Extract the package name after the list marker
+            stripped_line = stripped_line[2:].strip()
+            if not stripped_line:
+                continue
+        
+        # Keep lines that look like valid package specifications
+        # Valid lines: package names, git+https://, comments starting with "# "
+        if (stripped_line.startswith('# ') or  # Valid comments
+            stripped_line.startswith('git+') or  # Git dependencies
+            stripped_line[0].isalnum() or  # Package names start with alphanumeric
+            '==' in stripped_line or  # Version specifications
+            '>=' in stripped_line or  # Version specifications
+            '<=' in stripped_line or  # Version specifications
+            '~=' in stripped_line):  # Version specifications
+            clean_lines.append(stripped_line)
+    
+    result = '\n'.join(clean_lines)
+    
+    # Ensure it ends with a newline
+    if result and not result.endswith('\n'):
+        result += '\n'
+    
+    return result if result else "# No additional dependencies required\n"
+
 def parse_multi_file_python_output(code: str) -> dict:
     """Parse multi-file Python output (Gradio/Streamlit) into separate files"""
     files = {}
@@ -5566,6 +5701,11 @@ def parse_multi_file_python_output(code: str) -> dict:
             if i + 1 < len(parts):
                 filename = parts[i].strip()
                 content = parts[i + 1].strip()
+                
+                # Clean up requirements.txt to remove markdown formatting
+                if filename == 'requirements.txt':
+                    content = clean_requirements_txt_content(content)
+                
                 files[filename] = content
     else:
         # Single file - check if it's a space import or regular code
@@ -5579,7 +5719,11 @@ def parse_multi_file_python_output(code: str) -> dict:
                 if line.startswith('=== ') and line.endswith(' ==='):
                     # Save previous file
                     if current_file and current_content:
-                        files[current_file] = '\n'.join(current_content)
+                        content = '\n'.join(current_content)
+                        # Clean up requirements.txt to remove markdown formatting
+                        if current_file == 'requirements.txt':
+                            content = clean_requirements_txt_content(content)
+                        files[current_file] = content
                     # Start new file
                     current_file = line[4:-4].strip()
                     current_content = []
@@ -5588,7 +5732,11 @@ def parse_multi_file_python_output(code: str) -> dict:
             
             # Save last file
             if current_file and current_content:
-                files[current_file] = '\n'.join(current_content)
+                content = '\n'.join(current_content)
+                # Clean up requirements.txt to remove markdown formatting
+                if current_file == 'requirements.txt':
+                    content = clean_requirements_txt_content(content)
+                files[current_file] = content
         else:
             # Single file code - determine appropriate filename
             if is_streamlit_code(code):
@@ -5629,7 +5777,13 @@ def format_multi_file_python_output(files: dict) -> str:
     # Format output
     for filename in ordered_files:
         output.append(f"=== {filename} ===")
-        output.append(files[filename])
+        
+        # Clean up requirements.txt content if it's being formatted
+        content = files[filename]
+        if filename == 'requirements.txt':
+            content = clean_requirements_txt_content(content)
+        
+        output.append(content)
         output.append("")  # Empty line between files
     
     return '\n'.join(output)
@@ -6803,10 +6957,17 @@ Instructions:
 - One package per line
 - If no external packages are needed, return "# No additional dependencies required"
 
+🚨 CRITICAL OUTPUT FORMAT:
+- Output ONLY the package names, one per line (plain text format)
+- Do NOT use markdown formatting (no ```, no bold, no headings, no lists)
+- Do NOT add any explanatory text before or after the package list
+- Do NOT wrap the output in code blocks
+- Just output raw package names as they would appear in requirements.txt
+
 Generate a comprehensive requirements.txt that ensures the application will work smoothly:"""
 
         messages = [
-            {"role": "system", "content": "You are a Python packaging expert specializing in creating comprehensive, production-ready requirements.txt files. Your goal is to ensure applications work smoothly by including not just direct dependencies but also commonly needed companion packages, popular extensions, and supporting libraries that developers typically need together."},
+            {"role": "system", "content": "You are a Python packaging expert specializing in creating comprehensive, production-ready requirements.txt files. Output ONLY plain text package names without any markdown formatting, code blocks, or explanatory text. Your goal is to ensure applications work smoothly by including not just direct dependencies but also commonly needed companion packages, popular extensions, and supporting libraries that developers typically need together."},
             {"role": "user", "content": prompt}
         ]
         
@@ -6823,18 +6984,40 @@ Generate a comprehensive requirements.txt that ensures the application will work
         if '```' in requirements_content:
             # Use the existing remove_code_block function for consistent cleaning
             requirements_content = remove_code_block(requirements_content)
+        
+        # Enhanced cleanup for markdown and formatting
+        lines = requirements_content.split('\n')
+        clean_lines = []
+        for line in lines:
+            stripped_line = line.strip()
             
-            # Additional cleanup for any remaining backticks
-            # Remove any remaining standalone backticks at start/end of lines
-            lines = requirements_content.split('\n')
-            clean_lines = []
-            for line in lines:
-                stripped_line = line.strip()
-                # Skip lines that are just backticks or backticks with language markers
-                if stripped_line == '```' or stripped_line.startswith('```'):
-                    continue
+            # Skip lines that are markdown formatting
+            if (stripped_line == '```' or 
+                stripped_line.startswith('```') or
+                stripped_line.startswith('#') and not stripped_line.startswith('# ') or  # Skip markdown headers but keep comments
+                stripped_line.startswith('**') or  # Skip bold text
+                stripped_line.startswith('*') and not stripped_line[1:2].isalnum() or  # Skip markdown lists but keep package names starting with *
+                stripped_line.startswith('-') and not stripped_line[1:2].isalnum() or  # Skip markdown lists but keep package names starting with -
+                stripped_line.startswith('===') or  # Skip section dividers
+                stripped_line.startswith('---') or  # Skip horizontal rules
+                stripped_line.lower().startswith('here') or  # Skip explanatory text
+                stripped_line.lower().startswith('this') or  # Skip explanatory text
+                stripped_line.lower().startswith('the') or  # Skip explanatory text
+                stripped_line.lower().startswith('based on') or  # Skip explanatory text
+                stripped_line == ''):  # Skip empty lines unless they're at natural boundaries
+                continue
+            
+            # Keep lines that look like valid package specifications
+            # Valid lines: package names, git+https://, comments starting with "# "
+            if (stripped_line.startswith('# ') or  # Valid comments
+                stripped_line.startswith('git+') or  # Git dependencies
+                stripped_line[0].isalnum() or  # Package names start with alphanumeric
+                '==' in stripped_line or  # Version specifications
+                '>=' in stripped_line or  # Version specifications
+                '<=' in stripped_line):  # Version specifications
                 clean_lines.append(line)
-            requirements_content = '\n'.join(clean_lines).strip()
+        
+        requirements_content = '\n'.join(clean_lines).strip()
         
         # Ensure it ends with a newline
         if requirements_content and not requirements_content.endswith('\n'):
