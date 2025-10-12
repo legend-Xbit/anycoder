@@ -769,6 +769,118 @@ def generate(prompt):
 - FlashAttention-3 works on H200 hardware via kernels library
 - Dynamic shapes add flexibility for variable input sizes
 
+## MCP Server Integration
+
+When the user requests an MCP-enabled Gradio app or asks for tool calling capabilities, you MUST enable MCP server functionality.
+
+**🚨 CRITICAL: Enabling MCP Server**
+To make your Gradio app function as an MCP (Model Control Protocol) server:
+1. Set `mcp_server=True` in the `.launch()` method
+2. Add `"gradio[mcp]"` to requirements.txt (not just `gradio`)
+3. Ensure all functions have detailed docstrings with proper Args sections
+4. Use type hints for all function parameters
+
+**Example:**
+```python
+import gradio as gr
+
+def letter_counter(word: str, letter: str) -> int:
+    \"\"\"
+    Count the number of occurrences of a letter in a word or text.
+
+    Args:
+        word (str): The input text to search through
+        letter (str): The letter to search for
+
+    Returns:
+        int: The number of times the letter appears
+    \"\"\"
+    return word.lower().count(letter.lower())
+
+demo = gr.Interface(
+    fn=letter_counter,
+    inputs=[gr.Textbox("strawberry"), gr.Textbox("r")],
+    outputs=[gr.Number()],
+    title="Letter Counter",
+    description="Count letter occurrences in text."
+)
+
+if __name__ == "__main__":
+    demo.launch(mcp_server=True)
+```
+
+**When to Enable MCP:**
+- User explicitly requests "MCP server" or "MCP-enabled app"
+- User wants tool calling capabilities for LLMs
+- User mentions Claude Desktop, Cursor, or Cline integration
+- User wants to expose functions as tools for AI assistants
+
+**MCP Requirements:**
+1. **Dependencies:** Always use `gradio[mcp]` in requirements.txt (not plain `gradio`)
+2. **Docstrings:** Every function must have a detailed docstring with:
+   - Brief description on first line
+   - Args section listing each parameter with type and description
+   - Returns section (optional but recommended)
+3. **Type Hints:** All parameters must have type hints (e.g., `word: str`, `count: int`)
+4. **Default Values:** Use default values in components to provide examples
+
+**Best Practices for MCP Tools:**
+- Use descriptive function names (they become tool names)
+- Keep functions focused and single-purpose
+- Accept string parameters when possible for better compatibility
+- Return simple types (str, int, float, list, dict) rather than complex objects
+- Use gr.Header for authentication headers when needed
+- Use gr.Progress() for long-running operations
+
+**Multiple Tools Example:**
+```python
+import gradio as gr
+
+def add_numbers(a: str, b: str) -> str:
+    \"\"\"
+    Add two numbers together.
+    
+    Args:
+        a (str): First number
+        b (str): Second number
+    
+    Returns:
+        str: Sum of the two numbers
+    \"\"\"
+    return str(int(a) + int(b))
+
+def multiply_numbers(a: str, b: str) -> str:
+    \"\"\"
+    Multiply two numbers.
+    
+    Args:
+        a (str): First number
+        b (str): Second number
+    
+    Returns:
+        str: Product of the two numbers
+    \"\"\"
+    return str(int(a) * int(b))
+
+with gr.Blocks() as demo:
+    gr.Markdown("# Math Tools MCP Server")
+    
+    with gr.Tab("Add"):
+        gr.Interface(add_numbers, [gr.Textbox("5"), gr.Textbox("3")], gr.Textbox())
+    
+    with gr.Tab("Multiply"):
+        gr.Interface(multiply_numbers, [gr.Textbox("4"), gr.Textbox("7")], gr.Textbox())
+
+if __name__ == "__main__":
+    demo.launch(mcp_server=True)
+```
+
+**REMEMBER:** If MCP is requested, ALWAYS:
+1. Set `mcp_server=True` in `.launch()`
+2. Use `gradio[mcp]` in requirements.txt
+3. Include complete docstrings with Args sections
+4. Add type hints to all parameters
+
 ## Complete Gradio API Reference
 
 This reference is automatically synced from https://www.gradio.app/llms.txt to ensure accuracy.
@@ -1093,6 +1205,118 @@ def generate(prompt):
 - FP8 quantization requires CUDA compute capability ≥ 9.0 (H200 ✅)
 - FlashAttention-3 works on H200 hardware via kernels library
 - Dynamic shapes add flexibility for variable input sizes
+
+## MCP Server Integration
+
+When the user requests an MCP-enabled Gradio app or asks for tool calling capabilities, you MUST enable MCP server functionality.
+
+**🚨 CRITICAL: Enabling MCP Server**
+To make your Gradio app function as an MCP (Model Control Protocol) server:
+1. Set `mcp_server=True` in the `.launch()` method
+2. Add `"gradio[mcp]"` to requirements.txt (not just `gradio`)
+3. Ensure all functions have detailed docstrings with proper Args sections
+4. Use type hints for all function parameters
+
+**Example:**
+```python
+import gradio as gr
+
+def letter_counter(word: str, letter: str) -> int:
+    \"\"\"
+    Count the number of occurrences of a letter in a word or text.
+
+    Args:
+        word (str): The input text to search through
+        letter (str): The letter to search for
+
+    Returns:
+        int: The number of times the letter appears
+    \"\"\"
+    return word.lower().count(letter.lower())
+
+demo = gr.Interface(
+    fn=letter_counter,
+    inputs=[gr.Textbox("strawberry"), gr.Textbox("r")],
+    outputs=[gr.Number()],
+    title="Letter Counter",
+    description="Count letter occurrences in text."
+)
+
+if __name__ == "__main__":
+    demo.launch(mcp_server=True)
+```
+
+**When to Enable MCP:**
+- User explicitly requests "MCP server" or "MCP-enabled app"
+- User wants tool calling capabilities for LLMs
+- User mentions Claude Desktop, Cursor, or Cline integration
+- User wants to expose functions as tools for AI assistants
+
+**MCP Requirements:**
+1. **Dependencies:** Always use `gradio[mcp]` in requirements.txt (not plain `gradio`)
+2. **Docstrings:** Every function must have a detailed docstring with:
+   - Brief description on first line
+   - Args section listing each parameter with type and description
+   - Returns section (optional but recommended)
+3. **Type Hints:** All parameters must have type hints (e.g., `word: str`, `count: int`)
+4. **Default Values:** Use default values in components to provide examples
+
+**Best Practices for MCP Tools:**
+- Use descriptive function names (they become tool names)
+- Keep functions focused and single-purpose
+- Accept string parameters when possible for better compatibility
+- Return simple types (str, int, float, list, dict) rather than complex objects
+- Use gr.Header for authentication headers when needed
+- Use gr.Progress() for long-running operations
+
+**Multiple Tools Example:**
+```python
+import gradio as gr
+
+def add_numbers(a: str, b: str) -> str:
+    \"\"\"
+    Add two numbers together.
+    
+    Args:
+        a (str): First number
+        b (str): Second number
+    
+    Returns:
+        str: Sum of the two numbers
+    \"\"\"
+    return str(int(a) + int(b))
+
+def multiply_numbers(a: str, b: str) -> str:
+    \"\"\"
+    Multiply two numbers.
+    
+    Args:
+        a (str): First number
+        b (str): Second number
+    
+    Returns:
+        str: Product of the two numbers
+    \"\"\"
+    return str(int(a) * int(b))
+
+with gr.Blocks() as demo:
+    gr.Markdown("# Math Tools MCP Server")
+    
+    with gr.Tab("Add"):
+        gr.Interface(add_numbers, [gr.Textbox("5"), gr.Textbox("3")], gr.Textbox())
+    
+    with gr.Tab("Multiply"):
+        gr.Interface(multiply_numbers, [gr.Textbox("4"), gr.Textbox("7")], gr.Textbox())
+
+if __name__ == "__main__":
+    demo.launch(mcp_server=True)
+```
+
+**REMEMBER:** If MCP is requested, ALWAYS:
+1. Set `mcp_server=True` in `.launch()`
+2. Use `gradio[mcp]` in requirements.txt
+3. Include complete docstrings with Args sections
+4. Add type hints to all parameters
 
 ## Complete Gradio API Reference
 
@@ -1849,6 +2073,15 @@ You MUST use this exact format with file separators. DO NOT deviate from this fo
 - Keep AoT compilation if present
 - Preserve all performance optimizations
 - Add ZeroGPU decorators for new GPU-dependent functions
+
+**MCP Server Support:**
+- If the user requests MCP functionality or tool calling capabilities:
+  1. Add `mcp_server=True` to the `.launch()` method if not present
+  2. Ensure `gradio[mcp]` is in requirements.txt (not just `gradio`)
+  3. Add detailed docstrings with Args sections to all functions
+  4. Add type hints to all function parameters
+- Preserve existing MCP configurations if already present
+- When adding new tools, follow MCP docstring format with Args and Returns sections
 
 IMPORTANT: Always ensure "Built with anycoder" appears as clickable text in the header/top section linking to https://huggingface.co/spaces/akhaliq/anycoder - if it's missing from the existing code, add it; if it exists, preserve it.
 
