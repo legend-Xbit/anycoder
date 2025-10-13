@@ -459,6 +459,12 @@ When creating complex Gradio applications, organize your code into multiple file
 - `requirements.txt` - Python dependencies
 - Additional modules as needed (e.g., `data_processing.py`, `ui_components.py`)
 
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
+- Only generate the code files listed above
+
 **Output Format for Multi-File Apps:**
 When generating multi-file applications, use this exact format:
 
@@ -901,6 +907,12 @@ When creating complex Gradio applications, organize your code into multiple file
 - `config.py` - Configuration and constants
 - `requirements.txt` - Python dependencies
 - Additional modules as needed (e.g., `data_processing.py`, `ui_components.py`)
+
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
+- Only generate the code files listed above
 
 **Output Format for Multi-File Apps:**
 When generating multi-file applications, use this exact format:
@@ -1475,6 +1487,11 @@ def initialize_fastrtc_docs():
 # Configuration
 HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
+
 If an image is provided, analyze it and use the visual information to better understand the user's requirements.
 
 Always respond with code that can be executed or rendered directly.
@@ -1518,6 +1535,11 @@ def validate_video_html(video_html: str) -> bool:
 
 # Stricter prompt for GLM-4.5V to ensure a complete, runnable HTML document with no escaped characters
 GLM45V_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
+
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
 
 Output a COMPLETE, STANDALONE HTML document that renders directly in a browser.
 
@@ -1652,6 +1674,11 @@ def reap_old_audio(ttl_seconds: int = AUDIO_FILE_TTL_SECONDS) -> None:
 
 TRANSFORMERS_JS_SYSTEM_PROMPT = """You are an expert web developer creating a transformers.js application. You will generate THREE separate files: index.html, index.js, and style.css.
 
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
+
 IMPORTANT: You MUST output ALL THREE files in the following format:
 
 ```html
@@ -1708,6 +1735,12 @@ When creating complex Streamlit applications, organize your code into multiple f
 - `requirements.txt` - Python dependencies
 - `pages/` - Additional pages for multi-page apps
 - Additional modules as needed (e.g., `data_processing.py`, `components.py`)
+
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
+- Only generate the code files listed above
 
 **Output Format for Multi-File Apps:**
 When generating multi-file applications, use this exact format:
@@ -1777,6 +1810,11 @@ IMPORTANT: Always include "Built with anycoder" as clickable text in the header/
 
 SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application.
 
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
+
 File selection policy (dynamic, model-decided):
 - Generate ONLY the files actually needed for the user's request.
 - MUST include src/App.svelte (entry component) and src/main.ts (entry point).
@@ -1842,11 +1880,21 @@ JSON_SYSTEM_PROMPT_WITH_SEARCH = ""
 
 GENERIC_SYSTEM_PROMPT = """You are an expert {language} developer. Write clean, idiomatic, and runnable {language} code for the user's request. If possible, include comments and best practices. Generate complete, working code that can be run immediately. If the user provides a file or other context, use it as a reference. If the code is for a script or app, make it as self-contained as possible.
 
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
+
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
 
 # Multi-page static HTML project prompt (generic, production-style structure)
 MULTIPAGE_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
+
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
 
 Create a production-ready MULTI-PAGE website using ONLY HTML, CSS, and vanilla JavaScript. Do NOT use SPA frameworks.
 
@@ -1887,6 +1935,11 @@ IMPORTANT: Always include "Built with anycoder" as clickable text in the header/
 
 # Dynamic multi-page (model decides files) prompts
 DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
+
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
 
 Create a production-ready website using ONLY HTML, CSS, and vanilla JavaScript. Do NOT use SPA frameworks.
 
@@ -1939,6 +1992,11 @@ For Python applications (Gradio/Streamlit), the project structure typically incl
 - config.py (configuration)
 - pages/ (for multi-page Streamlit apps)
 - Other supporting files as needed
+
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
 
 For multi-file projects, identify which specific file needs modification based on the user's request:
 - Main application logic → app.py or streamlit_app.py
@@ -2031,11 +2089,13 @@ You MUST use this exact format with file separators. DO NOT deviate from this fo
 - Each file section must be complete and standalone
 - The format MUST match the original multi-file structure exactly
 
-**🚨 CRITICAL: DO NOT GENERATE requirements.txt**
+**🚨 CRITICAL: DO NOT GENERATE requirements.txt or README.md**
 - requirements.txt is automatically generated from your app.py imports
-- Do NOT include requirements.txt in your output unless the user specifically asks to modify dependencies
+- README.md is automatically provided by the template
+- Do NOT include requirements.txt or README.md in your output unless the user specifically asks to modify them
 - The system will automatically extract imports from app.py and generate requirements.txt
-- This prevents unnecessary changes to dependencies
+- Generating a README.md will break the deployment process
+- This prevents unnecessary changes to dependencies and documentation
 
 **IF User Specifically Asks to Modify requirements.txt:**
 - Output ONLY plain text package names, one per line
@@ -2101,6 +2161,11 @@ IMPORTANT: When the user reports an ERROR MESSAGE, analyze it carefully to deter
 
 The transformers.js application consists of three files: index.html, index.js, and style.css.
 When making changes, specify which file you're modifying by starting your search/replace blocks with the file name.
+
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+- NEVER generate README.md files under any circumstances
+- A template README.md is automatically provided and will be overridden by the deployment system
+- Generating a README.md will break the deployment process
 
 Format Rules:
 1. Start with {SEARCH_START}
