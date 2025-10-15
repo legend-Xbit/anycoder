@@ -2445,6 +2445,11 @@ AVAILABLE_MODELS = [
         "description": "Anthropic Claude Sonnet 4.5 via Poe (OpenAI-compatible)"
     },
     {
+        "name": "Claude-Haiku-4.5",
+        "id": "claude-haiku-4.5",
+        "description": "Anthropic Claude Haiku 4.5 via Poe (OpenAI-compatible)"
+    },
+    {
         "name": "Qwen3 Max Preview",
         "id": "qwen3-max-preview",
         "description": "Qwen3 Max Preview model via DashScope International API"
@@ -2457,7 +2462,7 @@ AVAILABLE_MODELS = [
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "GLM-4.6"
+DEFAULT_MODEL_NAME = "Claude-Haiku-4.5"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -2524,6 +2529,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "claude-sonnet-4.5":
         # Use Poe (OpenAI-compatible) client for Claude-Sonnet-4.5
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
+    elif model_id == "claude-haiku-4.5":
+        # Use Poe (OpenAI-compatible) client for Claude-Haiku-4.5
         return OpenAI(
             api_key=os.getenv("POE_API_KEY"),
             base_url="https://api.poe.com/v1"
@@ -6694,6 +6705,13 @@ Generate the exact search/replace blocks needed to make these changes."""
             elif _current_model["id"] == "claude-sonnet-4.5":
                 completion = client.chat.completions.create(
                     model="Claude-Sonnet-4.5",
+                    messages=messages,
+                    stream=True,
+                    max_tokens=16384
+                )
+            elif _current_model["id"] == "claude-haiku-4.5":
+                completion = client.chat.completions.create(
+                    model="Claude-Haiku-4.5",
                     messages=messages,
                     stream=True,
                     max_tokens=16384
