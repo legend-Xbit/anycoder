@@ -2282,11 +2282,6 @@ AVAILABLE_MODELS = [
         "description": "MiniMax M1 model for code generation and general tasks"
     },
     {
-        "name": "Qwen3-235B-A22B",
-        "id": "Qwen/Qwen3-235B-A22B",
-        "description": "Qwen3-235B-A22B model for code generation and general tasks"
-    },
-    {
         "name": "GLM-4.5",
         "id": "zai-org/GLM-4.5",
         "description": "GLM-4.5 model with thinking capabilities for advanced code generation"
@@ -2300,66 +2295,6 @@ AVAILABLE_MODELS = [
         "name": "GLM-4.6",
         "id": "zai-org/GLM-4.6",
         "description": "GLM-4.6 model for advanced code generation and general tasks"
-    },
-    {
-        "name": "Qwen3-235B-A22B-Instruct-2507",
-        "id": "Qwen/Qwen3-235B-A22B-Instruct-2507",
-        "description": "Qwen3-235B-A22B-Instruct-2507 model for code generation and general tasks"
-    },
-    {
-        "name": "Qwen3-Coder-480B-A35B-Instruct",
-        "id": "Qwen/Qwen3-Coder-480B-A35B-Instruct",
-        "description": "Qwen3-Coder-480B-A35B-Instruct model for advanced code generation and programming tasks"
-    },
-    {
-        "name": "Qwen3-32B",
-        "id": "Qwen/Qwen3-32B",
-        "description": "Qwen3-32B model for code generation and general tasks"
-    },
-    {
-        "name": "Qwen3-4B-Instruct-2507",
-        "id": "Qwen/Qwen3-4B-Instruct-2507",
-        "description": "Qwen3-4B-Instruct-2507 model for code generation and general tasks"
-    },
-    {
-        "name": "Qwen3-4B-Thinking-2507",
-        "id": "Qwen/Qwen3-4B-Thinking-2507",
-        "description": "Qwen3-4B-Thinking-2507 model with advanced reasoning capabilities for code generation and general tasks"
-    },
-    {
-        "name": "Qwen3-235B-A22B-Thinking",
-        "id": "Qwen/Qwen3-235B-A22B-Thinking-2507",
-        "description": "Qwen3-235B-A22B-Thinking model with advanced reasoning capabilities"
-    },
-    {
-        "name": "Qwen3-Next-80B-A3B-Thinking",
-        "id": "Qwen/Qwen3-Next-80B-A3B-Thinking",
-        "description": "Qwen3-Next-80B-A3B-Thinking model with advanced reasoning capabilities via Hyperbolic"
-    },
-    {
-        "name": "Qwen3-Next-80B-A3B-Instruct",
-        "id": "Qwen/Qwen3-Next-80B-A3B-Instruct",
-        "description": "Qwen3-Next-80B-A3B-Instruct model for code generation and general tasks via Hyperbolic"
-    },
-    {
-        "name": "Qwen3-30B-A3B-Instruct-2507",
-        "id": "qwen3-30b-a3b-instruct-2507",
-        "description": "Qwen3-30B-A3B-Instruct model via Alibaba Cloud DashScope API"
-    },
-    {
-        "name": "Qwen3-30B-A3B-Thinking-2507",
-        "id": "qwen3-30b-a3b-thinking-2507",
-        "description": "Qwen3-30B-A3B-Thinking model with advanced reasoning via Alibaba Cloud DashScope API"
-    },
-    {
-        "name": "Qwen3-Coder-30B-A3B-Instruct",
-        "id": "qwen3-coder-30b-a3b-instruct",
-        "description": "Qwen3-Coder-30B-A3B-Instruct model for advanced code generation via Alibaba Cloud DashScope API"
-    },
-    {
-        "name": "Qwen3-Coder-Plus-2025-09-23",
-        "id": "qwen3-coder-plus-2025-09-23",
-        "description": "Qwen3-Coder-Plus-2025-09-23 model - latest advanced code generation model via Alibaba Cloud DashScope API"
     },
     {
         "name": "Cohere Command-A Reasoning 08-2025",
@@ -2453,11 +2388,6 @@ AVAILABLE_MODELS = [
         "name": "Qwen3 Max Preview",
         "id": "qwen3-max-preview",
         "description": "Qwen3 Max Preview model via DashScope International API"
-    },
-    {
-        "name": "Qwen3-Max-2025-09-23",
-        "id": "qwen3-max-2025-09-23",
-        "description": "Qwen3-Max-2025-09-23 model - latest flagship model via Alibaba Cloud DashScope API"
     }
 ]
 
@@ -2493,12 +2423,6 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "qwen3-coder-30b-a3b-instruct":
         # Use DashScope OpenAI client for Coder model
-        return OpenAI(
-            api_key=os.getenv("DASHSCOPE_API_KEY"),
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        )
-    elif model_id == "qwen3-coder-plus-2025-09-23":
-        # Use DashScope OpenAI client for Qwen3-Coder-Plus-2025-09-23 model
         return OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -2541,12 +2465,6 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "qwen3-max-preview":
         # Use DashScope International OpenAI client for Qwen3 Max Preview
-        return OpenAI(
-            api_key=os.getenv("DASHSCOPE_API_KEY"),
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        )
-    elif model_id == "qwen3-max-2025-09-23":
-        # Use DashScope OpenAI client for Qwen3-Max-2025-09-23 model
         return OpenAI(
             api_key=os.getenv("DASHSCOPE_API_KEY"),
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -2632,20 +2550,6 @@ def get_inference_client(model_id, provider="auto"):
         provider = "groq"
     elif model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
-    elif model_id == "Qwen/Qwen3-235B-A22B":
-        provider = "cerebras"
-    elif model_id == "Qwen/Qwen3-235B-A22B-Instruct-2507":
-        provider = "cerebras"
-    elif model_id == "Qwen/Qwen3-32B":
-        provider = "cerebras"
-    elif model_id == "Qwen/Qwen3-235B-A22B-Thinking-2507":
-        provider = "cerebras"
-    elif model_id == "Qwen/Qwen3-Coder-480B-A35B-Instruct":
-        provider = "cerebras"
-    elif model_id == "Qwen/Qwen3-Next-80B-A3B-Thinking":
-        provider = "hyperbolic"
-    elif model_id == "Qwen/Qwen3-Next-80B-A3B-Instruct":
-        provider = "novita"
     elif model_id == "deepseek-ai/DeepSeek-V3.1":
         provider = "novita"
     elif model_id == "deepseek-ai/DeepSeek-V3.1-Terminus":
@@ -7241,7 +7145,7 @@ def generate_requirements_txt_with_llm(import_statements):
     
     # Use a lightweight model for this task
     try:
-        client = get_inference_client("Qwen/Qwen3-Coder-480B-A35B-Instruct", "auto")
+        client = get_inference_client("zai-org/GLM-4.6", "auto")
         
         imports_text = '\n'.join(import_statements)
         
@@ -7288,7 +7192,7 @@ Generate a comprehensive requirements.txt that ensures the application will work
         ]
         
         response = client.chat.completions.create(
-            model="Qwen/Qwen3-Coder-480B-A35B-Instruct",
+            model="zai-org/GLM-4.6",
             messages=messages,
             max_tokens=1024,
             temperature=0.1
