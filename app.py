@@ -2345,16 +2345,6 @@ AVAILABLE_MODELS = [
         "description": "Google Gemini Flash Lite Latest model via OpenAI-compatible API"
     },
     {
-        "name": "GPT-OSS-120B",
-        "id": "openai/gpt-oss-120b",
-        "description": "OpenAI GPT-OSS-120B model for advanced code generation and general tasks"
-    },
-    {
-        "name": "GPT-OSS-20B",
-        "id": "openai/gpt-oss-20b",
-        "description": "OpenAI GPT-OSS-20B model for code generation and general tasks"
-    },
-    {
         "name": "GPT-5",
         "id": "gpt-5",
         "description": "OpenAI GPT-5 model for advanced code generation and general tasks"
@@ -2544,10 +2534,6 @@ def get_inference_client(model_id, provider="auto"):
             api_key=api_key,
             base_url=base_url,
         )
-    elif model_id == "openai/gpt-oss-120b":
-        provider = "groq"
-    elif model_id == "openai/gpt-oss-20b":
-        provider = "groq"
     elif model_id == "moonshotai/Kimi-K2-Instruct":
         provider = "groq"
     elif model_id == "deepseek-ai/DeepSeek-V3.1":
