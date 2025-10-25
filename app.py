@@ -2237,11 +2237,6 @@ CRITICAL: For imported spaces that lack anycoder attribution, you MUST add it as
 # Available models
 AVAILABLE_MODELS = [
     {
-        "name": "Grok 4 Fast (Free)",
-        "id": "x-ai/grok-4-fast:free",
-        "description": "X.AI Grok 4 Fast model via OpenRouter - free tier with vision capabilities for code generation"
-    },
-    {
         "name": "Moonshot Kimi-K2",
         "id": "moonshotai/Kimi-K2-Instruct",
         "description": "Moonshot AI Kimi-K2-Instruct model for code generation and general tasks"
@@ -2316,12 +2311,6 @@ AVAILABLE_MODELS = [
         "name": "Mistral Medium 2508",
         "id": "mistral-medium-2508",
         "description": "Mistral Medium 2508 model via Mistral API for general tasks and coding",
-        "type": "mistral"
-    },
-    {
-        "name": "Magistral Medium 2509",
-        "id": "magistral-medium-2509",
-        "description": "Magistral Medium 2509 model via Mistral API for advanced code generation and reasoning",
         "type": "mistral"
     },
     {
@@ -2471,23 +2460,13 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
         )
-    elif model_id == "x-ai/grok-4-fast:free":
-        # Use OpenRouter client for Grok 4 Fast (Free) model
-        return OpenAI(
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
-            default_headers={
-                "HTTP-Referer": "https://huggingface.co/spaces/akhaliq/anycoder",
-                "X-Title": "anycoder"
-            }
-        )
     elif model_id == "step-3":
         # Use StepFun API client for Step-3 model
         return OpenAI(
             api_key=os.getenv("STEP_API_KEY"),
             base_url="https://api.stepfun.com/v1"
         )
-    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508" or model_id == "magistral-medium-2509":
+    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508":
         # Use Mistral client for Mistral models
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
     elif model_id == "gemini-2.5-flash":
@@ -6562,7 +6541,7 @@ Generate the exact search/replace blocks needed to make these changes."""
         messages.append({'role': 'user', 'content': enhanced_query})
     try:
         # Handle Mistral API method difference
-        if _current_model["id"] in ("codestral-2508", "mistral-medium-2508", "magistral-medium-2509"):
+        if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
             completion = client.chat.stream(
                 model=get_real_model_id(_current_model["id"]),
                 messages=messages,
@@ -6620,7 +6599,7 @@ Generate the exact search/replace blocks needed to make these changes."""
         for chunk in completion:
             # Handle different response formats for Mistral vs others
             chunk_content = None
-            if _current_model["id"] in ("codestral-2508", "mistral-medium-2508", "magistral-medium-2509"):
+            if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
                 # Mistral format: chunk.data.choices[0].delta.content
                 if (
                     hasattr(chunk, "data") and chunk.data and
