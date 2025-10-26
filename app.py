@@ -2367,11 +2367,16 @@ AVAILABLE_MODELS = [
         "name": "Qwen3 Max Preview",
         "id": "qwen3-max-preview",
         "description": "Qwen3 Max Preview model via DashScope International API"
+    },
+    {
+        "name": "MiniMax M2 Free",
+        "id": "minimax/minimax-m2:free",
+        "description": "MiniMax M2 Free model via OpenRouter for code generation and general tasks"
     }
 ]
 
 # Default model selection
-DEFAULT_MODEL_NAME = "GLM-4.6"
+DEFAULT_MODEL_NAME = "MiniMax M2 Free"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -2456,6 +2461,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "openrouter/sonoma-sky-alpha":
         # Use OpenRouter client for Sonoma Sky Alpha model
+        return OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+        )
+    elif model_id == "minimax/minimax-m2:free":
+        # Use OpenRouter client for MiniMax M2 Free model
         return OpenAI(
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
