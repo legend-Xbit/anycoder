@@ -2237,31 +2237,6 @@ CRITICAL: For imported spaces that lack anycoder attribution, you MUST add it as
 # Available models
 AVAILABLE_MODELS = [
     {
-        "name": "Moonshot Kimi-K2",
-        "id": "moonshotai/Kimi-K2-Instruct",
-        "description": "Moonshot AI Kimi-K2-Instruct model for code generation and general tasks"
-    },
-    {
-        "name": "Kimi K2 Turbo (Preview)",
-        "id": "kimi-k2-turbo-preview",
-        "description": "Moonshot AI Kimi K2 Turbo via OpenAI-compatible API"
-    },
-    {
-        "name": "DeepSeek V3",
-        "id": "deepseek-ai/DeepSeek-V3-0324",
-        "description": "DeepSeek V3 model for code generation"
-    },
-    {
-        "name": "DeepSeek V3.1",
-        "id": "deepseek-ai/DeepSeek-V3.1",
-        "description": "DeepSeek V3.1 model for code generation and general tasks"
-    },
-    {
-        "name": "DeepSeek V3.1 Terminus",
-        "id": "deepseek-ai/DeepSeek-V3.1-Terminus",
-        "description": "DeepSeek V3.1 Terminus model for advanced code generation and reasoning tasks"
-    },
-    {
         "name": "DeepSeek V3.2-Exp",
         "id": "deepseek-ai/DeepSeek-V3.2-Exp",
         "description": "DeepSeek V3.2 Experimental model for cutting-edge code generation and reasoning"
@@ -2272,56 +2247,9 @@ AVAILABLE_MODELS = [
         "description": "DeepSeek R1 model for code generation"
     },
     {
-        "name": "MiniMax M1",
-        "id": "MiniMaxAI/MiniMax-M1-80k",
-        "description": "MiniMax M1 model for code generation and general tasks"
-    },
-    {
-        "name": "GLM-4.5",
-        "id": "zai-org/GLM-4.5",
-        "description": "GLM-4.5 model with thinking capabilities for advanced code generation"
-    },
-    {
-        "name": "GLM-4.5V",
-        "id": "zai-org/GLM-4.5V",
-        "description": "GLM-4.5V multimodal model with image understanding for code generation"
-    },
-    {
         "name": "GLM-4.6",
         "id": "zai-org/GLM-4.6",
         "description": "GLM-4.6 model for advanced code generation and general tasks"
-    },
-    {
-        "name": "Cohere Command-A Reasoning 08-2025",
-        "id": "CohereLabs/command-a-reasoning-08-2025",
-        "description": "Cohere Labs Command-A Reasoning (Aug 2025) via Hugging Face InferenceClient"
-    },
-    {
-        "name": "StepFun Step-3",
-        "id": "step-3",
-        "description": "StepFun Step-3 model - AI chat assistant by 阶跃星辰 with multilingual capabilities"
-    },
-    {
-        "name": "Codestral 2508",
-        "id": "codestral-2508",
-        "description": "Mistral Codestral model - specialized for code generation and programming tasks",
-        "type": "mistral"
-    },
-    {
-        "name": "Mistral Medium 2508",
-        "id": "mistral-medium-2508",
-        "description": "Mistral Medium 2508 model via Mistral API for general tasks and coding",
-        "type": "mistral"
-    },
-    {
-        "name": "Gemini 2.5 Flash",
-        "id": "gemini-2.5-flash",
-        "description": "Google Gemini 2.5 Flash via OpenAI-compatible API"
-    },
-    {
-        "name": "Gemini 2.5 Pro",
-        "id": "gemini-2.5-pro",
-        "description": "Google Gemini 2.5 Pro via OpenAI-compatible API"
     },
     {
         "name": "Gemini Flash Latest",
