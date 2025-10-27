@@ -1893,7 +1893,7 @@ Output format (CRITICAL):
 - Do NOT wrap files in Markdown code fences or use === markers inside file content
 
 CRITICAL Requirements:
-1. Always include a Dockerfile configured for Node.js deployment
+1. Always include a Dockerfile configured for Node.js deployment (see Dockerfile Requirements below)
 2. Use Next.js with TypeScript/JSX (.jsx files for components)
 3. Include Tailwind CSS for styling (in postcss.config.js and tailwind.config.js)
 4. Create necessary components in the components/ directory
@@ -1905,13 +1905,75 @@ CRITICAL Requirements:
 10. Make the application fully responsive
 11. Include proper error handling and loading states
 12. Follow accessibility best practices
+13. Configure next.config.js properly for HuggingFace Spaces deployment
 
-Dockerfile Requirements:
-- Use Node.js 18+ base image
-- Install dependencies with npm install
-- Run "npm run build" to build Next.js app
-- Expose port 3000
-- Start with "npm start"
+next.config.js Requirements:
+- Must be configured to work on any host (0.0.0.0)
+- Should not have hardcoded localhost references
+- Example minimal configuration:
+```javascript
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  // Allow the app to work on HuggingFace Spaces
+  output: 'standalone',
+}
+
+module.exports = nextConfig
+```
+
+Dockerfile Requirements (CRITICAL for HuggingFace Spaces):
+- Use Node.js 18+ base image (e.g., FROM node:18-slim)
+- Set up a user with ID 1000 for proper permissions:
+  ```
+  RUN useradd -m -u 1000 user
+  USER user
+  ENV HOME=/home/user \\
+      PATH=/home/user/.local/bin:$PATH
+  WORKDIR $HOME/app
+  ```
+- ALWAYS use --chown=user with COPY and ADD commands:
+  ```
+  COPY --chown=user package*.json ./
+  COPY --chown=user . .
+  ```
+- Install dependencies: RUN npm install
+- Build the app: RUN npm run build
+- Expose port 7860 (HuggingFace Spaces default): EXPOSE 7860
+- Start with: CMD ["npm", "start", "--", "-p", "7860"]
+- If using a different port, make sure to set app_port in the README.md YAML frontmatter
+
+Example Dockerfile structure:
+```dockerfile
+FROM node:18-slim
+
+# Set up user with ID 1000
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \\
+    PATH=/home/user/.local/bin:$PATH
+
+# Set working directory
+WORKDIR $HOME/app
+
+# Copy package files with proper ownership
+COPY --chown=user package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy rest of the application with proper ownership
+COPY --chown=user . .
+
+# Build the Next.js app
+RUN npm run build
+
+# Expose port 7860
+EXPOSE 7860
+
+# Start the application on port 7860
+CMD ["npm", "start", "--", "-p", "7860"]
+```
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
@@ -7004,8 +7066,14 @@ Generate the exact search/replace blocks needed to make these changes."""
 
 # Deploy to Spaces logic
 
-def add_anycoder_tag_to_readme(api, repo_id):
-    """Download existing README, add anycoder tag, and upload back."""
+def add_anycoder_tag_to_readme(api, repo_id, app_port=None):
+    """Download existing README, add anycoder tag and app_port if needed, and upload back.
+    
+    Args:
+        api: HuggingFace API client
+        repo_id: Repository ID
+        app_port: Optional port number to set for Docker spaces (e.g., 7860 for React apps)
+    """
     try:
         import tempfile
         import re
@@ -7038,6 +7106,10 @@ def add_anycoder_tag_to_readme(api, repo_id):
                     # Add tags section with anycoder
                     frontmatter += '\ntags:\n- anycoder'
                 
+                # Add app_port if specified and not already present
+                if app_port is not None and 'app_port:' not in frontmatter:
+                    frontmatter += f'\napp_port: {app_port}'
+                
                 # Reconstruct the README
                 new_content = f"---\n{frontmatter}\n---{body}"
             else:
@@ -7045,7 +7117,8 @@ def add_anycoder_tag_to_readme(api, repo_id):
                 new_content = content.replace('---', '---\ntags:\n- anycoder\n---', 1)
         else:
             # No frontmatter, add it at the beginning
-            new_content = f"---\ntags:\n- anycoder\n---\n\n{content}"
+            app_port_line = f'\napp_port: {app_port}' if app_port else ''
+            new_content = f"---\ntags:\n- anycoder{app_port_line}\n---\n\n{content}"
         
         # Upload the modified README
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding='utf-8') as f:
@@ -9536,8 +9609,8 @@ with gr.Blocks(
                         if not success:
                             return gr.update(value=f"Error uploading {file_name}: {last_error}", visible=True)
                     
-                    # Add anycoder tag to existing README
-                    add_anycoder_tag_to_readme(api, repo_id)
+                    # Add anycoder tag and app_port to existing README
+                    add_anycoder_tag_to_readme(api, repo_id, app_port=7860)
                     
                     space_url = f"https://huggingface.co/spaces/{repo_id}"
                     action_text = "Updated" if is_update else "Deployed"
