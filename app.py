@@ -38,7 +38,7 @@ from dashscope.utils.oss_utils import check_and_upload_local
 
 # Gradio supported languages for syntax highlighting
 GRADIO_SUPPORTED_LANGUAGES = [
-    "python", "json", "html"
+    "python", "json", "html", "javascript"
 ]
 
 def get_gradio_language(language):
@@ -49,6 +49,8 @@ def get_gradio_language(language):
         return "python"
     if language == "comfyui":
         return "json"
+    if language == "react":
+        return "javascript"
     return language if language in GRADIO_SUPPORTED_LANGUAGES else None
 
 # Search/Replace Constants
@@ -1863,6 +1865,78 @@ Requirements:
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
+REACT_SYSTEM_PROMPT = """You are an expert React and Next.js developer creating a modern Next.js application.
+
+**🚨 CRITICAL: DO NOT Generate README.md Files**
+|- NEVER generate README.md files under any circumstances
+|- A template README.md is automatically provided and will be overridden by the deployment system
+|- Generating a README.md will break the deployment process
+
+You will generate a Next.js project with TypeScript/JSX components. Follow this exact structure:
+
+Project Structure:
+- Dockerfile (Docker configuration for deployment)
+- package.json (dependencies and scripts)
+- next.config.js (Next.js configuration)
+- postcss.config.js (PostCSS configuration)
+- tailwind.config.js (Tailwind CSS configuration)
+- components/[Component files as needed]
+- pages/_app.js (Next.js app wrapper)
+- pages/index.js (home page)
+- pages/api/[API routes as needed]
+- styles/globals.css (global styles)
+
+Output format (CRITICAL):
+- Return ONLY a series of file sections, each starting with a filename line:
+  === Dockerfile ===
+  ...file content...
+
+  === package.json ===
+  ...file content...
+
+  (repeat for all files)
+- Do NOT wrap files in Markdown code fences or use === markers inside file content
+
+CRITICAL Requirements:
+1. Always include a Dockerfile configured for Node.js deployment
+2. Use Next.js with TypeScript/JSX (.jsx files for components)
+3. Include Tailwind CSS for styling (in postcss.config.js and tailwind.config.js)
+4. Create necessary components in the components/ directory
+5. Create API routes in pages/api/ directory for backend logic
+6. pages/_app.js should import and use globals.css
+7. pages/index.js should be the main entry point
+8. Keep package.json with essential dependencies
+9. Use modern React patterns and best practices
+10. Make the application fully responsive
+11. Include proper error handling and loading states
+12. Follow accessibility best practices
+
+Dockerfile Requirements:
+- Use Node.js 18+ base image
+- Install dependencies with npm install
+- Run "npm run build" to build Next.js app
+- Expose port 3000
+- Start with "npm start"
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
+"""
+
+REACT_FOLLOW_UP_SYSTEM_PROMPT = """You are an expert React and Next.js developer modifying an existing Next.js application.
+The user wants to apply changes based on their request.
+You MUST output ONLY the changes required using the following SEARCH/REPLACE block format. Do NOT output the entire file.
+Explain the changes briefly *before* the blocks if necessary, but the code changes THEMSELVES MUST be within the blocks.
+
+Format Rules:
+1. Start with <<<<<<< SEARCH
+2. Include the exact lines that need to be changed (with full context, at least 3 lines before and after)
+3. Follow with =======
+4. Include the replacement lines
+5. End with >>>>>>> REPLACE
+6. Generate multiple blocks if multiple sections need changes
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
+
+
 
 # Gradio system prompts will be dynamically populated by update_gradio_system_prompts()
 GRADIO_SYSTEM_PROMPT = ""
@@ -3067,6 +3141,22 @@ def parse_svelte_output(text):
     if css_match:
         results['src/app.css'] = css_match.group(1).strip()
     return results
+
+def parse_react_output(text):
+    """Parse React/Next.js output to extract individual files.
+
+    Supports multi-file sections using === filename === sections.
+    """
+    if not text:
+        return {}
+
+    # Use the generic multipage parser
+    try:
+        files = parse_multipage_html_output(text) or {}
+    except Exception:
+        files = {}
+
+    return files if isinstance(files, dict) and files else {}
 
 def format_svelte_output(files):
     """Format Svelte files into === filename === sections (generic)."""
@@ -6213,6 +6303,8 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = GradioFollowUpSystemPrompt
         elif language == "svelte":
             system_prompt = FollowUpSystemPrompt  # Use generic follow-up for Svelte
+        elif language == "react":
+            system_prompt = REACT_FOLLOW_UP_SYSTEM_PROMPT
         else:
             system_prompt = FollowUpSystemPrompt
     else:
@@ -6224,6 +6316,8 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT
         elif language == "svelte":
             system_prompt = SVELTE_SYSTEM_PROMPT
+        elif language == "react":
+            system_prompt = REACT_SYSTEM_PROMPT
         elif language == "gradio":
             system_prompt = GRADIO_SYSTEM_PROMPT
         elif language == "streamlit":
@@ -8338,7 +8432,7 @@ with gr.Blocks(
         )
         # Language dropdown for code generation (add Streamlit and Gradio as first-class options)
         language_choices = [
-            "html", "gradio", "transformers.js", "streamlit", "comfyui"
+            "html", "gradio", "transformers.js", "streamlit", "comfyui", "react"
         ]
         language_dropdown = gr.Dropdown(
             choices=language_choices,
@@ -8513,6 +8607,28 @@ with gr.Blocks(
                             static_code_5_4 = gr.Code(language="html", lines=18, interactive=True, label="file 4")
                         with gr.Tab("file 5") as static_tab_5_5:
                             static_code_5_5 = gr.Code(language="html", lines=18, interactive=True, label="file 5")
+            # React Next.js multi-file editors (hidden by default)
+            with gr.Group(visible=False) as react_group:
+                with gr.Tabs():
+                    with gr.Tab("Dockerfile"):
+                        react_code_dockerfile = gr.Code(language="bash", lines=15, interactive=True, label="Dockerfile")
+                    with gr.Tab("package.json"):
+                        react_code_package_json = gr.Code(language="json", lines=20, interactive=True, label="package.json")
+                    with gr.Tab("next.config.js"):
+                        react_code_next_config = gr.Code(language="javascript", lines=15, interactive=True, label="next.config.js")
+                    with gr.Tab("postcss.config.js"):
+                        react_code_postcss_config = gr.Code(language="javascript", lines=10, interactive=True, label="postcss.config.js")
+                    with gr.Tab("tailwind.config.js"):
+                        react_code_tailwind_config = gr.Code(language="javascript", lines=15, interactive=True, label="tailwind.config.js")
+                    with gr.Tab("pages/_app.js"):
+                        react_code_pages_app = gr.Code(language="javascript", lines=15, interactive=True, label="pages/_app.js")
+                    with gr.Tab("pages/index.js"):
+                        react_code_pages_index = gr.Code(language="javascript", lines=20, interactive=True, label="pages/index.js")
+                    with gr.Tab("components/ChatApp.jsx"):
+                        react_code_components = gr.Code(language="javascript", lines=25, interactive=True, label="components/ChatApp.jsx")
+                    with gr.Tab("styles/globals.css"):
+                        react_code_styles = gr.Code(language="css", lines=20, interactive=True, label="styles/globals.css")
+
             # Removed Import Logs tab for cleaner UI
             # History tab hidden per user request
             # with gr.Tab("History"):
@@ -8647,11 +8763,75 @@ with gr.Blocks(
                 gr.update(value=files.get('index.html', '')),
                 gr.update(value=files.get('index.js', '')),
                 gr.update(value=files.get('style.css', '')),
+                # React group hidden
+                gr.update(visible=False),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
             ]
+        elif language == "react":
+            files = parse_react_output(code_text or "")
+            # Show react group if we have files, else show single code editor
+            editors_visible = True if files else False
+            if editors_visible:
+                return [
+                    gr.update(visible=False),                # code_output hidden
+                    gr.update(visible=False),                # tjs_group hidden
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                    # React group shown
+                    gr.update(visible=editors_visible),      # react_group shown
+                    gr.update(value=files.get('Dockerfile', '')),
+                    gr.update(value=files.get('package.json', '')),
+                    gr.update(value=files.get('next.config.js', '')),
+                    gr.update(value=files.get('postcss.config.js', '')),
+                    gr.update(value=files.get('tailwind.config.js', '')),
+                    gr.update(value=files.get('pages/_app.js', '')),
+                    gr.update(value=files.get('pages/index.js', '')),
+                    gr.update(value=files.get('components/ChatApp.jsx', '')),
+                    gr.update(value=files.get('styles/globals.css', '')),
+                ]
+            else:
+                return [
+                    gr.update(visible=True),                 # code_output shown
+                    gr.update(visible=False),                # tjs_group hidden
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                    # React group hidden
+                    gr.update(visible=False),
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                    gr.update(),
+                ]
         else:
             return [
                 gr.update(visible=True),                  # code_output shown
                 gr.update(visible=False),                 # tjs_group hidden
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                # React group hidden
+                gr.update(visible=False),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
+                gr.update(),
                 gr.update(),
                 gr.update(),
                 gr.update(),
@@ -8660,7 +8840,7 @@ with gr.Blocks(
     language_dropdown.change(
         toggle_editors,
         inputs=[language_dropdown, code_output],
-        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code],
+        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code, react_group, react_code_dockerfile, react_code_package_json, react_code_next_config, react_code_postcss_config, react_code_tailwind_config, react_code_pages_app, react_code_pages_index, react_code_components, react_code_styles],
     )
 
     # Toggle Python multi-file editors for Gradio/Streamlit
@@ -9279,6 +9459,7 @@ with gr.Blocks(
         language_to_sdk_map = {
             "gradio": "gradio",
             "streamlit": "docker",  # Use 'docker' for Streamlit Spaces
+            "react": "docker",  # Use 'docker' for React/Next.js Spaces
             "html": "static",
             "transformers.js": "static",  # Transformers.js uses static SDK
             "svelte": "static",  # Svelte uses static SDK
@@ -9299,22 +9480,89 @@ with gr.Blocks(
                 )
             except Exception as e:
                 return gr.update(value=f"Error creating Space: {e}", visible=True)
-        # Streamlit/docker logic
-        if sdk == "docker":
+        # Streamlit/React/docker logic
+        if sdk == "docker" and language in ["streamlit", "react"]:
             try:
                 # For new spaces, duplicate the template first
                 if not is_update:
-                    # Use duplicate_space to create a Streamlit template space
+                    # Use duplicate_space to create a Streamlit or React template space
                     from huggingface_hub import duplicate_space
                     
-                    # Duplicate the streamlit template space
-                    duplicated_repo = duplicate_space(
-                        from_id="streamlit/streamlit-template-space",
-                        to_id=space_name.strip(),
-                        token=token.token,
-                        exist_ok=True
-                    )
+                    if language == "react":
+                        # Duplicate the React template space
+                        duplicated_repo = duplicate_space(
+                            from_id="akhaliq/next-js-template",
+                            to_id=space_name.strip(),
+                            token=token.token,
+                            exist_ok=True
+                        )
+                    else:
+                        # Duplicate the streamlit template space
+                        duplicated_repo = duplicate_space(
+                            from_id="streamlit/streamlit-template-space",
+                            to_id=space_name.strip(),
+                            token=token.token,
+                            exist_ok=True
+                        )
                 
+                # Handle React or Streamlit deployment
+                if language == "react":
+                    # Parse React/Next.js files
+                    files = parse_react_output(code)
+                    if not files:
+                        return gr.update(value="Error: Could not parse React output. Please regenerate the code.", visible=True)
+                    
+                    # Upload React files
+                    import tempfile
+                    import time
+                    
+                    for file_name, file_content in files.items():
+                        if not file_content:
+                            continue
+                            
+                        success = False
+                        last_error = None
+                        max_attempts = 3
+                        
+                        for attempt in range(max_attempts):
+                            try:
+                                with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
+                                    f.write(file_content)
+                                    temp_path = f.name
+                                
+                                api.upload_file(
+                                    path_or_fileobj=temp_path,
+                                    path_in_repo=file_name,
+                                    repo_id=repo_id,
+                                    repo_type="space"
+                                )
+                                success = True
+                                break
+                                
+                            except Exception as e:
+                                last_error = e
+                                error_msg = str(e)
+                                if "403 Forbidden" in error_msg and "write token" in error_msg:
+                                    return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                                
+                                if attempt < max_attempts - 1:
+                                    time.sleep(2)
+                            finally:
+                                import os
+                                if 'temp_path' in locals():
+                                    os.unlink(temp_path)
+                        
+                        if not success:
+                            return gr.update(value=f"Error uploading {file_name}: {last_error}", visible=True)
+                    
+                    # Add anycoder tag to existing README
+                    add_anycoder_tag_to_readme(api, repo_id)
+                    
+                    space_url = f"https://huggingface.co/spaces/{repo_id}"
+                    action_text = "Updated" if is_update else "Deployed"
+                    return gr.update(value=f"✅ {action_text}! [Open your React Space here]({space_url})", visible=True)
+                
+                # Streamlit logic
                 # Generate requirements.txt for Streamlit apps and upload only if needed
                 import_statements = extract_import_statements(code)
                 requirements_content = generate_requirements_txt_with_llm(import_statements)
