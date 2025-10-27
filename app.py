@@ -771,7 +771,6 @@ def generate(prompt):
 - + FP8 Quantization: Additional 1.2x speedup  
 - + FlashAttention-3: Additional attention speedup
 - Total potential: 2x-3x faster inference
-
 **Hardware Requirements:**
 - FP8 quantization requires CUDA compute capability ≥ 9.0 (H200 ✅)
 - FlashAttention-3 works on H200 hardware via kernels library
@@ -789,7 +788,7 @@ To make your Gradio app function as an MCP (Model Control Protocol) server:
 4. Use type hints for all function parameters
 
 **Example:**
-```python
+```
 import gradio as gr
 
 def letter_counter(word: str, letter: str) -> int:
@@ -841,7 +840,7 @@ if __name__ == "__main__":
 - Use gr.Progress() for long-running operations
 
 **Multiple Tools Example:**
-```python
+```
 import gradio as gr
 
 def add_numbers(a: str, b: str) -> str:
@@ -973,7 +972,7 @@ ALWAYS use ZeroGPU for GPU-dependent functions in Gradio apps:
    - Heavy processing (120-180s): `@spaces.GPU(duration=180)`
 
 Example usage:
-```python
+```
 import spaces
 from diffusers import DiffusionPipeline
 
@@ -1028,7 +1027,7 @@ YOU MUST USE THIS EXACT PATTERN for any diffusion model (FLUX, Stable Diffusion,
 For production Spaces with heavy models, use ahead-of-time (AoT) compilation for 1.3x-1.8x speedups:
 
 ### Basic AoT Compilation
-```python
+```
 import spaces
 import torch
 from diffusers import DiffusionPipeline
@@ -1065,7 +1064,7 @@ def generate(prompt):
 ### Advanced Optimizations
 
 #### FP8 Quantization (Additional 1.2x speedup on H200)
-```python
+```
 from torchao.quantization import quantize_, Float8DynamicActivationFloat8WeightConfig
 
 @spaces.GPU(duration=1500)
@@ -1085,7 +1084,7 @@ def compile_transformer_with_quantization():
 ```
 
 #### Dynamic Shapes (Variable input sizes)
-```python
+```
 from torch.utils._pytree import tree_map
 
 @spaces.GPU(duration=1500)
@@ -1116,7 +1115,7 @@ def compile_transformer_dynamic():
 ```
 
 #### Multi-Compile for Different Resolutions
-```python
+```
 @spaces.GPU(duration=1500)
 def compile_multiple_resolutions():
     compiled_models = {}
@@ -1149,7 +1148,7 @@ def generate_with_resolution(prompt, width=1024, height=1024):
 ```
 
 #### FlashAttention-3 Integration
-```python
+```
 from kernels import get_kernel
 
 # Load pre-built FA3 kernel compatible with H200
@@ -1173,7 +1172,7 @@ if 'vllm_flash_attn3' in locals():
 ```
 
 ### Complete Optimized Example
-```python
+```
 import spaces
 import torch
 from diffusers import DiffusionPipeline
@@ -1232,7 +1231,7 @@ To make your Gradio app function as an MCP (Model Control Protocol) server:
 4. Use type hints for all function parameters
 
 **Example:**
-```python
+```
 import gradio as gr
 
 def letter_counter(word: str, letter: str) -> int:
@@ -1284,7 +1283,7 @@ if __name__ == "__main__":
 - Use gr.Progress() for long-running operations
 
 **Multiple Tools Example:**
-```python
+```
 import gradio as gr
 
 def add_numbers(a: str, b: str) -> str:
@@ -1550,7 +1549,6 @@ Hard constraints:
 - Use ONLY plain HTML, CSS, and vanilla JavaScript.
 - Allowed external resources: Tailwind CSS CDN, Font Awesome CDN, Google Fonts.
 - Do NOT escape characters (no \\n, \\t, or escaped quotes). Output raw HTML/JS/CSS.
-
 Structural requirements:
 - Include <!DOCTYPE html>, <html>, <head>, and <body> with proper nesting
 - Include required <link> tags for any CSS you reference (e.g., Tailwind, Font Awesome, Google Fonts)
@@ -2292,7 +2290,6 @@ body {{
 }}
 {REPLACE_END}
 ```
-
 Example Fixing Library Loading Error:
 ```
 Fixing transformers.js CDN loading error...
@@ -3015,7 +3012,6 @@ def validate_and_autofix_files(files: Dict[str, str]) -> Dict[str, str]:
             # This prevents unwanted SVG stub files from being generated during image generation
 
     return normalized
-
 def inline_multipage_into_single_preview(files: Dict[str, str]) -> str:
     """Inline local CSS/JS referenced by index.html for preview inside a data: iframe.
 
@@ -3723,9 +3719,6 @@ def cleanup_temp_media_files():
         
     except Exception as e:
         print(f"[TempCleanup] Error during cleanup: {str(e)}")
-
-
-
 def generate_image_to_image(input_image_data, prompt: str, token: gr.OAuthToken | None = None) -> str:
     """Generate an image using image-to-image via OpenRouter.
 
@@ -4519,7 +4512,6 @@ def extract_image_prompts_from_text(text: str, num_images_needed: int = 1) -> li
             prompts.append(variations[variation_index])
     
     return prompts
-
 def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
     """Create search/replace blocks to replace placeholder images with generated Qwen images"""
     if not user_prompt:
@@ -8088,7 +8080,6 @@ def get_saved_theme():
     except:
         pass
     return "Developer"
-
 def save_theme_preference(theme_name):
     """Save theme preference to file"""
     try:
@@ -8611,7 +8602,7 @@ with gr.Blocks(
             with gr.Group(visible=False) as react_group:
                 with gr.Tabs():
                     with gr.Tab("Dockerfile"):
-                        react_code_dockerfile = gr.Code(language="bash", lines=15, interactive=True, label="Dockerfile")
+                        react_code_dockerfile = gr.Code(language="dockerfile", lines=15, interactive=True, label="Dockerfile")
                     with gr.Tab("package.json"):
                         react_code_package_json = gr.Code(language="json", lines=20, interactive=True, label="package.json")
                     with gr.Tab("next.config.js"):
@@ -8842,7 +8833,6 @@ with gr.Blocks(
         inputs=[language_dropdown, code_output],
         outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code, react_group, react_code_dockerfile, react_code_package_json, react_code_next_config, react_code_postcss_config, react_code_tailwind_config, react_code_pages_app, react_code_pages_index, react_code_components, react_code_styles],
     )
-
     # Toggle Python multi-file editors for Gradio/Streamlit
     def toggle_python_editors(language, code_text):
         if language not in ["gradio", "streamlit"]:
@@ -9317,7 +9307,6 @@ with gr.Blocks(
             restart_message = f"""
 🎨 **Theme saved:** {theme_name}
 ⚠️ **Restart required** to fully apply the new theme.
-
 **Why restart is needed:** Gradio themes are set during application startup and cannot be changed dynamically at runtime. This ensures all components are properly styled with consistent theming.
 
 **To apply your new theme:**
@@ -10116,7 +10105,6 @@ with gr.Blocks(
             if files['index.html'] and files['index.js'] and files['style.css']:
                 return format_transformers_js_output(files)
         return code_text
-
     deploy_btn.click(
         gather_code_for_deploy,
         inputs=[code_output, language_dropdown, tjs_html_code, tjs_js_code, tjs_css_code],
