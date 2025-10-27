@@ -775,7 +775,6 @@ def generate(prompt):
 - FP8 quantization requires CUDA compute capability ≥ 9.0 (H200 ✅)
 - FlashAttention-3 works on H200 hardware via kernels library
 - Dynamic shapes add flexibility for variable input sizes
-
 ## MCP Server Integration
 
 When the user requests an MCP-enabled Gradio app or asks for tool calling capabilities, you MUST enable MCP server functionality.
@@ -1573,8 +1572,6 @@ def _ensure_video_dir_exists() -> None:
         os.makedirs(VIDEO_TEMP_DIR, exist_ok=True)
     except Exception:
         pass
-
-
 def _register_video_for_session(session_id: str | None, file_path: str) -> None:
     if not session_id or not file_path:
         return
@@ -2373,7 +2370,6 @@ AVAILABLE_MODELS = [
         "description": "MiniMax M2 Free model via OpenRouter for code generation and general tasks"
     }
 ]
-
 # Default model selection
 DEFAULT_MODEL_NAME = "MiniMax M2 Free"
 DEFAULT_MODEL = None
@@ -3157,7 +3153,6 @@ def parse_react_output(text):
 def format_svelte_output(files):
     """Format Svelte files into === filename === sections (generic)."""
     return format_multipage_output(files)
-
 def infer_svelte_dependencies(files: Dict[str, str]) -> Dict[str, str]:
     """Infer npm dependencies from Svelte/TS imports across generated files.
 
@@ -3845,7 +3840,6 @@ def generate_image_to_image(input_image_data, prompt: str, token: gr.OAuthToken 
     except Exception as e:
         print(f"Image-to-image generation error: {str(e)}")
         return f"Error generating image (image-to-image): {str(e)}"
-
 def generate_video_from_image(input_image_data, prompt: str, session_id: str | None = None, token: gr.OAuthToken | None = None) -> str:
     """Generate a video from an input image and prompt using Hugging Face InferenceClient.
 
@@ -4618,7 +4612,6 @@ def create_image_replacement_blocks(html_content: str, user_prompt: str) -> str:
 {REPLACE_END}""")
     
     return '\n\n'.join(replacement_blocks)
-
 def create_image_replacement_blocks_text_to_image_single(html_content: str, prompt: str) -> str:
     """Create search/replace blocks that generate and insert ONLY ONE text-to-image result.
 
@@ -5411,7 +5404,6 @@ def create_multimodal_message(text, image=None):
     # Keep providers happy: avoid structured multimodal payloads; add a short note instead
     # If needed, this can be enhanced per-model with proper multimodal schemas.
     return {"role": "user", "content": f"{text}\n\n[An image was provided as reference.]"}
-
 def apply_search_replace_changes(original_content: str, changes_text: str) -> str:
     """Apply search/replace changes to content (HTML, Python, etc.)"""
     if not changes_text.strip():
@@ -6192,7 +6184,6 @@ Example format:
 
             user_prompt = f"""Existing code:
 {last_assistant_msg}
-
 Modification instructions:
 {query}
 
@@ -9308,7 +9299,6 @@ with gr.Blocks(
 🎨 **Theme saved:** {theme_name}
 ⚠️ **Restart required** to fully apply the new theme.
 **Why restart is needed:** Gradio themes are set during application startup and cannot be changed dynamically at runtime. This ensures all components are properly styled with consistent theming.
-
 **To apply your new theme:**
 1. Stop the application (Ctrl+C)
 2. Restart it with the same command
@@ -9472,24 +9462,26 @@ with gr.Blocks(
         # Streamlit/React/docker logic
         if sdk == "docker" and language in ["streamlit", "react"]:
             try:
-                # For new spaces, duplicate the template first
+                # For new spaces, create a fresh Docker-based space
                 if not is_update:
-                    # Use duplicate_space to create a Streamlit or React template space
-                    from huggingface_hub import duplicate_space
+                    # Use create_repo to create a new Docker space
+                    from huggingface_hub import create_repo
                     
                     if language == "react":
-                        # Duplicate the React template space
-                        duplicated_repo = duplicate_space(
-                            from_id="akhaliq/next-js-template",
-                            to_id=space_name.strip(),
+                        # Create a new React Docker space with docker SDK
+                        created_repo = create_repo(
+                            repo_id=repo_id,
+                            repo_type="space",
+                            space_sdk="docker",
                             token=token.token,
                             exist_ok=True
                         )
                     else:
-                        # Duplicate the streamlit template space
-                        duplicated_repo = duplicate_space(
-                            from_id="streamlit/streamlit-template-space",
-                            to_id=space_name.strip(),
+                        # Create a new Streamlit Docker space
+                        created_repo = create_repo(
+                            repo_id=repo_id,
+                            repo_type="space",
+                            space_sdk="docker",
                             token=token.token,
                             exist_ok=True
                         )
