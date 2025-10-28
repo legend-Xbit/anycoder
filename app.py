@@ -2427,13 +2427,13 @@ AVAILABLE_MODELS = [
         "description": "Qwen3 Max Preview model via DashScope International API"
     },
     {
-        "name": "MiniMax M2 Free",
-        "id": "minimax/minimax-m2:free",
-        "description": "MiniMax M2 Free model via OpenRouter for code generation and general tasks"
+        "name": "MiniMax M2",
+        "id": "MiniMax-M2",
+        "description": "MiniMax M2 model via MiniMax API for code generation and general tasks"
     }
 ]
 # Default model selection
-DEFAULT_MODEL_NAME = "MiniMax M2 Free"
+DEFAULT_MODEL_NAME = "MiniMax M2"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -2522,11 +2522,11 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
         )
-    elif model_id == "minimax/minimax-m2:free":
-        # Use OpenRouter client for MiniMax M2 Free model
+    elif model_id == "MiniMax-M2":
+        # Use MiniMax API client for MiniMax M2 model
         return OpenAI(
-            api_key=os.getenv("OPENROUTER_API_KEY"),
-            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("MINIMAX_API_KEY"),
+            base_url="https://api.minimax.io/v1",
         )
     elif model_id == "step-3":
         # Use StepFun API client for Step-3 model
