@@ -2428,8 +2428,8 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "MiniMax M2",
-        "id": "MiniMax-M2",
-        "description": "MiniMax M2 model via MiniMax API for code generation and general tasks"
+        "id": "MiniMaxAI/MiniMax-M2",
+        "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider"
     }
 ]
 # Default model selection
@@ -2522,12 +2522,9 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
         )
-    elif model_id == "MiniMax-M2":
-        # Use MiniMax API client for MiniMax M2 model
-        return OpenAI(
-            api_key=os.getenv("MINIMAX_API_KEY"),
-            base_url="https://api.minimax.io/v1",
-        )
+    elif model_id == "MiniMaxAI/MiniMax-M2":
+        # Use HuggingFace InferenceClient with Novita provider for MiniMax M2 model
+        provider = "novita"
     elif model_id == "step-3":
         # Use StepFun API client for Step-3 model
         return OpenAI(
