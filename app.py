@@ -2437,6 +2437,7 @@ AVAILABLE_MODELS = [
         "description": "Moonshot Kimi K2 Thinking model for advanced reasoning and code generation"
     }
 ]
+k2_model_name_tag = "moonshotai/Kimi-K2-Thinking"
 # Default model selection
 DEFAULT_MODEL_NAME = "Kimi K2 Thinking"
 DEFAULT_MODEL = None
