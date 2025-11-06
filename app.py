@@ -1526,117 +1526,6 @@ Generate complete, working HTML code that can be run immediately.
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
 
-# ---------------------------------------------------------------------------
-# Video temp-file management (per-session tracking and cleanup)
-# ---------------------------------------------------------------------------
-VIDEO_TEMP_DIR = os.path.join(tempfile.gettempdir(), "anycoder_videos")
-VIDEO_FILE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
-_SESSION_VIDEO_FILES: Dict[str, List[str]] = {}
-_VIDEO_FILES_LOCK = threading.Lock()
-
-
-def _ensure_video_dir_exists() -> None:
-    try:
-        os.makedirs(VIDEO_TEMP_DIR, exist_ok=True)
-    except Exception:
-        pass
-def _register_video_for_session(session_id: str | None, file_path: str) -> None:
-    if not session_id or not file_path:
-        return
-    with _VIDEO_FILES_LOCK:
-        if session_id not in _SESSION_VIDEO_FILES:
-            _SESSION_VIDEO_FILES[session_id] = []
-        _SESSION_VIDEO_FILES[session_id].append(file_path)
-
-
-def cleanup_session_videos(session_id: str | None) -> None:
-    if not session_id:
-        return
-    with _VIDEO_FILES_LOCK:
-        file_list = _SESSION_VIDEO_FILES.pop(session_id, [])
-    for path in file_list:
-        try:
-            if path and os.path.exists(path):
-                os.unlink(path)
-        except Exception:
-            # Best-effort cleanup
-            pass
-
-
-def reap_old_videos(ttl_seconds: int = VIDEO_FILE_TTL_SECONDS) -> None:
-    """Delete old video files in the temp directory based on modification time."""
-    try:
-        _ensure_video_dir_exists()
-        now_ts = time.time()
-        for name in os.listdir(VIDEO_TEMP_DIR):
-            path = os.path.join(VIDEO_TEMP_DIR, name)
-            try:
-                if not os.path.isfile(path):
-                    continue
-                mtime = os.path.getmtime(path)
-                if now_ts - mtime > ttl_seconds:
-                    os.unlink(path)
-            except Exception:
-                pass
-    except Exception:
-        # Temp dir might not exist or be accessible; ignore
-        pass
-
-# ---------------------------------------------------------------------------
-# Audio temp-file management (per-session tracking and cleanup)
-# ---------------------------------------------------------------------------
-AUDIO_TEMP_DIR = os.path.join(tempfile.gettempdir(), "anycoder_audio")
-AUDIO_FILE_TTL_SECONDS = 6 * 60 * 60  # 6 hours
-_SESSION_AUDIO_FILES: Dict[str, List[str]] = {}
-_AUDIO_FILES_LOCK = threading.Lock()
-
-
-def _ensure_audio_dir_exists() -> None:
-    try:
-        os.makedirs(AUDIO_TEMP_DIR, exist_ok=True)
-    except Exception:
-        pass
-
-
-def _register_audio_for_session(session_id: str | None, file_path: str) -> None:
-    if not session_id or not file_path:
-        return
-    with _AUDIO_FILES_LOCK:
-        if session_id not in _SESSION_AUDIO_FILES:
-            _SESSION_AUDIO_FILES[session_id] = []
-        _SESSION_AUDIO_FILES[session_id].append(file_path)
-
-
-def cleanup_session_audio(session_id: str | None) -> None:
-    if not session_id:
-        return
-    with _AUDIO_FILES_LOCK:
-        file_list = _SESSION_AUDIO_FILES.pop(session_id, [])
-    for path in file_list:
-        try:
-            if path and os.path.exists(path):
-                os.unlink(path)
-        except Exception:
-            pass
-
-
-def reap_old_audio(ttl_seconds: int = AUDIO_FILE_TTL_SECONDS) -> None:
-    try:
-        _ensure_audio_dir_exists()
-        now_ts = time.time()
-        for name in os.listdir(AUDIO_TEMP_DIR):
-            path = os.path.join(AUDIO_TEMP_DIR, name)
-            try:
-                if not os.path.isfile(path):
-                    continue
-                mtime = os.path.getmtime(path)
-                if now_ts - mtime > ttl_seconds:
-                    os.unlink(path)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
 TRANSFORMERS_JS_SYSTEM_PROMPT = """You are an expert web developer creating a transformers.js application. You will generate THREE separate files: index.html, index.js, and style.css.
 
 **🚨 CRITICAL: DO NOT Generate README.md Files**
@@ -3557,7 +3446,7 @@ def apply_transformers_js_search_replace_changes(original_formatted_content: str
 def send_to_sandbox(code):
     """Render HTML in a sandboxed iframe. Assumes full HTML is provided by prompts."""
     html_doc = (code or "").strip()
-    # For preview only: inline local file URLs (e.g., file:///.../video.mp4) as data URIs so the
+    # For preview only: inline local file URLs as data URIs so the
     # data: iframe can load them. The original code (shown to the user) still contains file URLs.
     try:
         import re
@@ -3574,17 +3463,6 @@ def send_to_sandbox(code):
                     raw = _f.read()
                 mime = _mtypes.guess_type(path)[0] or 'application/octet-stream'
                 
-                # Compress video files before converting to data URI to prevent preview breaks
-                if mime and mime.startswith('video/'):
-                    print(f"[Sandbox] Compressing video for preview: {len(raw)} bytes")
-                    raw = compress_video_for_data_uri(raw, max_size_mb=1)  # Very small limit for preview
-                    print(f"[Sandbox] Compressed video size: {len(raw)} bytes")
-                    
-                    # If still too large, skip video embedding for preview
-                    if len(raw) > 512 * 1024:  # 512KB final limit
-                        print(f"[Sandbox] Video still too large after compression, using placeholder")
-                        return None  # Let the replacement function handle the fallback
-                
                 b64 = _b64.b64encode(raw).decode()
                 return f"data:{mime};base64,{b64}"
             except Exception as e:
@@ -3600,35 +3478,6 @@ def send_to_sandbox(code):
             return f"src='{data_uri}'" if data_uri else m.group(0)
         html_doc = re.sub(r'src="(file:[^"]+)"', _repl_double, html_doc)
         html_doc = re.sub(r"src='(file:[^']+)'", _repl_single, html_doc)
-        
-        # Add deployment message for videos that couldn't be converted
-        if 'file://' in html_doc and ('video' in html_doc.lower() or '.mp4' in html_doc.lower()):
-            deployment_notice = '''
-            <div style="
-                position: fixed; 
-                top: 10px; 
-                right: 10px; 
-                background: #ff6b35; 
-                color: white; 
-                padding: 12px 16px; 
-                border-radius: 8px; 
-                font-family: Arial, sans-serif; 
-                font-size: 14px; 
-                font-weight: bold;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                z-index: 9999;
-                max-width: 300px;
-                text-align: center;
-            ">
-                Deploy app to see videos with permanent URLs!
-            </div>
-            '''
-            # Insert the notice right after the opening body tag
-            if '<body' in html_doc:
-                body_end = html_doc.find('>', html_doc.find('<body')) + 1
-                html_doc = html_doc[:body_end] + deployment_notice + html_doc[body_end:]
-            else:
-                html_doc = deployment_notice + html_doc
                 
     except Exception:
         # Best-effort; continue without inlining
@@ -3642,7 +3491,7 @@ def send_to_sandbox_with_refresh(code):
     """Render HTML in a sandboxed iframe with cache-busting for media generation updates."""
     import time
     html_doc = (code or "").strip()
-    # For preview only: inline local file URLs (e.g., file:///.../video.mp4) as data URIs so the
+    # For preview only: inline local file URLs as data URIs so the
     # data: iframe can load them. The original code (shown to the user) still contains file URLs.
     try:
         import re
@@ -3659,17 +3508,6 @@ def send_to_sandbox_with_refresh(code):
                     raw = _f.read()
                 mime = _mtypes.guess_type(path)[0] or 'application/octet-stream'
                 
-                # Compress video files before converting to data URI to prevent preview breaks
-                if mime and mime.startswith('video/'):
-                    print(f"[Sandbox] Compressing video for preview: {len(raw)} bytes")
-                    raw = compress_video_for_data_uri(raw, max_size_mb=1)  # Very small limit for preview
-                    print(f"[Sandbox] Compressed video size: {len(raw)} bytes")
-                    
-                    # If still too large, skip video embedding for preview
-                    if len(raw) > 512 * 1024:  # 512KB final limit
-                        print(f"[Sandbox] Video still too large after compression, using placeholder")
-                        return None  # Let the replacement function handle the fallback
-                
                 b64 = _b64.b64encode(raw).decode()
                 return f"data:{mime};base64,{b64}"
             except Exception as e:
@@ -3685,35 +3523,6 @@ def send_to_sandbox_with_refresh(code):
             return f"src='{data_uri}'" if data_uri else m.group(0)
         html_doc = re.sub(r'src="(file:[^"]+)"', _repl_double, html_doc)
         html_doc = re.sub(r"src='(file:[^']+)'", _repl_single, html_doc)
-        
-        # Add deployment message for videos that couldn't be converted
-        if 'file://' in html_doc and ('video' in html_doc.lower() or '.mp4' in html_doc.lower()):
-            deployment_notice = '''
-            <div style="
-                position: fixed; 
-                top: 10px; 
-                right: 10px; 
-                background: #ff6b35; 
-                color: white; 
-                padding: 12px 16px; 
-                border-radius: 8px; 
-                font-family: Arial, sans-serif; 
-                font-size: 14px; 
-                font-weight: bold;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                z-index: 9999;
-                max-width: 300px;
-                text-align: center;
-            ">
-                Deploy app to see videos with permanent URLs!
-            </div>
-            '''
-            # Insert the notice right after the opening body tag
-            if '<body' in html_doc:
-                body_end = html_doc.find('>', html_doc.find('<body')) + 1
-                html_doc = html_doc[:body_end] + deployment_notice + html_doc[body_end:]
-            else:
-                html_doc = deployment_notice + html_doc
                 
     except Exception:
         # Best-effort; continue without inlining
@@ -4186,15 +3995,6 @@ Generate the exact search/replace blocks needed to make these changes."""
             _setting["__session_id__"] = session_id
     else:
         session_id = str(uuid.uuid4())
-
-    # On each generate, reap old global files and cleanup previous session files
-    try:
-        cleanup_session_videos(session_id)
-        cleanup_session_audio(session_id)
-        reap_old_videos()
-        reap_old_audio()
-    except Exception:
-        pass
 
     # Update Gradio system prompts if needed
     if language == "gradio":
