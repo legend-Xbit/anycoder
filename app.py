@@ -2430,10 +2430,15 @@ AVAILABLE_MODELS = [
         "name": "MiniMax M2",
         "id": "MiniMaxAI/MiniMax-M2",
         "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider"
+    },
+    {
+        "name": "Kimi K2 Thinking",
+        "id": "kimi-k2-thinking",
+        "description": "Moonshot Kimi K2 Thinking model for advanced reasoning and code generation"
     }
 ]
 # Default model selection
-DEFAULT_MODEL_NAME = "MiniMax M2"
+DEFAULT_MODEL_NAME = "Kimi K2 Thinking"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
@@ -2560,6 +2565,12 @@ def get_inference_client(model_id, provider="auto"):
         )
     elif model_id == "kimi-k2-turbo-preview":
         # Use Moonshot AI (OpenAI-compatible) client for Kimi K2 Turbo (Preview)
+        return OpenAI(
+            api_key=os.getenv("MOONSHOT_API_KEY"),
+            base_url="https://api.moonshot.ai/v1",
+        )
+    elif model_id == "kimi-k2-thinking":
+        # Use Moonshot AI (OpenAI-compatible) client for Kimi K2 Thinking
         return OpenAI(
             api_key=os.getenv("MOONSHOT_API_KEY"),
             base_url="https://api.moonshot.ai/v1",
