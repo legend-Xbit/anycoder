@@ -1115,25 +1115,31 @@ with gr.Blocks(
                     if 'Dockerfile' not in files:
                         files['Dockerfile'] = """FROM node:18-slim
 
-WORKDIR /app
+# Set up user with ID 1000
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \\
+    PATH=/home/user/.local/bin:$PATH
 
-# Install system dependencies
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \\
-    curl \\
-    && rm -rf /var/lib/apt/lists/*
+# Set working directory
+WORKDIR $HOME/app
 
-COPY package*.json ./
+# Copy package files with proper ownership
+COPY --chown=user package*.json ./
 
+# Install dependencies
 RUN npm install
 
-COPY . .
+# Copy rest of the application with proper ownership
+COPY --chown=user . .
 
+# Build the Next.js app
 RUN npm run build
 
+# Expose port 7860
 EXPOSE 7860
 
-HEALTHCHECK CMD curl --fail http://localhost:7860/ || exit 1
-
+# Start the application on port 7860
 CMD ["npm", "start", "--", "-p", "7860"]
 """
                     
