@@ -267,48 +267,75 @@ Output format (CRITICAL):
 CRITICAL Requirements:
 1. Always include a Dockerfile configured for Node.js deployment (see Dockerfile Requirements below)
 2. Use Next.js with TypeScript/JSX (.jsx files for components)
-3. Include Tailwind CSS for styling (in postcss.config.js and tailwind.config.js)
+3. **USE TAILWIND CSS FOR ALL STYLING** - Avoid inline styles completely (in postcss.config.js and tailwind.config.js)
 4. Create necessary components in the components/ directory
 5. Create API routes in pages/api/ directory for backend logic
 6. pages/_app.js should import and use globals.css
 7. pages/index.js should be the main entry point
 8. Keep package.json with essential dependencies
 9. Use modern React patterns and best practices
-10. Make the application fully responsive
+10. Make the application fully responsive using Tailwind classes
 11. Include proper error handling and loading states
 12. Follow accessibility best practices
 13. Configure next.config.js properly for HuggingFace Spaces deployment
+14. **NEVER use inline style={{}} objects - always use Tailwind className instead**
 
-🚨 CRITICAL JSX SYNTAX RULES:
-- Style objects and JSX props are SEPARATE - never mix them
-- Style objects use camelCase property names and end with a closing brace
-- Event handlers (onClick, onInput, onChange, etc.) are JSX props, NOT style properties
-- Correct syntax:
-  ```jsx
-  <textarea
-    style={{
-      width: '100%',
-      padding: '12px',
-      height: '48px'
-    }}
-    onInput={(e) => {
-      // handler code
-    }}
-    placeholder="Type here"
+🚨 CRITICAL JSX SYNTAX RULES - FOLLOW EXACTLY:
+
+**RULE 1: Style objects MUST have proper closing braces }}**
+Every style={{ must have a matching }} before any other props or />
+
+**RULE 2: ALWAYS use Tailwind CSS classes instead of inline styles**
+- Use className="..." for styling
+- Only use inline styles if absolutely necessary
+- Inline styles are error-prone and should be avoided
+
+**CORRECT Examples:**
+```jsx
+// ✅ Using Tailwind (PREFERRED)
+<textarea
+  className="w-full p-3 min-h-[48px] max-h-[120px] rounded-lg border"
+  value={message}
+  onChange={(e) => setMessage(e.target.value)}
+  placeholder="Type here"
+/>
+
+// ✅ Inline style (if needed) - note the }} before other props
+<textarea
+  style={{
+    width: '100%',
+    padding: '12px',
+    minHeight: '48px'
+  }}
+  value={message}
+  onChange={(e) => setMessage(e.target.value)}
+/>
+```
+
+**WRONG Examples:**
+```jsx
+// ❌ WRONG - Missing closing braces }}
+<textarea
+  style={{
+    minHeight: '48px',
+    maxHeight: '120px'
+  
   />
-  ```
-- WRONG syntax (DO NOT DO THIS):
-  ```jsx
-  <textarea
-    style={{
-      width: '100%',
-      height: '48px'
-    onInput={(e) => {  // ❌ WRONG - onInput inside style object
-  ```
-- Always ensure proper closing braces for style objects BEFORE adding event handlers
-- Use proper indentation to keep JSX props at the same level
-- PREFER Tailwind CSS classes over inline styles to avoid syntax errors
-- If using inline styles, double-check closing braces before adding any event handlers
+
+// ❌ WRONG - Event handler inside style object
+<textarea
+  style={{
+    width: '100%'
+  onChange={(e) => {}}  // Missing }}
+/>
+```
+
+**RULE 3: Validation Checklist**
+Before outputting JSX code, verify:
+- [ ] All style={{ have matching }}
+- [ ] No event handlers inside style objects
+- [ ] Prefer Tailwind classes over inline styles
+- [ ] All JSX elements are properly closed
 
 next.config.js Requirements:
 - Must be configured to work on any host (0.0.0.0)
@@ -385,12 +412,21 @@ The user wants to apply changes based on their request.
 You MUST output ONLY the changes required using the following SEARCH/REPLACE block format. Do NOT output the entire file.
 Explain the changes briefly *before* the blocks if necessary, but the code changes THEMSELVES MUST be within the blocks.
 
-🚨 CRITICAL JSX SYNTAX RULES:
-- Style objects and JSX props must be SEPARATE - never mix them
-- Event handlers (onClick, onInput, onChange) are JSX props, NOT style properties
-- Always close style objects with }} BEFORE adding event handlers
-- PREFER Tailwind CSS classes over inline styles
-- Ensure all JSX is syntactically valid before outputting
+🚨 CRITICAL JSX SYNTAX RULES - FOLLOW EXACTLY:
+
+**RULE 1: Style objects MUST have proper closing braces }}**
+Every style={{ must have a matching }} before any other props or />
+
+**RULE 2: ALWAYS use Tailwind CSS classes instead of inline styles**
+- Use className="..." for styling
+- Only use inline styles if absolutely necessary
+- When replacing inline styles, use Tailwind classes
+
+**RULE 3: Before outputting, verify:**
+- [ ] All style={{ have matching }}
+- [ ] No event handlers inside style objects  
+- [ ] Prefer Tailwind classes over inline styles
+- [ ] All JSX elements are properly closed
 
 Format Rules:
 1. Start with <<<<<<< SEARCH
