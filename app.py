@@ -6452,7 +6452,7 @@ with gr.Blocks(
         # After generation, toggle editors for transformers.js and populate
         toggle_editors,
         inputs=[language_dropdown, code_output],
-        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code]
+        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code, react_group, react_code_dockerfile, react_code_package_json, react_code_next_config, react_code_postcss_config, react_code_tailwind_config, react_code_pages_app, react_code_pages_index, react_code_components, react_code_styles]
     ).then(
         # After generation, toggle static multi-file editors for HTML
         toggle_static_editors,
@@ -6500,7 +6500,7 @@ with gr.Blocks(
         # After generation, toggle editors for transformers.js and populate
         toggle_editors,
         inputs=[language_dropdown, code_output],
-        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code]
+        outputs=[code_output, tjs_group, tjs_html_code, tjs_js_code, tjs_css_code, react_group, react_code_dockerfile, react_code_package_json, react_code_next_config, react_code_postcss_config, react_code_tailwind_config, react_code_pages_app, react_code_pages_index, react_code_components, react_code_styles]
     ).then(
         # After generation, toggle static multi-file editors for HTML
         toggle_static_editors,
