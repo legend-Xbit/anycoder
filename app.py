@@ -1512,7 +1512,7 @@ GLM45V_HTML_SYSTEM_PROMPT = """You are an expert front-end developer.
 Output a COMPLETE, STANDALONE HTML document that renders directly in a browser.
 
 Hard constraints:
-- DO NOT use React, ReactDOM, JSX, Babel, Vue, Angular, Svelte, or any SPA framework.
+- DO NOT use React, ReactDOM, JSX, Babel, Vue, Angular, or any SPA framework.
 - Use ONLY plain HTML, CSS, and vanilla JavaScript.
 - Allowed external resources: Tailwind CSS CDN, Font Awesome CDN, Google Fonts.
 - Do NOT escape characters (no \\n, \\t, or escaped quotes). Output raw HTML/JS/CSS.
@@ -1658,61 +1658,6 @@ Requirements:
 6. Include proper session state management when needed
 7. Make the UI intuitive and user-friendly
 8. Add helpful tooltips and documentation
-
-IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
-"""
-
-SVELTE_SYSTEM_PROMPT = """You are an expert Svelte developer creating a modern Svelte application.
-
-**🚨 CRITICAL: DO NOT Generate README.md Files**
-- NEVER generate README.md files under any circumstances
-- A template README.md is automatically provided and will be overridden by the deployment system
-- Generating a README.md will break the deployment process
-
-File selection policy (dynamic, model-decided):
-- Generate ONLY the files actually needed for the user's request.
-- MUST include src/App.svelte (entry component) and src/main.ts (entry point).
-- Usually include src/app.css for global styles.
-- Add additional files when needed, e.g. src/lib/*.svelte, src/components/*.svelte, src/stores/*.ts, static/* assets, etc.
-- Other base template files (package.json, vite.config.ts, tsconfig, svelte.config.js, src/vite-env.d.ts) are provided by the template and should NOT be generated unless explicitly requested by the user.
-
-CRITICAL: Always generate src/main.ts with correct Svelte 5 syntax:
-```typescript
-import './app.css'
-import App from './App.svelte'
-
-const app = new App({
-  target: document.getElementById('app')!,
-})
-
-export default app
-```
-Do NOT use the old mount syntax: `import { mount } from 'svelte'` - this will cause build errors.
-
-Output format (CRITICAL):
-- Return ONLY a series of file sections, each starting with a filename line:
-  === src/App.svelte ===
-  ...file content...
-
-  === src/app.css ===
-  ...file content...
-
-  (repeat for all files you decide to create)
-- Do NOT wrap files in Markdown code fences.
-
-Dependency policy:
-- If you import any third-party npm packages (e.g., "@gradio/dataframe"), include a package.json at the project root with a "dependencies" section listing them. Keep scripts and devDependencies compatible with the default Svelte + Vite template.
-
-Requirements:
-1. Create a modern, responsive Svelte application based on the user's specific request
-2. Prefer TypeScript where applicable for better type safety
-3. Create a clean, professional UI with good user experience
-4. Make the application fully responsive for mobile devices
-5. Use modern CSS practices and Svelte best practices
-6. Include proper error handling and loading states
-7. Follow accessibility best practices
-8. Use Svelte's reactive features effectively
-9. Include proper component structure and organization (only what's needed)
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
@@ -2478,8 +2423,6 @@ def get_real_model_id(model_id: str) -> str:
 History = List[Tuple[str, str]]
 Messages = List[Dict[str, str]]
 
-# Tavily Search Client
-
 def history_to_messages(history: History, system: str) -> Messages:
     messages = [{'role': 'system', 'content': system}]
     for h in history:
@@ -3030,34 +2973,6 @@ def extract_html_document(text: str) -> str:
         idx = lower.find("<html")
     return text[idx:] if idx != -1 else text
 
-def parse_svelte_output(text):
-    """Parse Svelte output to extract individual files.
-
-    Supports dynamic multi-file using === filename === sections (preferred),
-    and falls back to ```svelte / ```css code blocks for minimal projects.
-    """
-    if not text:
-        return {}
-
-    # Preferred: multi-file sections (works for any filenames)
-    try:
-        files = parse_multipage_html_output(text) or {}
-    except Exception:
-        files = {}
-
-    if isinstance(files, dict) and files:
-        return files
-
-    # Fallback: code fences for minimal two-file output
-    import re
-    results = {}
-    svelte_match = re.search(r"```svelte\s*\n([\s\S]+?)\n```", text, re.IGNORECASE)
-    if svelte_match:
-        results['src/App.svelte'] = svelte_match.group(1).strip()
-    css_match = re.search(r"```css\s*\n([\s\S]+?)\n```", text, re.IGNORECASE)
-    if css_match:
-        results['src/app.css'] = css_match.group(1).strip()
-    return results
 
 def parse_react_output(text):
     """Parse React/Next.js output to extract individual files.
@@ -3075,102 +2990,6 @@ def parse_react_output(text):
 
     return files if isinstance(files, dict) and files else {}
 
-def format_svelte_output(files):
-    """Format Svelte files into === filename === sections (generic)."""
-    return format_multipage_output(files)
-def infer_svelte_dependencies(files: Dict[str, str]) -> Dict[str, str]:
-    """Infer npm dependencies from Svelte/TS imports across generated files.
-
-    Returns mapping of package name -> semver (string). Uses conservative defaults
-    when versions aren't known. Adds special-cased versions when known.
-    """
-    import re as _re
-    deps: Dict[str, str] = {}
-    import_from = _re.compile(r"import\s+[^;]*?from\s+['\"]([^'\"]+)['\"]", _re.IGNORECASE)
-    bare_import = _re.compile(r"import\s+['\"]([^'\"]+)['\"]", _re.IGNORECASE)
-
-    def maybe_add(pkg: str):
-        if not pkg or pkg.startswith('.') or pkg.startswith('/') or pkg.startswith('http'):
-            return
-        if pkg.startswith('svelte'):
-            return
-        if pkg not in deps:
-            # Default to wildcard; adjust known packages below
-            deps[pkg] = "*"
-
-    for path, content in (files or {}).items():
-        if not isinstance(content, str):
-            continue
-        for m in import_from.finditer(content):
-            maybe_add(m.group(1))
-        for m in bare_import.finditer(content):
-            maybe_add(m.group(1))
-
-    # Pin known versions when sensible
-    if '@gradio/dataframe' in deps:
-        deps['@gradio/dataframe'] = '^0.19.1'
-
-    return deps
-
-def build_svelte_package_json(existing_json_text: str | None, detected_dependencies: Dict[str, str]) -> str:
-    """Create or merge a package.json for Svelte spaces.
-
-    - If existing_json_text is provided, merge detected deps into its dependencies.
-    - Otherwise, start from the template defaults provided by the user and add deps.
-    - Always preserve template scripts and devDependencies.
-    """
-    import json as _json
-    # Template from the user's Svelte space scaffold
-    template = {
-        "name": "svelte",
-        "private": True,
-        "version": "0.0.0",
-        "type": "module",
-        "scripts": {
-            "dev": "vite",
-            "build": "vite build",
-            "preview": "vite preview",
-            "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json"
-        },
-        "devDependencies": {
-            "@sveltejs/vite-plugin-svelte": "^5.0.3",
-            "@tsconfig/svelte": "^5.0.4",
-            "svelte": "^5.28.1",
-            "svelte-check": "^4.1.6",
-            "typescript": "~5.8.3",
-            "vite": "^6.3.5"
-        }
-    }
-
-    result = template
-    if existing_json_text:
-        try:
-            parsed = _json.loads(existing_json_text)
-            # Merge with template as base, keeping template scripts/devDependencies if missing in parsed
-            result = {
-                **template,
-                **{k: v for k, v in parsed.items() if k not in ("scripts", "devDependencies")},
-            }
-            # If parsed contains its own scripts/devDependencies, prefer parsed to respect user's file
-            if isinstance(parsed.get("scripts"), dict):
-                result["scripts"] = parsed["scripts"]
-            if isinstance(parsed.get("devDependencies"), dict):
-                result["devDependencies"] = parsed["devDependencies"]
-        except Exception:
-            # Fallback to template if parse fails
-            result = template
-
-    # Merge dependencies
-    existing_deps = result.get("dependencies", {})
-    if not isinstance(existing_deps, dict):
-        existing_deps = {}
-    merged = {**existing_deps, **(detected_dependencies or {})}
-    if merged:
-        result["dependencies"] = merged
-    else:
-        result.pop("dependencies", None)
-
-    return _json.dumps(result, indent=2, ensure_ascii=False) + "\n"
 
 def history_render(history: History):
     return gr.update(visible=True), history
@@ -3435,10 +3254,6 @@ def apply_transformers_js_search_replace_changes(original_formatted_content: str
     
     # Reformat the modified files
     return format_transformers_js_output(files)
-
-# Updated for faster Tavily search and closer prompt usage
-# Uses 'advanced' search_depth and auto_parameters=True for speed and relevance
-
 
 def send_to_sandbox(code):
     """Render HTML in a sandboxed iframe. Assumes full HTML is provided by prompts."""
@@ -3884,7 +3699,6 @@ def generation_code(query: str | None, vlm_image: Optional[gr.Image], _setting: 
             '=== index.html ===' in last_assistant_msg or
             '=== index.js ===' in last_assistant_msg or
             '=== style.css ===' in last_assistant_msg or
-            '=== src/App.svelte ===' in last_assistant_msg or
             '=== app.py ===' in last_assistant_msg or
             '=== requirements.txt ===' in last_assistant_msg):
             has_existing_content = True
@@ -4007,8 +3821,6 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = TransformersJSFollowUpSystemPrompt
         elif language == "gradio":
             system_prompt = GradioFollowUpSystemPrompt
-        elif language == "svelte":
-            system_prompt = FollowUpSystemPrompt  # Use generic follow-up for Svelte
         elif language == "react":
             system_prompt = REACT_FOLLOW_UP_SYSTEM_PROMPT
         else:
@@ -4020,8 +3832,6 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT
         elif language == "transformers.js":
             system_prompt = TRANSFORMERS_JS_SYSTEM_PROMPT
-        elif language == "svelte":
-            system_prompt = SVELTE_SYSTEM_PROMPT
         elif language == "react":
             system_prompt = REACT_SYSTEM_PROMPT
         elif language == "gradio":
@@ -4097,24 +3907,6 @@ Generate the exact search/replace blocks needed to make these changes."""
             files = parse_transformers_js_output(clean_code)
             if files['index.html'] and files['index.js'] and files['style.css']:
                 formatted_output = format_transformers_js_output(files)
-                yield {
-                    code_output: formatted_output,
-                    history: _history,
-                    history_output: history_to_chatbot_messages(_history),
-                }
-            else:
-                yield {
-                    code_output: clean_code,
-                    history: _history,
-                    history_output: history_to_chatbot_messages(_history),
-                }
-        elif language == "svelte":
-            files = parse_svelte_output(clean_code)
-            if isinstance(files, dict) and files.get('src/App.svelte'):
-                # Note: Media generation (text-to-image, image-to-image, etc.) is not supported for Svelte apps
-                # Only static HTML apps support automatic image/video/audio generation
-                
-                formatted_output = format_svelte_output(files)
                 yield {
                     code_output: formatted_output,
                     history: _history,
@@ -4443,13 +4235,6 @@ Generate the exact search/replace blocks needed to make these changes."""
                             code_output: gr.update(value=content, language="html"),
                             history_output: history_to_chatbot_messages(_history),
                         }
-                elif language == "svelte":
-                    # For Svelte, just show the content as it streams
-                    # We'll parse it properly in the final response
-                    yield {
-                        code_output: gr.update(value=content, language="html"),
-                        history_output: history_to_chatbot_messages(_history),
-                    }
                 else:
                     clean_code = remove_code_block(content)
                     if has_existing_content:
@@ -4529,36 +4314,6 @@ Generate the exact search/replace blocks needed to make these changes."""
                 }
             else:
                 # Fallback if parsing failed
-                _history.append([query, content])
-                yield {
-                    code_output: content,
-                    history: _history,
-                    history_output: history_to_chatbot_messages(_history),
-                }
-        elif language == "svelte":
-            # Handle Svelte output
-            files = parse_svelte_output(content)
-            if isinstance(files, dict) and files.get('src/App.svelte'):
-                # Model returned complete Svelte output
-                formatted_output = format_svelte_output(files)
-                _history.append([query, formatted_output])
-                yield {
-                    code_output: formatted_output,
-                    history: _history,
-                    history_output: history_to_chatbot_messages(_history),
-                }
-            elif has_existing_content:
-                # Model returned search/replace changes for Svelte - apply them
-                last_content = _history[-1][1] if _history and len(_history[-1]) > 1 else ""
-                modified_content = apply_search_replace_changes(last_content, content)
-                _history.append([query, modified_content])
-                yield {
-                    code_output: modified_content,
-                    history: _history,
-                    history_output: history_to_chatbot_messages(_history),
-                }
-            else:
-                # Fallback if parsing failed - just use the raw content
                 _history.append([query, content])
                 yield {
                     code_output: content,
@@ -6170,8 +5925,7 @@ with gr.Blocks(
             ("Gradio (Python)", "gradio"),
             ("Streamlit (Python)", "streamlit"),
             ("Static (HTML)", "static"),
-            ("Transformers.js", "transformers.js"),
-            ("Svelte", "svelte")
+            ("Transformers.js", "transformers.js")
         ]
         sdk_dropdown = gr.Dropdown(
             choices=[x[0] for x in sdk_choices],
@@ -7175,15 +6929,14 @@ with gr.Blocks(
             "react": "docker",  # Use 'docker' for React/Next.js Spaces
             "html": "static",
             "transformers.js": "static",  # Transformers.js uses static SDK
-            "svelte": "static",  # Svelte uses static SDK
             "comfyui": "static"  # ComfyUI uses static SDK
         }
         sdk = language_to_sdk_map.get(language, "gradio")
         
         # Create API client with user's token for proper authentication
         api = HfApi(token=token.token)
-        # Only create the repo for new spaces (not updates) and non-Transformers.js, non-Streamlit, and non-Svelte SDKs
-        if not is_update and sdk != "docker" and language not in ["transformers.js", "svelte"]:
+        # Only create the repo for new spaces (not updates) and non-Transformers.js, non-Streamlit SDKs
+        if not is_update and sdk != "docker" and language not in ["transformers.js"]:
             try:
                 api.create_repo(
                     repo_id=repo_id,  # e.g. username/space_name
@@ -7482,111 +7235,6 @@ with gr.Blocks(
                 # General error handling for both creation and updates
                 action_verb = "updating" if is_update else "duplicating"
                 return gr.update(value=f"Error {action_verb} Transformers.js space: {error_msg}", visible=True)
-        # Svelte logic
-        elif language == "svelte":
-            try:
-                actual_repo_id = repo_id
-                # For new spaces, duplicate the template first
-                if not is_update:
-                    from huggingface_hub import duplicate_space
-                    import time
-                    duplicated_repo = duplicate_space(
-                        from_id="static-templates/svelte",
-                        to_id=repo_id,
-                        token=token.token,
-                        exist_ok=True
-                    )
-                    print("Duplicated Svelte repo result:", duplicated_repo, type(duplicated_repo))
-                    # Extract the actual repo ID from the duplicated space (RepoUrl)
-                    try:
-                        duplicated_repo_str = str(duplicated_repo)
-                        if "/spaces/" in duplicated_repo_str:
-                            parts = duplicated_repo_str.split("/spaces/")[-1].split("/")
-                            if len(parts) >= 2:
-                                actual_repo_id = f"{parts[0]}/{parts[1]}"
-                    except Exception as e:
-                        print(f"Error extracting repo ID from duplicated_repo: {e}")
-                        actual_repo_id = repo_id
-                    
-                    # Small delay to allow the duplication to fully complete and reduce race conditions
-                    print("Waiting for template duplication to complete...")
-                    time.sleep(3)
-                    
-                print("Actual repo ID for Svelte uploads:", actual_repo_id)
-
-                # Parse all generated Svelte files (dynamic multi-file)
-                files = parse_svelte_output(code) or {}
-                if not isinstance(files, dict) or 'src/App.svelte' not in files or not files['src/App.svelte'].strip():
-                    return gr.update(value="Error: Could not parse Svelte output (missing src/App.svelte). Please regenerate the code.", visible=True)
-
-                # Validate that src/main.ts is generated (should be required now)
-                if 'src/main.ts' not in files:
-                    return gr.update(value="Error: Missing src/main.ts file. Please regenerate the code to include the main entry point.", visible=True)
-
-                # Ensure package.json includes any external npm deps used; overwrite template's package.json
-                try:
-                    detected = infer_svelte_dependencies(files)
-                    existing_pkg_text = files.get('package.json')
-                    pkg_text = build_svelte_package_json(existing_pkg_text, detected)
-                    # Only write if we have either detected deps or user provided a package.json
-                    if pkg_text and (detected or existing_pkg_text is not None):
-                        files['package.json'] = pkg_text
-                except Exception as e:
-                    # Non-fatal: proceed without generating package.json
-                    print(f"[Svelte Deploy] package.json synthesis skipped: {e}")
-
-                # Write all files to a temp directory and upload folder in one commit
-                import tempfile, os, time
-                with tempfile.TemporaryDirectory() as tmpdir:
-                    for rel_path, content in files.items():
-                        safe_rel = (rel_path or '').strip().lstrip('/')
-                        abs_path = os.path.join(tmpdir, safe_rel)
-                        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-                        with open(abs_path, 'w') as fh:
-                            fh.write(content or '')
-                    
-                    # Retry logic for upload_folder to handle race conditions
-                    max_retries = 3
-                    for attempt in range(max_retries):
-                        try:
-                            api.upload_folder(
-                                folder_path=tmpdir,
-                                repo_id=actual_repo_id,
-                                repo_type="space"
-                            )
-                            break  # Success, exit retry loop
-                        except Exception as upload_error:
-                            if "commit has happened since" in str(upload_error).lower() and attempt < max_retries - 1:
-                                print(f"Svelte upload attempt {attempt + 1} failed due to race condition, retrying in 2 seconds...")
-                                time.sleep(2)  # Wait before retry
-                                continue
-                            else:
-                                raise upload_error  # Re-raise if not a race condition or max retries reached
-
-                # Add anycoder tag to existing README (with retry logic)
-                max_retries = 3
-                for attempt in range(max_retries):
-                    try:
-                        add_anycoder_tag_to_readme(api, actual_repo_id)
-                        break  # Success, exit retry loop
-                    except Exception as readme_error:
-                        if "commit has happened since" in str(readme_error).lower() and attempt < max_retries - 1:
-                            print(f"README tag attempt {attempt + 1} failed due to race condition, retrying in 2 seconds...")
-                            time.sleep(2)  # Wait before retry
-                            continue
-                        else:
-                            # Non-fatal: README tagging is not critical, just log and continue
-                            print(f"Failed to add anycoder tag to README after {max_retries} attempts: {readme_error}")
-                            break
-
-                # Success
-                space_url = f"https://huggingface.co/spaces/{actual_repo_id}"
-                action_text = "Updated" if is_update else "Deployed"
-                return gr.update(value=f"✅ {action_text}! [Open your Svelte Space here]({space_url})", visible=True)
-
-            except Exception as e:
-                error_msg = str(e)
-                return gr.update(value=f"Error deploying Svelte app: {error_msg}", visible=True)
         # Other SDKs (existing logic)
         if sdk == "static":
             import time
