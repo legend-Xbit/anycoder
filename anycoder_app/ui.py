@@ -93,7 +93,7 @@ with gr.Blocks(
         login_button = gr.LoginButton()
         
         # App link (visible on all devices)
-        mobile_link = gr.Markdown(
+        mobile_link = gr.HTML(
             """
             <div class="app-link">
                 📱 <strong>Using Mobile?</strong><br/>
