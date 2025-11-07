@@ -1161,85 +1161,110 @@ with gr.Blocks(
                     action_text = "Updated" if is_update else "Deployed"
                     return gr.update(value=f"✅ {action_text}! [Open your React Space here]({space_url})", visible=True)
                 
-                # Streamlit logic
-                # Generate requirements.txt for Streamlit apps and upload only if needed
-                import_statements = extract_import_statements(code)
-                requirements_content = generate_requirements_txt_with_llm(import_statements)
+                # Streamlit logic - Parse multi-file structure
+                files = parse_multi_file_python_output(code)
+                if not files:
+                    return gr.update(value="Error: Could not parse Streamlit output. Please regenerate the code.", visible=True)
                 
+                # Verify required files exist
+                has_streamlit_app = 'streamlit_app.py' in files or 'app.py' in files
+                has_requirements = 'requirements.txt' in files
+                has_dockerfile = 'Dockerfile' in files
+                
+                if not has_streamlit_app:
+                    return gr.update(value="Error: Missing streamlit_app.py. Please regenerate the code.", visible=True)
+                
+                # If Dockerfile or requirements.txt is missing, generate them
+                if not has_dockerfile:
+                    # Generate default Dockerfile
+                    files['Dockerfile'] = """FROM python:3.11-slim
+
+# Set up user with ID 1000
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \\
+    PATH=/home/user/.local/bin:$PATH
+
+# Set working directory
+WORKDIR $HOME/app
+
+# Copy requirements file with proper ownership
+COPY --chown=user requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application files with proper ownership
+COPY --chown=user . .
+
+# Expose port 7860
+EXPOSE 7860
+
+# Start Streamlit app
+CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.address=0.0.0.0"]
+"""
+                
+                if not has_requirements:
+                    # Generate requirements.txt from imports in the main app file
+                    main_app = files.get('streamlit_app.py') or files.get('app.py', '')
+                    import_statements = extract_import_statements(main_app)
+                    files['requirements.txt'] = generate_requirements_txt_with_llm(import_statements)
+                
+                # Upload Streamlit files
                 import tempfile
+                import time
                 
-                # Check if we need to upload requirements.txt
-                should_upload_requirements = True
-                if is_update:
-                    try:
-                        # Try to get existing requirements.txt content
-                        existing_requirements = api.hf_hub_download(
-                            repo_id=repo_id,
-                            filename="requirements.txt",
-                            repo_type="space"
-                        )
-                        with open(existing_requirements, 'r') as f:
-                            existing_content = f.read().strip()
+                for file_name, file_content in files.items():
+                    if not file_content:
+                        continue
                         
-                        # Compare with new content
-                        if existing_content == requirements_content.strip():
-                            should_upload_requirements = False
+                    success = False
+                    last_error = None
+                    max_attempts = 3
+                    
+                    for attempt in range(max_attempts):
+                        try:
+                            # Determine file extension
+                            if file_name == 'Dockerfile':
+                                suffix = ''
+                            else:
+                                suffix = f".{file_name.split('.')[-1]}"
                             
-                    except Exception:
-                        # File doesn't exist or can't be accessed, so we should upload
-                        should_upload_requirements = True
+                            with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False) as f:
+                                f.write(file_content)
+                                temp_path = f.name
+                            
+                            api.upload_file(
+                                path_or_fileobj=temp_path,
+                                path_in_repo=file_name,
+                                repo_id=repo_id,
+                                repo_type="space"
+                            )
+                            success = True
+                            break
+                            
+                        except Exception as e:
+                            last_error = e
+                            error_msg = str(e)
+                            if "403 Forbidden" in error_msg and "write token" in error_msg:
+                                return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
+                            
+                            if attempt < max_attempts - 1:
+                                time.sleep(2)
+                        finally:
+                            import os
+                            if 'temp_path' in locals():
+                                os.unlink(temp_path)
+                    
+                    if not success:
+                        return gr.update(value=f"Error uploading {file_name}: {last_error}", visible=True)
                 
-                # Upload requirements.txt only if needed
-                if should_upload_requirements:
-                    try:
-                        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
-                            f.write(requirements_content)
-                            requirements_temp_path = f.name
-                        
-                        api.upload_file(
-                            path_or_fileobj=requirements_temp_path,
-                            path_in_repo="requirements.txt",
-                            repo_id=repo_id,
-                            repo_type="space"
-                        )
-                    except Exception as e:
-                        error_msg = str(e)
-                        if "403 Forbidden" in error_msg and "write token" in error_msg:
-                            return gr.update(value=f"Error uploading requirements.txt: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
-                        else:
-                            return gr.update(value=f"Error uploading requirements.txt: {e}", visible=True)
-                    finally:
-                        import os
-                        if 'requirements_temp_path' in locals():
-                            os.unlink(requirements_temp_path)
+                # Add anycoder tag and app_port to existing README
+                add_anycoder_tag_to_readme(api, repo_id, app_port=7860)
                 
-                # Add anycoder tag to existing README
-                add_anycoder_tag_to_readme(api, repo_id)
-                
-                # Upload the user's code to src/streamlit_app.py (for both new and existing spaces)
-                with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
-                    f.write(code)
-                    temp_path = f.name
-                
-                try:
-                    api.upload_file(
-                        path_or_fileobj=temp_path,
-                        path_in_repo="src/streamlit_app.py",
-                        repo_id=repo_id,
-                        repo_type="space"
-                    )
-                    space_url = f"https://huggingface.co/spaces/{repo_id}"
-                    action_text = "Updated" if is_update else "Deployed"
-                    return gr.update(value=f"✅ {action_text}! [Open your Space here]({space_url})", visible=True)
-                except Exception as e:
-                    error_msg = str(e)
-                    if "403 Forbidden" in error_msg and "write token" in error_msg:
-                        return gr.update(value=f"Error: Permission denied. Please ensure you have write access to {repo_id} and your token has the correct permissions.", visible=True)
-                    else:
-                        return gr.update(value=f"Error uploading Streamlit app: {e}", visible=True)
-                finally:
-                    import os
-                    os.unlink(temp_path)
+                space_url = f"https://huggingface.co/spaces/{repo_id}"
+                action_text = "Updated" if is_update else "Deployed"
+                return gr.update(value=f"✅ {action_text}! [Open your Streamlit Space here]({space_url})", visible=True)
                     
             except Exception as e:
                 error_prefix = "Error duplicating Streamlit space" if not is_update else "Error updating Streamlit space"
