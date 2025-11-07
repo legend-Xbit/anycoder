@@ -21,7 +21,7 @@ from .parsers import (
 )
 from .deploy import (
     check_authentication, update_ui_for_auth_status,
-    generation_code, deploy_to_spaces
+    generation_code, deploy_to_spaces, add_anycoder_tag_to_readme
 )
 
 # Main application with proper Gradio theming
