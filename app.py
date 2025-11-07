@@ -7006,13 +7006,6 @@ with gr.Blocks(
                 import tempfile
                 import os
                 
-                # Upload temporary media files to HF and replace URLs (only for Static HTML, not Transformers.js)
-                if sdk == "static" and language == "html":
-                    print("[Deploy] Uploading temporary media files to HF and updating URLs for multi-file static HTML app")
-                    # Update the index.html file with permanent media URLs
-                    if 'index.html' in files:
-                        files['index.html'] = upload_temp_files_to_hf_and_replace_urls(files['index.html'], token)
-                
                 try:
                     with tempfile.TemporaryDirectory() as tmpdir:
                         # Write each file preserving subdirectories if any
@@ -7046,11 +7039,6 @@ with gr.Blocks(
             if language == "comfyui":
                 print("[Deploy] Converting ComfyUI JSON to prettified HTML display")
                 code = prettify_comfyui_json_for_html(code)
-            
-            # Upload temporary media files to HF and replace URLs (only for Static HTML, not Transformers.js)
-            if sdk == "static" and language == "html":
-                print("[Deploy] Uploading temporary media files to HF and updating URLs for single-file static HTML app")
-                code = upload_temp_files_to_hf_and_replace_urls(code, token)
             
             max_attempts = 3
             for attempt in range(max_attempts):
