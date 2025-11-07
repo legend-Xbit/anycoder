@@ -13,15 +13,20 @@ from .config import (
 )
 from .themes import THEME_CONFIGS, get_saved_theme, current_theme
 from .prompts import HTML_SYSTEM_PROMPT
+from .models import history_to_chatbot_messages
 from .parsers import (
     history_render, clear_history, create_multimodal_message,
     parse_multipage_html_output, parse_transformers_js_output,
     parse_react_output, format_transformers_js_output,
-    validate_and_autofix_files, parse_multi_file_python_output
+    validate_and_autofix_files, parse_multi_file_python_output,
+    is_streamlit_code, is_gradio_code
 )
 from .deploy import (
     check_authentication, update_ui_for_auth_status,
-    generation_code, deploy_to_spaces, add_anycoder_tag_to_readme
+    generation_code, deploy_to_spaces, add_anycoder_tag_to_readme,
+    _parse_repo_or_model_url, load_project_from_url, check_hf_space_url,
+    import_repo_to_app, extract_import_statements, 
+    generate_requirements_txt_with_llm, prettify_comfyui_json_for_html
 )
 
 # Main application with proper Gradio theming
