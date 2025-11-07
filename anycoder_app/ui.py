@@ -69,6 +69,16 @@ with gr.Blocks(
             border: 1px solid rgba(46, 204, 113, 0.3);
             color: #2ecc71;
         }
+        /* App link styling (visible on all devices) */
+        .app-link {
+            display: block;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            margin: 12px 0;
+            text-align: center;
+        }
     """
 ) as demo:
     history = gr.State([])
@@ -82,7 +92,18 @@ with gr.Blocks(
     with gr.Sidebar() as sidebar:
         login_button = gr.LoginButton()
         
-        
+        # App link (visible on all devices)
+        mobile_link = gr.Markdown(
+            """
+            <div class="app-link">
+                📱 <strong>Using Mobile?</strong><br/>
+                <a href="https://akhaliq-anycoder.hf.space" target="_blank" style="color: #007bff; text-decoration: underline;">
+                    Use the app here
+                </a>
+            </div>
+            """,
+            visible=True
+        )
 
 
         # Unified Import section
@@ -95,10 +116,20 @@ with gr.Blocks(
         load_project_btn = gr.Button("📥 Import Project", variant="secondary", size="sm", visible=True)
         load_project_status = gr.Markdown(visible=False)
         
+        # Chat history display in sidebar
+        chat_history = gr.Chatbot(
+            label="Conversation History",
+            type="messages",
+            height=300,
+            show_copy_button=True,
+            visible=True
+        )
+        
+        # Input textbox for new messages
         input = gr.Textbox(
             label="What would you like to build?",
             placeholder="🔒 Please log in with Hugging Face to use AnyCoder...",
-            lines=3,
+            lines=2,
             visible=True,
             interactive=False
         )
@@ -295,7 +326,8 @@ with gr.Blocks(
                 gr.update(value="Publish", visible=False),
                 gr.update(),  # keep import header as-is
                 gr.update(),  # keep import button as-is
-                gr.update()   # language dropdown - no change
+                gr.update(),  # language dropdown - no change
+                []  # chat_history
             ]
 
         kind, meta = _parse_repo_or_model_url(url)
@@ -337,7 +369,8 @@ with gr.Blocks(
                 gr.update(value="Publish", visible=True),
                 gr.update(visible=False),  # hide import header
                 gr.update(visible=False),  # hide import button
-                gr.update(value=framework_type)  # set language dropdown to framework type
+                gr.update(value=framework_type),  # set language dropdown to framework type
+                history_to_chatbot_messages(loaded_history)  # chat_history
             ]
         else:
             # GitHub or HF model → return raw snippet for LLM starting point
@@ -361,7 +394,8 @@ with gr.Blocks(
                 gr.update(value="Publish", visible=False),
                 gr.update(visible=False),  # hide import header
                 gr.update(visible=False),  # hide import button
-                gr.update(value=framework_type)  # set language dropdown to detected language
+                gr.update(value=framework_type),  # set language dropdown to detected language
+                history_to_chatbot_messages(loaded_history)  # chat_history
             ]
 
     # Import repo/model handler
@@ -796,6 +830,7 @@ with gr.Blocks(
             import_header_md,
             load_project_btn,
             language_dropdown,
+            chat_history,  # Add chat_history to outputs
         ],
     )
 
@@ -813,7 +848,15 @@ with gr.Blocks(
 
     def generation_code_wrapper(inp, sett, hist, model, lang, prov, profile: Optional[gr.OAuthProfile] = None, token: Optional[gr.OAuthToken] = None):
         """Wrapper to call generation_code and pass component references"""
-        yield from generation_code(inp, sett, hist, model, lang, prov, profile, token, code_output, history_output, history)
+        # Generate code and update both history and chat_history
+        for result in generation_code(inp, sett, hist, model, lang, prov, profile, token, code_output, history_output, history):
+            # generation_code yields dictionaries with component keys
+            # Extract the values and yield them for our outputs
+            code_val = result.get(code_output, "")
+            hist_val = result.get(history, hist)
+            history_output_val = result.get(history_output, [])
+            # Yield for: code_output, history, history_output, chat_history
+            yield code_val, hist_val, history_output_val, history_output_val
 
     btn.click(
         begin_generation_ui,
@@ -823,7 +866,7 @@ with gr.Blocks(
     ).then(
         generation_code_wrapper,
         inputs=[input, setting, history, current_model, language_dropdown, provider_state],
-        outputs=[code_output, history, history_output]
+        outputs=[code_output, history, history_output, chat_history]
     ).then(
         end_generation_ui,
         inputs=None,
@@ -871,7 +914,7 @@ with gr.Blocks(
     ).then(
         generation_code_wrapper,
         inputs=[input, setting, history, current_model, language_dropdown, provider_state],
-        outputs=[code_output, history, history_output]
+        outputs=[code_output, history, history_output, chat_history]
     ).then(
         end_generation_ui,
         inputs=None,
@@ -935,7 +978,7 @@ with gr.Blocks(
         </div>
         """
     
-    clear_btn.click(clear_history, outputs=[history, history_output])
+    clear_btn.click(clear_history, outputs=[history, history_output, chat_history])
     clear_btn.click(hide_deploy_components, None, [deploy_btn])
     # Reset button text when clearing
     clear_btn.click(
@@ -1676,6 +1719,10 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
         deploy_with_history_tracking,
         inputs=[code_output, language_dropdown, history],
         outputs=[deploy_status, history]
+    ).then(
+        lambda hist: history_to_chatbot_messages(hist),
+        inputs=[history],
+        outputs=[chat_history]
     )
     # Keep the old deploy method as fallback (if not logged in, user can still use the old method)
     # Optionally, you can keep the old deploy_btn.click for the default method as a secondary button.

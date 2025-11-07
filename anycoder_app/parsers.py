@@ -583,7 +583,7 @@ def history_render(history: History):
     return gr.update(visible=True), history
 
 def clear_history():
-    return [], []  # Empty lists for both history and chatbot messages
+    return [], [], []  # Empty lists for history, history_output, and chat_history
 
 def create_multimodal_message(text, image=None):
     """Create a chat message. For broad provider compatibility, always return content as a string.
