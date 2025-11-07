@@ -46,7 +46,7 @@ from .prompts import (
     FollowUpSystemPrompt, GradioFollowUpSystemPrompt,
     TransformersJSFollowUpSystemPrompt
 )
-from .docs_manager import get_comfyui_system_prompt
+from .docs_manager import get_comfyui_system_prompt, update_gradio_system_prompts
 
 
 def check_authentication(profile: Optional[gr.OAuthProfile] = None, token: Optional[gr.OAuthToken] = None) -> Tuple[bool, str]:
