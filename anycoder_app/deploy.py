@@ -36,17 +36,18 @@ from .models import (
     history_to_chatbot_messages, strip_placeholder_thinking,
     is_placeholder_thinking_only, extract_last_thinking_line
 )
+from . import prompts
 from .prompts import (
     HTML_SYSTEM_PROMPT,
     TRANSFORMERS_JS_SYSTEM_PROMPT, STREAMLIT_SYSTEM_PROMPT,
     REACT_SYSTEM_PROMPT, REACT_FOLLOW_UP_SYSTEM_PROMPT,
-    GRADIO_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT,
+    JSON_SYSTEM_PROMPT,
     GENERIC_SYSTEM_PROMPT, MULTIPAGE_HTML_SYSTEM_PROMPT,
     DYNAMIC_MULTIPAGE_HTML_SYSTEM_PROMPT,
     FollowUpSystemPrompt, GradioFollowUpSystemPrompt,
     TransformersJSFollowUpSystemPrompt
 )
-from .docs_manager import get_comfyui_system_prompt, update_gradio_system_prompts
+from .docs_manager import get_comfyui_system_prompt, update_gradio_system_prompts, update_json_system_prompts
 
 
 def check_authentication(profile: Optional[gr.OAuthProfile] = None, token: Optional[gr.OAuthToken] = None) -> Tuple[bool, str]:
@@ -227,9 +228,11 @@ Generate the exact search/replace blocks needed to make these changes."""
     else:
         session_id = str(uuid.uuid4())
 
-    # Update Gradio system prompts if needed
+    # Update system prompts if needed
     if language == "gradio":
         update_gradio_system_prompts()
+    elif language == "json":
+        update_json_system_prompts()
 
     # Choose system prompt based on context
     # Special case: If user is asking about model identity, use neutral prompt
@@ -255,11 +258,13 @@ Generate the exact search/replace blocks needed to make these changes."""
         elif language == "react":
             system_prompt = REACT_SYSTEM_PROMPT
         elif language == "gradio":
-            system_prompt = GRADIO_SYSTEM_PROMPT
+            # Access GRADIO_SYSTEM_PROMPT from prompts module to get updated value
+            system_prompt = prompts.GRADIO_SYSTEM_PROMPT
         elif language == "streamlit":
             system_prompt = STREAMLIT_SYSTEM_PROMPT
         elif language == "json":
-            system_prompt = JSON_SYSTEM_PROMPT
+            # Access JSON_SYSTEM_PROMPT from prompts module to get updated value
+            system_prompt = prompts.JSON_SYSTEM_PROMPT
         elif language == "comfyui":
             system_prompt = get_comfyui_system_prompt()
         else:
