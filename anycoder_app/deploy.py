@@ -1823,6 +1823,234 @@ def _generate_gradio_app_from_diffusers(repo_id: str) -> str:
         "    demo.launch()\n"
     )
 
+def get_trending_models(limit: int = 10) -> List[Tuple[str, str]]:
+    """
+    Fetch top trending models from HuggingFace Hub.
+    
+    Returns a list of tuples: (display_name, model_id)
+    Display name format: "model_name (task)"
+    """
+    try:
+        # Use the HuggingFace trending API endpoint directly
+        response = requests.get("https://huggingface.co/api/trending")
+        
+        if response.status_code != 200:
+            print(f"Failed to fetch trending models: HTTP {response.status_code}")
+            return [("Unable to load trending models", "")]
+        
+        trending_data = response.json()
+        
+        # The API returns {"recentlyTrending": [...]}
+        recently_trending = trending_data.get("recentlyTrending", [])
+        
+        if not recently_trending:
+            print("No trending items found in API response")
+            return [("No trending models available", "")]
+        
+        trending_list = []
+        count = 0
+        
+        # Process trending items, filter for models only
+        for item in recently_trending:
+            if count >= limit:
+                break
+            
+            try:
+                # Check if this is a model (not a space or dataset)
+                repo_type = item.get("repoType")
+                if repo_type != "model":
+                    continue
+                
+                # Extract model data
+                repo_data = item.get("repoData", {})
+                model_id = repo_data.get("id")
+                
+                if not model_id:
+                    continue
+                
+                # Get pipeline tag (task type)
+                pipeline_tag = repo_data.get("pipeline_tag")
+                
+                # Default to "general" if no task found
+                task = pipeline_tag or "general"
+                
+                # Clean up task name for display
+                task_display = task.replace("-", " ").title() if task != "general" else "General"
+                
+                # Create display name: "model_name (Task)"
+                display_name = f"{model_id} ({task_display})"
+                trending_list.append((display_name, model_id))
+                count += 1
+                
+            except Exception as model_error:
+                print(f"Error processing trending item: {model_error}")
+                continue
+        
+        if not trending_list:
+            print("No models found in trending list, using fallback")
+            # Fallback: use list_models with downloads sort
+            try:
+                api = HfApi()
+                models = api.list_models(sort="downloads", limit=limit)
+                for model in models:
+                    model_id = model.id
+                    task = getattr(model, "pipeline_tag", None) or "general"
+                    task_display = task.replace("-", " ").title() if task != "general" else "General"
+                    display_name = f"{model_id} ({task_display})"
+                    trending_list.append((display_name, model_id))
+            except Exception as fallback_error:
+                print(f"Fallback also failed: {fallback_error}")
+                return [("No models available", "")]
+        
+        return trending_list
+        
+    except Exception as e:
+        print(f"Error fetching trending models: {e}")
+        # Fallback to most downloaded models
+        try:
+            api = HfApi()
+            models = api.list_models(sort="downloads", limit=limit)
+            trending_list = []
+            for model in models:
+                model_id = model.id
+                task = getattr(model, "pipeline_tag", None) or "general"
+                task_display = task.replace("-", " ").title() if task != "general" else "General"
+                display_name = f"{model_id} ({task_display})"
+                trending_list.append((display_name, model_id))
+            return trending_list
+        except Exception:
+            return [("Error loading models", "")]
+
+
+def get_trending_spaces(limit: int = 10) -> List[Tuple[str, str]]:
+    """
+    Fetch top trending spaces from HuggingFace Hub.
+    
+    Returns a list of tuples: (display_name, space_id)
+    Display name format: "space_name (category)"
+    """
+    try:
+        # Use the HuggingFace trending API endpoint for spaces
+        response = requests.get("https://huggingface.co/api/trending?type=space")
+        
+        if response.status_code != 200:
+            print(f"Failed to fetch trending spaces: HTTP {response.status_code}")
+            return [("Unable to load trending spaces", "")]
+        
+        trending_data = response.json()
+        
+        # The API returns {"recentlyTrending": [...]}
+        recently_trending = trending_data.get("recentlyTrending", [])
+        
+        if not recently_trending:
+            print("No trending spaces found in API response")
+            return [("No trending spaces available", "")]
+        
+        trending_list = []
+        count = 0
+        
+        # Process trending items
+        for item in recently_trending:
+            if count >= limit:
+                break
+            
+            try:
+                # Check if this is a space
+                repo_type = item.get("repoType")
+                if repo_type != "space":
+                    continue
+                
+                # Extract space data
+                repo_data = item.get("repoData", {})
+                space_id = repo_data.get("id")
+                
+                if not space_id:
+                    continue
+                
+                # Get title and category
+                title = repo_data.get("title") or space_id
+                category = repo_data.get("ai_category") or repo_data.get("shortDescription", "Space")
+                
+                # Create display name: "title (category)"
+                # Truncate long titles
+                if len(title) > 40:
+                    title = title[:37] + "..."
+                
+                display_name = f"{title} ({category})"
+                trending_list.append((display_name, space_id))
+                count += 1
+                
+            except Exception as space_error:
+                print(f"Error processing trending space: {space_error}")
+                continue
+        
+        if not trending_list:
+            return [("No spaces available", "")]
+        
+        return trending_list
+        
+    except Exception as e:
+        print(f"Error fetching trending spaces: {e}")
+        return [("Error loading spaces", "")]
+
+
+def import_space_from_hf(space_id: str) -> Tuple[str, str, str, str]:
+    """
+    Import a HuggingFace space by ID and extract its code.
+    
+    Returns: (status, code, language, space_url)
+    """
+    if not space_id or space_id == "":
+        return "Please select a space.", "", "html", ""
+    
+    # Build space URL
+    space_url = f"https://huggingface.co/spaces/{space_id}"
+    
+    # Use existing load_project_from_url function
+    status, code = load_project_from_url(space_url)
+    
+    # Determine language based on code content
+    code_lang = "html"  # default
+    language = "html"  # for language dropdown
+    
+    # Check imports to determine framework for Python code
+    if is_streamlit_code(code):
+        code_lang = "python"
+        language = "streamlit"
+    elif is_gradio_code(code):
+        code_lang = "python"
+        language = "gradio"
+    elif "=== index.html ===" in code and "=== index.js ===" in code:
+        code_lang = "html"
+        language = "transformers.js"
+    elif ("import " in code or "def " in code) and not ("<!DOCTYPE html>" in code or "<html" in code):
+        code_lang = "python"
+        language = "gradio"  # Default to Gradio for Python spaces
+    
+    return status, code, language, space_url
+
+
+def import_model_from_hf(model_id: str) -> Tuple[str, str, str, str]:
+    """
+    Import a HuggingFace model by ID and extract code snippet.
+    
+    Returns: (status, code, language, model_url)
+    """
+    if not model_id or model_id == "":
+        return "Please select a model.", "", "python", ""
+    
+    # Build model URL
+    model_url = f"https://huggingface.co/{model_id}"
+    
+    # Use existing import_repo_to_app function
+    status, code, _ = import_repo_to_app(model_url)
+    
+    # Determine language - default to python for model imports
+    language = "gradio"  # Default framework for model demos
+    
+    return status, code, language, model_url
+
+
 def import_repo_to_app(url: str, framework: str = "Gradio") -> Tuple[str, str, str]:
     """Import a GitHub or HF model repo and return the raw code snippet from README/model card.
 

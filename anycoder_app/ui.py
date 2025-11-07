@@ -26,7 +26,8 @@ from .deploy import (
     generation_code, deploy_to_spaces, add_anycoder_tag_to_readme,
     _parse_repo_or_model_url, load_project_from_url, check_hf_space_url,
     import_repo_to_app, extract_import_statements, 
-    generate_requirements_txt_with_llm, prettify_comfyui_json_for_html
+    generate_requirements_txt_with_llm, prettify_comfyui_json_for_html,
+    get_trending_models, import_model_from_hf, get_trending_spaces, import_space_from_hf
 )
 
 # Main application with proper Gradio theming
@@ -115,6 +116,26 @@ with gr.Blocks(
         , visible=False)
         load_project_btn = gr.Button("📥 Import Project", variant="secondary", size="sm", visible=True)
         load_project_status = gr.Markdown(visible=False)
+        
+        # Trending HuggingFace Models section
+        trending_models_dropdown = gr.Dropdown(
+            label="🔥 Trending HuggingFace Models",
+            choices=[],  # Will be populated on load
+            value=None,
+            interactive=True,
+            visible=True
+        )
+        trending_models_status = gr.Markdown(visible=False)
+        
+        # Trending HuggingFace Spaces section
+        trending_spaces_dropdown = gr.Dropdown(
+            label="🚀 Trending HuggingFace Spaces",
+            choices=[],  # Will be populated on load
+            value=None,
+            interactive=True,
+            visible=True
+        )
+        trending_spaces_status = gr.Markdown(visible=False)
         
         # Chat history display in sidebar
         chat_history = gr.Chatbot(
@@ -1746,5 +1767,137 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
         inputs=[],
         outputs=[input, btn],
         queue=False
+    )
+    
+    # Load trending models when app starts
+    def load_trending_models():
+        """Load trending models from HuggingFace Hub"""
+        models = get_trending_models(limit=10)
+        # Create choices list with display names and values as model IDs
+        choices = [(display, model_id) for display, model_id in models]
+        return gr.update(choices=choices)
+    
+    demo.load(
+        load_trending_models,
+        inputs=[],
+        outputs=[trending_models_dropdown],
+        queue=False
+    )
+    
+    # Load trending spaces when app starts
+    def load_trending_spaces():
+        """Load trending spaces from HuggingFace Hub"""
+        spaces = get_trending_spaces(limit=10)
+        # Create choices list with display names and values as space IDs
+        choices = [(display, space_id) for display, space_id in spaces]
+        return gr.update(choices=choices)
+    
+    demo.load(
+        load_trending_spaces,
+        inputs=[],
+        outputs=[trending_spaces_dropdown],
+        queue=False
+    )
+    
+    # Handle trending model selection
+    def handle_trending_model_selection(model_id, hist):
+        """Handle when user selects a trending model"""
+        if not model_id or model_id == "":
+            return [
+                gr.update(value="Please select a model.", visible=True),  # status
+                gr.update(),  # code_output
+                gr.update(),  # language_dropdown
+                hist,  # history
+                history_to_chatbot_messages(hist),  # history_output
+                history_to_chatbot_messages(hist),  # chat_history
+                gr.update(value=None)  # reset dropdown
+            ]
+        
+        # Import the model
+        status, code, language, model_url = import_model_from_hf(model_id)
+        
+        # Add to history
+        loaded_history = hist + [[f"Imported model: {model_id}", code]]
+        
+        # Determine code language for display
+        code_lang = "python"
+        
+        return [
+            gr.update(value=status, visible=True),  # status
+            gr.update(value=code, language=code_lang),  # code_output
+            gr.update(value=language),  # language_dropdown
+            loaded_history,  # history
+            history_to_chatbot_messages(loaded_history),  # history_output
+            history_to_chatbot_messages(loaded_history),  # chat_history
+            gr.update(value=None)  # reset dropdown
+        ]
+    
+    trending_models_dropdown.change(
+        handle_trending_model_selection,
+        inputs=[trending_models_dropdown, history],
+        outputs=[
+            trending_models_status,
+            code_output,
+            language_dropdown,
+            history,
+            history_output,
+            chat_history,
+            trending_models_dropdown
+        ]
+    )
+    
+    # Handle trending space selection
+    def handle_trending_space_selection(space_id, hist):
+        """Handle when user selects a trending space"""
+        if not space_id or space_id == "":
+            return [
+                gr.update(value="Please select a space.", visible=True),  # status
+                gr.update(),  # code_output
+                gr.update(),  # language_dropdown
+                hist,  # history
+                history_to_chatbot_messages(hist),  # history_output
+                history_to_chatbot_messages(hist),  # chat_history
+                gr.update(visible=True),  # deploy_btn
+                gr.update(value=None)  # reset dropdown
+            ]
+        
+        # Import the space
+        status, code, language, space_url = import_space_from_hf(space_id)
+        
+        # Add to history
+        loaded_history = hist + [[f"Imported space: {space_id}", code]]
+        
+        # Determine code language for display based on framework
+        if language == "gradio" or language == "streamlit":
+            code_lang = "python"
+        elif language == "transformers.js":
+            code_lang = "html"
+        else:
+            code_lang = "html"
+        
+        return [
+            gr.update(value=status, visible=True),  # status
+            gr.update(value=code, language=code_lang),  # code_output
+            gr.update(value=language),  # language_dropdown
+            loaded_history,  # history
+            history_to_chatbot_messages(loaded_history),  # history_output
+            history_to_chatbot_messages(loaded_history),  # chat_history
+            gr.update(value="Publish", visible=True),  # deploy_btn
+            gr.update(value=None)  # reset dropdown
+        ]
+    
+    trending_spaces_dropdown.change(
+        handle_trending_space_selection,
+        inputs=[trending_spaces_dropdown, history],
+        outputs=[
+            trending_spaces_status,
+            code_output,
+            language_dropdown,
+            history,
+            history_output,
+            chat_history,
+            deploy_btn,
+            trending_spaces_dropdown
+        ]
     )
 
