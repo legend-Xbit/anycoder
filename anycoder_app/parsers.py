@@ -15,7 +15,21 @@ from .config import SEARCH_START, DIVIDER, REPLACE_END
 # Type definitions
 History = List[Dict[str, str]]
 
+def strip_tool_call_markers(text):
+    """Remove TOOL_CALL markers that some LLMs (like Qwen) add to their output."""
+    if not text:
+        return text
+    # Remove [TOOL_CALL] and [/TOOL_CALL] markers
+    text = re.sub(r'\[/?TOOL_CALL\]', '', text, flags=re.IGNORECASE)
+    # Remove standalone }} that appears with tool calls
+    # Only remove if it's on its own line or at the end
+    text = re.sub(r'^\s*\}\}\s*$', '', text, flags=re.MULTILINE)
+    return text.strip()
+
 def remove_code_block(text):
+    # First strip any tool call markers
+    text = strip_tool_call_markers(text)
+    
     # Try to match code blocks with language markers
     patterns = [
         r'```(?:html|HTML)\n([\s\S]+?)\n```',  # Match ```html or ```HTML
