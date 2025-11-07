@@ -2978,7 +2978,7 @@ def history_render(history: History):
     return gr.update(visible=True), history
 
 def clear_history():
-    return [], [], None, ""  # Empty lists for both tuple format and chatbot messages, None for file, empty string for website URL
+    return [], []  # Empty lists for both history and chatbot messages
 
 def create_multimodal_message(text, image=None):
     """Create a chat message. For broad provider compatibility, always return content as a string.
