@@ -296,54 +296,38 @@ module.exports = nextConfig
 
 Dockerfile Requirements (CRITICAL for HuggingFace Spaces):
 - Use Node.js 18+ base image (e.g., FROM node:18-slim)
-- Set up a user with ID 1000 for proper permissions:
-  ```
-  RUN useradd -m -u 1000 user
-  USER user
-  ENV HOME=/home/user \\
-      PATH=/home/user/.local/bin:$PATH
-  WORKDIR $HOME/app
-  ```
-- ALWAYS use --chown=user with COPY and ADD commands:
-  ```
-  COPY --chown=user package*.json ./
-  COPY --chown=user . .
-  ```
+- Set working directory: WORKDIR /app
+- Install system dependencies (curl for healthcheck)
+- Copy package files: COPY package*.json ./
 - Install dependencies: RUN npm install
+- Copy application files: COPY . .
 - Build the app: RUN npm run build
 - Expose port 7860 (HuggingFace Spaces default): EXPOSE 7860
+- Add healthcheck: HEALTHCHECK CMD curl --fail http://localhost:7860/ || exit 1
 - Start with: CMD ["npm", "start", "--", "-p", "7860"]
-- If using a different port, make sure to set app_port in the README.md YAML frontmatter
 
 Example Dockerfile structure:
 ```dockerfile
 FROM node:18-slim
 
-# Set up user with ID 1000
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \\
-    PATH=/home/user/.local/bin:$PATH
+WORKDIR /app
 
-# Set working directory
-WORKDIR $HOME/app
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy package files with proper ownership
-COPY --chown=user package*.json ./
+COPY package*.json ./
 
-# Install dependencies
 RUN npm install
 
-# Copy rest of the application with proper ownership
-COPY --chown=user . .
+COPY . .
 
-# Build the Next.js app
 RUN npm run build
 
-# Expose port 7860
 EXPOSE 7860
 
-# Start the application on port 7860
+HEALTHCHECK CMD curl --fail http://localhost:7860/ || exit 1
+
 CMD ["npm", "start", "--", "-p", "7860"]
 ```
 
