@@ -279,6 +279,18 @@ def remove_code_block(text):
 
 ## React CDN compatibility fixer removed per user preference
 
+def strip_thinking_tags(text: str) -> str:
+    """Strip <think> tags and [TOOL_CALL] markers from streaming output."""
+    if not text:
+        return text
+    # Remove <think> opening tags
+    text = re.sub(r'<think>', '', text, flags=re.IGNORECASE)
+    # Remove </think> closing tags
+    text = re.sub(r'</think>', '', text, flags=re.IGNORECASE)
+    # Remove [TOOL_CALL] markers
+    text = re.sub(r'\[/?TOOL_CALL\]', '', text, flags=re.IGNORECASE)
+    return text
+
 def strip_placeholder_thinking(text: str) -> str:
     """Remove placeholder 'Thinking...' status lines from streamed text."""
     if not text:

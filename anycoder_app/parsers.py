@@ -16,11 +16,17 @@ from .config import SEARCH_START, DIVIDER, REPLACE_END
 History = List[Dict[str, str]]
 
 def strip_tool_call_markers(text):
-    """Remove TOOL_CALL markers that some LLMs (like Qwen) add to their output."""
+    """Remove TOOL_CALL markers and thinking tags that some LLMs add to their output."""
     if not text:
         return text
     # Remove [TOOL_CALL] and [/TOOL_CALL] markers
     text = re.sub(r'\[/?TOOL_CALL\]', '', text, flags=re.IGNORECASE)
+    # Remove <think> and </think> tags and their content
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
+    # Remove any remaining unclosed <think> tags at the start
+    text = re.sub(r'^<think>[\s\S]*?(?=\n|$)', '', text, flags=re.IGNORECASE | re.MULTILINE)
+    # Remove any remaining </think> tags
+    text = re.sub(r'</think>', '', text, flags=re.IGNORECASE)
     # Remove standalone }} that appears with tool calls
     # Only remove if it's on its own line or at the end
     text = re.sub(r'^\s*\}\}\s*$', '', text, flags=re.MULTILINE)

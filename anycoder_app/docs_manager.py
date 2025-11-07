@@ -16,6 +16,7 @@ from .config import (
     FASTRTC_LLMS_TXT_URL, FASTRTC_DOCS_CACHE_FILE, FASTRTC_DOCS_LAST_UPDATE_FILE,
     FASTRTC_DOCS_UPDATE_ON_APP_UPDATE, _fastrtc_docs_content, _fastrtc_docs_last_fetched
 )
+from . import prompts
 
 def fetch_gradio_docs() -> Optional[str]:
     """Fetch the latest Gradio documentation from llms.txt"""
@@ -370,13 +371,17 @@ def get_fastrtc_docs_content() -> str:
 
 def update_gradio_system_prompts():
     """Update the global Gradio system prompts with latest documentation"""
-    global GRADIO_SYSTEM_PROMPT, GRADIO_SYSTEM_PROMPT_WITH_SEARCH
-    
     docs_content = get_gradio_docs_content()
     fastrtc_content = get_fastrtc_docs_content()
     
     # Base system prompt
     base_prompt = """You are an expert Gradio developer. Create a complete, working Gradio application based on the user's request. Generate all necessary code to make the application functional and runnable.
+
+🚨 CRITICAL OUTPUT RULES:
+- DO NOT use <think> tags or thinking blocks in your output
+- DO NOT use [TOOL_CALL] or any tool call markers
+- Generate ONLY the requested code files and requirements.txt
+- No explanatory text outside the code blocks
 
 ## Multi-File Application Structure
 
@@ -1280,14 +1285,12 @@ This reference is automatically synced from https://fastrtc.org/llms.txt to ensu
         base_prompt += fastrtc_section
         search_prompt += fastrtc_section
     
-    # Update the prompts
-    GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
-    GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
+    # Update the prompts in the prompts module
+    prompts.GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
+    prompts.GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
 
 def update_json_system_prompts():
     """Update the global JSON system prompts with latest ComfyUI documentation"""
-    global JSON_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT_WITH_SEARCH
-    
     docs_content = get_comfyui_docs_content()
     
     # Base system prompt for regular JSON
@@ -1329,9 +1332,9 @@ This reference is automatically synced from https://docs.comfy.org/llms.txt to e
         base_prompt += comfyui_section
         search_prompt += comfyui_section
     
-    # Update the prompts
-    JSON_SYSTEM_PROMPT = base_prompt
-    JSON_SYSTEM_PROMPT_WITH_SEARCH = search_prompt
+    # Update the prompts in the prompts module
+    prompts.JSON_SYSTEM_PROMPT = base_prompt
+    prompts.JSON_SYSTEM_PROMPT_WITH_SEARCH = search_prompt
 
 def get_comfyui_system_prompt():
     """Get ComfyUI-specific system prompt with enhanced guidance"""

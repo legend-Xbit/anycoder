@@ -34,7 +34,8 @@ from .parsers import (
 from .models import (
     get_inference_client, get_real_model_id, history_to_messages, 
     history_to_chatbot_messages, strip_placeholder_thinking,
-    is_placeholder_thinking_only, extract_last_thinking_line
+    is_placeholder_thinking_only, extract_last_thinking_line,
+    strip_thinking_tags
 )
 from . import prompts
 from .prompts import (
@@ -231,8 +232,10 @@ Generate the exact search/replace blocks needed to make these changes."""
     # Update system prompts if needed
     if language == "gradio":
         update_gradio_system_prompts()
+        print(f"[Generation] Updated Gradio system prompt (length: {len(prompts.GRADIO_SYSTEM_PROMPT)} chars)")
     elif language == "json":
         update_json_system_prompts()
+        print(f"[Generation] Updated JSON system prompt (length: {len(prompts.JSON_SYSTEM_PROMPT)} chars)")
 
     # Choose system prompt based on context
     # Special case: If user is asking about model identity, use neutral prompt
@@ -269,6 +272,11 @@ Generate the exact search/replace blocks needed to make these changes."""
             system_prompt = get_comfyui_system_prompt()
         else:
             system_prompt = GENERIC_SYSTEM_PROMPT.format(language=language)
+    
+    # Debug: Log system prompt info
+    prompt_preview = system_prompt[:200] if system_prompt else "None"
+    print(f"[Generation] Using system prompt (first 200 chars): {prompt_preview}...")
+    print(f"[Generation] System prompt total length: {len(system_prompt) if system_prompt else 0} chars")
 
     messages = history_to_messages(_history, system_prompt)
 
@@ -491,6 +499,9 @@ Generate the exact search/replace blocks needed to make these changes."""
                         # This is a structured thinking chunk, skip it to avoid polluting output
                         continue
                     chunk_content = chunk_str
+                
+                # Strip thinking tags and tool call markers from all streaming chunks
+                chunk_content = strip_thinking_tags(chunk_content)
                 if _current_model["id"] == "gpt-5":
                     # If this chunk is only placeholder thinking, surface a status update without polluting content
                     if is_placeholder_thinking_only(chunk_content):
