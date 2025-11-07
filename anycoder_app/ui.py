@@ -1375,14 +1375,19 @@ with gr.Blocks(
             
             # Detect whether the HTML output is multi-file (=== filename === blocks)
             files = {}
+            parse_error = None
             try:
                 files = parse_multipage_html_output(code)
+                print(f"[Deploy] Parsed files: {list(files.keys())}")
                 files = validate_and_autofix_files(files)
-            except Exception:
+                print(f"[Deploy] After validation: {list(files.keys())}")
+            except Exception as e:
+                parse_error = str(e)
+                print(f"[Deploy] Parse error: {parse_error}")
                 files = {}
             
             # If we have multiple files (or at least a parsed index.html), upload the whole folder
-            if isinstance(files, dict) and files.get('index.html'):
+            if isinstance(files, dict) and len(files) > 0 and files.get('index.html'):
                 import tempfile
                 import os
                 

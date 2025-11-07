@@ -333,6 +333,7 @@ def parse_multipage_html_output(text: str) -> Dict[str, str]:
     """Parse multi-page HTML output formatted as repeated "=== filename ===" sections.
 
     Returns a mapping of filename → file content. Supports nested paths like assets/css/styles.css.
+    If HTML content appears before the first === marker, it's treated as index.html.
     """
     if not text:
         return {}
@@ -340,13 +341,37 @@ def parse_multipage_html_output(text: str) -> Dict[str, str]:
     cleaned = remove_code_block(text)
     files: Dict[str, str] = {}
     import re as _re
-    pattern = _re.compile(r"^===\s*([^=\n]+?)\s*===\s*\n([\s\S]*?)(?=\n===\s*[^=\n]+?\s*===|\Z)", _re.MULTILINE)
-    for m in pattern.finditer(cleaned):
-        name = m.group(1).strip()
-        content = m.group(2).strip()
-        # Remove accidental trailing fences if present
-        content = _re.sub(r"^```\w*\s*\n|\n```\s*$", "", content)
-        files[name] = content
+    
+    # Check if there's content before the first === marker
+    first_marker_match = _re.search(r"^===\s*([^=\n]+?)\s*===", cleaned, _re.MULTILINE)
+    if first_marker_match:
+        # There's content before the first marker
+        first_marker_pos = first_marker_match.start()
+        if first_marker_pos > 0:
+            leading_content = cleaned[:first_marker_pos].strip()
+            # Check if it looks like HTML content
+            if leading_content and ('<!DOCTYPE' in leading_content or '<html' in leading_content or leading_content.startswith('<')):
+                files['index.html'] = leading_content
+        
+        # Now parse the rest with === markers
+        remaining_text = cleaned[first_marker_pos:] if first_marker_pos > 0 else cleaned
+        pattern = _re.compile(r"^===\s*([^=\n]+?)\s*===\s*\n([\s\S]*?)(?=\n===\s*[^=\n]+?\s*===|\Z)", _re.MULTILINE)
+        for m in pattern.finditer(remaining_text):
+            name = m.group(1).strip()
+            content = m.group(2).strip()
+            # Remove accidental trailing fences if present
+            content = _re.sub(r"^```\w*\s*\n|\n```\s*$", "", content)
+            files[name] = content
+    else:
+        # No === markers found, try standard pattern matching
+        pattern = _re.compile(r"^===\s*([^=\n]+?)\s*===\s*\n([\s\S]*?)(?=\n===\s*[^=\n]+?\s*===|\Z)", _re.MULTILINE)
+        for m in pattern.finditer(cleaned):
+            name = m.group(1).strip()
+            content = m.group(2).strip()
+            # Remove accidental trailing fences if present
+            content = _re.sub(r"^```\w*\s*\n|\n```\s*$", "", content)
+            files[name] = content
+    
     return files
 
 def format_multipage_output(files: Dict[str, str]) -> str:
