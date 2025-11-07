@@ -2249,7 +2249,6 @@ for _m in AVAILABLE_MODELS:
         break
 if DEFAULT_MODEL is None and AVAILABLE_MODELS:
     DEFAULT_MODEL = AVAILABLE_MODELS[0]
-DEMO_LIST = []
 
 # HF Inference Client
 HF_TOKEN = os.getenv('HF_TOKEN')
@@ -2439,22 +2438,6 @@ def history_to_messages(history: History, system: str) -> Messages:
         messages.append({'role': 'user', 'content': user_content})
         messages.append({'role': 'assistant', 'content': h[1]})
     return messages
-
-def messages_to_history(messages: Messages) -> Tuple[str, History]:
-    assert messages[0]['role'] == 'system'
-    history = []
-    for q, r in zip(messages[1::2], messages[2::2]):
-        # Extract text content from multimodal messages for history
-        user_content = q['content']
-        if isinstance(user_content, list):
-            text_content = ""
-            for item in user_content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    text_content += item.get("text", "")
-            user_content = text_content if text_content else str(user_content)
-        
-        history.append([user_content, r['content']])
-    return history
 
 def history_to_chatbot_messages(history: History) -> List[Dict[str, str]]:
     """Convert history tuples to chatbot message format"""
@@ -2997,35 +2980,6 @@ def history_render(history: History):
 def clear_history():
     return [], [], None, ""  # Empty lists for both tuple format and chatbot messages, None for file, empty string for website URL
 
-def update_image_input_visibility(model):
-    """Update image input visibility based on selected model"""
-    is_ernie_vl = model.get("id") == "baidu/ERNIE-4.5-VL-424B-A47B-Base-PT"
-    is_glm_vl = model.get("id") == "THUDM/GLM-4.1V-9B-Thinking"
-    is_glm_45v = model.get("id") == "zai-org/GLM-4.5V"
-    return gr.update(visible=is_ernie_vl or is_glm_vl or is_glm_45v)
-
-def process_image_for_model(image):
-    """Convert image to base64 for model input"""
-    if image is None:
-        return None
-    
-    # Convert numpy array to PIL Image if needed
-    import io
-    import base64
-    import numpy as np
-    from PIL import Image
-    
-    # Handle numpy array from Gradio
-    if isinstance(image, np.ndarray):
-        image = Image.fromarray(image)
-    
-    buffer = io.BytesIO()
-    image.save(buffer, format='PNG')
-    img_str = base64.b64encode(buffer.getvalue()).decode('utf-8')
-    return f"data:image/png;base64,{img_str}"
-
-
-
 def create_multimodal_message(text, image=None):
     """Create a chat message. For broad provider compatibility, always return content as a string.
 
@@ -3299,57 +3253,6 @@ def send_to_sandbox(code):
     iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
     return iframe
 
-def send_to_sandbox_with_refresh(code):
-    """Render HTML in a sandboxed iframe with cache-busting for media generation updates."""
-    import time
-    html_doc = (code or "").strip()
-    # For preview only: inline local file URLs as data URIs so the
-    # data: iframe can load them. The original code (shown to the user) still contains file URLs.
-    try:
-        import re
-        import base64 as _b64
-        import mimetypes as _mtypes
-        import urllib.parse as _uparse
-        def _file_url_to_data_uri(file_url: str) -> str | None:
-            try:
-                parsed = _uparse.urlparse(file_url)
-                path = _uparse.unquote(parsed.path)
-                if not path:
-                    return None
-                with open(path, 'rb') as _f:
-                    raw = _f.read()
-                mime = _mtypes.guess_type(path)[0] or 'application/octet-stream'
-                
-                b64 = _b64.b64encode(raw).decode()
-                return f"data:{mime};base64,{b64}"
-            except Exception as e:
-                print(f"[Sandbox] Failed to convert file URL to data URI: {str(e)}")
-                return None
-        def _repl_double(m):
-            url = m.group(1)
-            data_uri = _file_url_to_data_uri(url)
-            return f'src="{data_uri}"' if data_uri else m.group(0)
-        def _repl_single(m):
-            url = m.group(1)
-            data_uri = _file_url_to_data_uri(url)
-            return f"src='{data_uri}'" if data_uri else m.group(0)
-        html_doc = re.sub(r'src="(file:[^"]+)"', _repl_double, html_doc)
-        html_doc = re.sub(r"src='(file:[^']+)'", _repl_single, html_doc)
-                
-    except Exception:
-        # Best-effort; continue without inlining
-        pass
-    
-    # Add cache-busting timestamp to force iframe refresh when content changes
-    timestamp = str(int(time.time() * 1000))
-    cache_bust_comment = f"<!-- refresh-{timestamp} -->"
-    html_doc = cache_bust_comment + html_doc
-    
-    encoded_html = base64.b64encode(html_doc.encode('utf-8')).decode('utf-8')
-    data_uri = f"data:text/html;charset=utf-8;base64,{encoded_html}"
-    iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture" key="preview-{timestamp}"></iframe>'
-    return iframe
-
 def is_streamlit_code(code: str) -> bool:
     """Heuristic check to determine if Python code is a Streamlit app."""
     if not code:
@@ -3598,34 +3501,6 @@ def send_gradio_to_lite(code: str) -> str:
     data_uri = f"data:text/html;charset=utf-8;base64,{encoded_html}"
     iframe = f'<iframe src="{data_uri}" width="100%" height="920px" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-presentation" allow="display-capture"></iframe>'
     return iframe
-
-def demo_card_click(e: gr.EventData):
-    try:
-        # Get the index from the event data
-        if hasattr(e, '_data') and e._data:
-            # Try different ways to get the index
-            if 'index' in e._data:
-                index = e._data['index']
-            elif 'component' in e._data and 'index' in e._data['component']:
-                index = e._data['component']['index']
-            elif 'target' in e._data and 'index' in e._data['target']:
-                index = e._data['target']['index']
-            else:
-                # If we can't get the index, try to extract it from the card data
-                index = 0
-        else:
-            index = 0
-        
-        # Ensure index is within bounds
-        if index >= len(DEMO_LIST):
-            index = 0
-            
-        return DEMO_LIST[index]['description']
-    except (KeyError, IndexError, AttributeError) as e:
-        # Return the first demo description as fallback
-        return DEMO_LIST[0]['description']
-
-
 
 stop_generation = False
 
@@ -4954,23 +4829,6 @@ def prettify_comfyui_json_for_html(json_content: str) -> str:
         print(f"Error prettifying ComfyUI JSON: {e}")
         return json_content
 
-def deploy_to_spaces_static(code):
-    if not code or not code.strip():
-        return  # Do nothing if code is empty
-    # Use the HTML code directly for static Spaces
-    app_html = wrap_html_in_static_app(code.strip())
-    base_url = "https://huggingface.co/new-space"
-    params = urllib.parse.urlencode({
-        "name": "new-space",
-        "sdk": "static"
-    })
-    files_params = urllib.parse.urlencode({
-        "files[0][path]": "index.html",
-        "files[0][content]": app_html
-    })
-    full_url = f"{base_url}?{params}&{files_params}"
-    webbrowser.open_new_tab(full_url)
-
 def check_hf_space_url(url: str) -> Tuple[bool, str | None, str | None]:
     """Check if URL is a valid Hugging Face Spaces URL and extract username/project"""
     import re
@@ -5497,16 +5355,6 @@ def _generate_gradio_app_from_diffusers(repo_id: str) -> str:
         "    demo.launch()\n"
     )
 
-def _generate_streamlit_wrapper(gradio_code: str) -> str:
-    """Convert a simple Gradio app into a Streamlit wrapper by embedding via components if needed.
-    If code is already Streamlit, return as is. Otherwise, provide a basic Streamlit UI calling the same pipeline.
-    """
-    # For now, simply return a minimal placeholder to keep scope tight; prefer Gradio by default.
-    return (
-        "import streamlit as st\n"
-        "st.markdown('This model is best used with a Gradio app in this tool. Switch framework to Gradio for a runnable demo.')\n"
-    )
-
 def import_repo_to_app(url: str, framework: str = "Gradio") -> Tuple[str, str, str]:
     """Import a GitHub or HF model repo and return the raw code snippet from README/model card.
 
@@ -5857,33 +5705,6 @@ with gr.Blocks(
         
 
 
-        # Collapsed Advanced Commands reference
-        with gr.Accordion(label="Advanced Commands", open=False, visible=False) as advanced_commands:
-            gr.Markdown(
-                value=(
-                    "### Command Reference\n"
-                    "- **Language**: 'use streamlit' | 'use gradio' | 'use html'\n"
-                    "- **Model**: 'model <name>' (exact match to items in the Model dropdown)\n"
-                    "- **Files**: attach documents or images directly for reference\n"
-                    "- **Multiple directives**: separate with commas. The first segment is the main build prompt.\n\n"
-                    "Examples:\n"
-                    "- anycoder coffee shop website\n"
-                    "- dashboard ui with minimalist design"
-                )
-            )
-        
-        # Theme Selector (hidden for end users, developers can modify code)
-        with gr.Column(visible=False):
-            theme_dropdown = gr.Dropdown(
-                choices=list(THEME_CONFIGS.keys()),
-                value=current_theme_name,
-                label="Select Theme",
-                info="Choose your preferred visual style"
-            )
-            theme_description = gr.Markdown("")
-            apply_theme_btn = gr.Button("Apply Theme", variant="primary", size="sm")
-            theme_status = gr.Markdown("")
-        
         # Unified Import section
         import_header_md = gr.Markdown("📥 Import Project (Space, GitHub, or Model)", visible=False)
         load_project_url = gr.Textbox(
@@ -5911,28 +5732,12 @@ with gr.Blocks(
             label="Code Language",
             visible=True
         )
-        image_input = gr.Image(
-            label="UI design image",
-            visible=False
-        )
         # Removed image generation components
         with gr.Row():
             btn = gr.Button("Generate", variant="secondary", size="lg", scale=2, visible=True, interactive=False)
             clear_btn = gr.Button("Clear", variant="secondary", size="sm", scale=1, visible=True)
         # --- Deploy components (visible by default) ---
         deploy_header_md = gr.Markdown("", visible=False)
-        sdk_choices = [
-            ("Gradio (Python)", "gradio"),
-            ("Streamlit (Python)", "streamlit"),
-            ("Static (HTML)", "static"),
-            ("Transformers.js", "transformers.js")
-        ]
-        sdk_dropdown = gr.Dropdown(
-            choices=[x[0] for x in sdk_choices],
-            value="Static (HTML)",
-            label="App SDK",
-            visible=False
-        )
         deploy_btn = gr.Button("Publish", variant="primary", visible=True)
         deploy_status = gr.Markdown(visible=False, label="Deploy status")
         # --- End move ---
@@ -5946,30 +5751,18 @@ with gr.Blocks(
             visible=True
         )
         provider_state = gr.State("auto")
-        quick_start_md = gr.Markdown("**Quick start**", visible=False)
-        with gr.Column(visible=False) as quick_examples_col:
-            for i, demo_item in enumerate(DEMO_LIST[:3]):
-                demo_card = gr.Button(
-                    value=demo_item['title'], 
-                    variant="secondary",
-                    size="sm"
-                )
-                demo_card.click(
-                    fn=lambda idx=i: gr.update(value=DEMO_LIST[idx]['description']),
-                    outputs=input
-                )
         # Removed web search availability indicator
         def on_model_change(model_name):
             for m in AVAILABLE_MODELS:
                 if m['name'] == model_name:
-                    return m, update_image_input_visibility(m)
-            return AVAILABLE_MODELS[0], update_image_input_visibility(AVAILABLE_MODELS[0])
+                    return m
+            return AVAILABLE_MODELS[0]
         def save_prompt(input):
             return {setting: {"system": input}}
         model_dropdown.change(
             lambda model_name: on_model_change(model_name),
             inputs=model_dropdown,
-            outputs=[current_model, image_input]
+            outputs=[current_model]
         )
         # --- Remove deploy/app name/sdk from bottom column ---
         # (delete the gr.Column() block containing space_name_input, sdk_dropdown, deploy_btn, deploy_status)
@@ -6644,8 +6437,8 @@ with gr.Blocks(
         outputs=[sidebar, generating_status],
         show_progress="hidden",
     ).then(
-        generation_code,
-        inputs=[input, image_input, setting, history, current_model, language_dropdown, provider_state],
+        lambda inp, sett, hist, model, lang, prov: generation_code(inp, None, sett, hist, model, lang, prov),
+        inputs=[input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, history_output]
     ).then(
         end_generation_ui,
@@ -6692,8 +6485,8 @@ with gr.Blocks(
         outputs=[sidebar, generating_status],
         show_progress="hidden",
     ).then(
-        generation_code,
-        inputs=[input, image_input, setting, history, current_model, language_dropdown, provider_state],
+        lambda inp, sett, hist, model, lang, prov: generation_code(inp, None, sett, hist, model, lang, prov),
+        inputs=[input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, history_output]
     ).then(
         end_generation_ui,
@@ -6764,52 +6557,6 @@ with gr.Blocks(
     clear_btn.click(
         lambda: gr.update(value="Publish"),
         outputs=[deploy_btn]
-    )
-
-    # Theme switching handlers
-    def handle_theme_change(theme_name):
-        """Handle theme selection change and update description"""
-        if theme_name in THEME_CONFIGS:
-            description = THEME_CONFIGS[theme_name]["description"]
-            features = THEME_FEATURES.get(theme_name, [])
-            feature_text = f"**Features:** {', '.join(features)}" if features else ""
-            full_description = f"*{description}*\n\n{feature_text}"
-            
-            return gr.update(value=full_description)
-        return gr.update()
-
-    def apply_theme_change(theme_name):
-        """Save theme preference and show restart instruction"""
-        if theme_name in THEME_CONFIGS:
-            save_theme_preference(theme_name)
-            
-            restart_message = f"""
-🎨 **Theme saved:** {theme_name}
-⚠️ **Restart required** to fully apply the new theme.
-**Why restart is needed:** Gradio themes are set during application startup and cannot be changed dynamically at runtime. This ensures all components are properly styled with consistent theming.
-**To apply your new theme:**
-1. Stop the application (Ctrl+C)
-2. Restart it with the same command
-3. Your theme will be automatically loaded
-
-*Your theme preference has been saved and will persist across restarts.*
-            """
-            
-            return gr.update(value=restart_message, visible=True, elem_classes=["restart-needed"])
-        return gr.update()
-
-    # Theme dropdown change event  
-    theme_dropdown.change(
-        handle_theme_change,
-        inputs=[theme_dropdown],
-        outputs=[theme_description]
-    )
-    
-    # Apply theme button click event
-    apply_theme_btn.click(
-        apply_theme_change,
-        inputs=[theme_dropdown],
-        outputs=[theme_status]
     )
 
     # Deploy to Spaces logic
