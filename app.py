@@ -2290,7 +2290,7 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "Kimi K2 Thinking",
-        "id": "kimi-k2-thinking",
+        "id": "moonshotai/Kimi-K2-Thinking:novita",
         "description": "Moonshot Kimi K2 Thinking model for advanced reasoning and code generation"
     }
 ]
@@ -2427,7 +2427,7 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("MOONSHOT_API_KEY"),
             base_url="https://api.moonshot.ai/v1",
         )
-    elif model_id == "kimi-k2-thinking":
+    elif model_id == "moonshotai/Kimi-K2-Thinking:novita":
         # Use HuggingFace InferenceClient with Novita provider for Kimi K2 Thinking
         provider = "novita"
     elif model_id == "stealth-model-1":
@@ -2472,9 +2472,6 @@ def get_real_model_id(model_id: str) -> str:
             raise ValueError("STEALTH_MODEL_1_ID environment variable is required for Carrot model")
         
         return real_model_id
-    elif model_id == "kimi-k2-thinking":
-        # Return the full model name with provider tag for Kimi K2 Thinking
-        return "moonshotai/Kimi-K2-Thinking:novita"
     return model_id
 
 # Type definitions
