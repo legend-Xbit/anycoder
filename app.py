@@ -2290,7 +2290,7 @@ AVAILABLE_MODELS = [
     },
     {
         "name": "Kimi K2 Thinking",
-        "id": "moonshotai/Kimi-K2-Thinking:novita",
+        "id": "moonshotai/Kimi-K2-Thinking",
         "description": "Moonshot Kimi K2 Thinking model for advanced reasoning and code generation"
     }
 ]
@@ -2427,7 +2427,7 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("MOONSHOT_API_KEY"),
             base_url="https://api.moonshot.ai/v1",
         )
-    elif model_id == "moonshotai/Kimi-K2-Thinking:novita":
+    elif model_id == "moonshotai/Kimi-K2-Thinking":
         # Use HuggingFace InferenceClient with Novita provider for Kimi K2 Thinking
         provider = "novita"
     elif model_id == "stealth-model-1":
