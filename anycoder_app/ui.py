@@ -5,6 +5,7 @@ Defines the main UI layout, components, and event handlers.
 import os
 import gradio as gr
 from typing import Dict, Optional
+from huggingface_hub import HfApi
 
 from .config import (
     AVAILABLE_MODELS, DEFAULT_MODEL, DEFAULT_MODEL_NAME,
@@ -16,7 +17,7 @@ from .parsers import (
     history_render, clear_history, create_multimodal_message,
     parse_multipage_html_output, parse_transformers_js_output,
     parse_react_output, format_transformers_js_output,
-    validate_and_autofix_files
+    validate_and_autofix_files, parse_multi_file_python_output
 )
 from .deploy import (
     check_authentication, update_ui_for_auth_status,
