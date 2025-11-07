@@ -1111,6 +1111,38 @@ with gr.Blocks(
                     if not files:
                         return gr.update(value="Error: Could not parse React output. Please regenerate the code.", visible=True)
                     
+                    # If Dockerfile is missing, use template
+                    if 'Dockerfile' not in files:
+                        files['Dockerfile'] = """FROM node:18-slim
+
+# Set up user with ID 1000
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \\
+    PATH=/home/user/.local/bin:$PATH
+
+# Set working directory
+WORKDIR $HOME/app
+
+# Copy package files with proper ownership
+COPY --chown=user package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy rest of the application with proper ownership
+COPY --chown=user . .
+
+# Build the Next.js app
+RUN npm run build
+
+# Expose port 7860
+EXPOSE 7860
+
+# Start the application on port 7860
+CMD ["npm", "start", "--", "-p", "7860"]
+"""
+                    
                     # Upload React files
                     import tempfile
                     import time
@@ -1125,7 +1157,13 @@ with gr.Blocks(
                         
                         for attempt in range(max_attempts):
                             try:
-                                with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
+                                # Determine file extension
+                                if file_name == 'Dockerfile':
+                                    suffix = ''
+                                else:
+                                    suffix = f".{file_name.split('.')[-1]}"
+                                
+                                with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False) as f:
                                     f.write(file_content)
                                     temp_path = f.name
                                 
