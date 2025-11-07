@@ -327,18 +327,17 @@ module.exports = nextConfig
 
 Dockerfile Requirements (CRITICAL for HuggingFace Spaces):
 - Use Node.js 18+ base image (e.g., FROM node:18-slim)
-- Set up a user with ID 1000 for proper permissions:
+- Use the existing 'node' user (UID 1000 already exists in node base images):
   ```
-  RUN useradd -m -u 1000 user
-  USER user
-  ENV HOME=/home/user \\
-      PATH=/home/user/.local/bin:$PATH
-  WORKDIR $HOME/app
+  USER node
+  ENV HOME=/home/node \\
+      PATH=/home/node/.local/bin:$PATH
+  WORKDIR /home/node/app
   ```
-- ALWAYS use --chown=user with COPY and ADD commands:
+- ALWAYS use --chown=node:node with COPY and ADD commands:
   ```
-  COPY --chown=user package*.json ./
-  COPY --chown=user . .
+  COPY --chown=node:node package*.json ./
+  COPY --chown=node:node . .
   ```
 - Install dependencies: RUN npm install
 - Build the app: RUN npm run build
@@ -349,23 +348,24 @@ Example Dockerfile structure:
 ```dockerfile
 FROM node:18-slim
 
-# Set up user with ID 1000
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \\
-    PATH=/home/user/.local/bin:$PATH
+# Use the existing node user (UID 1000)
+USER node
+
+# Set environment variables
+ENV HOME=/home/node \\
+    PATH=/home/node/.local/bin:$PATH
 
 # Set working directory
-WORKDIR $HOME/app
+WORKDIR /home/node/app
 
 # Copy package files with proper ownership
-COPY --chown=user package*.json ./
+COPY --chown=node:node package*.json ./
 
 # Install dependencies
 RUN npm install
 
 # Copy rest of the application with proper ownership
-COPY --chown=user . .
+COPY --chown=node:node . .
 
 # Build the Next.js app
 RUN npm run build

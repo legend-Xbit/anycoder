@@ -1115,23 +1115,24 @@ with gr.Blocks(
                     if 'Dockerfile' not in files:
                         files['Dockerfile'] = """FROM node:18-slim
 
-# Set up user with ID 1000
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \\
-    PATH=/home/user/.local/bin:$PATH
+# Use the existing node user (UID 1000)
+USER node
+
+# Set environment variables
+ENV HOME=/home/node \\
+    PATH=/home/node/.local/bin:$PATH
 
 # Set working directory
-WORKDIR $HOME/app
+WORKDIR /home/node/app
 
 # Copy package files with proper ownership
-COPY --chown=user package*.json ./
+COPY --chown=node:node package*.json ./
 
 # Install dependencies
 RUN npm install
 
 # Copy rest of the application with proper ownership
-COPY --chown=user . .
+COPY --chown=node:node . .
 
 # Build the Next.js app
 RUN npm run build
