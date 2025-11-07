@@ -6431,13 +6431,17 @@ with gr.Blocks(
         # Open sidebar after generation; hide the status
         return [gr.update(open=True), gr.update(visible=False)]
 
+    def generation_code_wrapper(inp, sett, hist, model, lang, prov, profile: gr.OAuthProfile | None = None, token: gr.OAuthToken | None = None):
+        """Wrapper to call generation_code without image input"""
+        yield from generation_code(inp, None, sett, hist, model, lang, prov, profile, token)
+
     btn.click(
         begin_generation_ui,
         inputs=None,
         outputs=[sidebar, generating_status],
         show_progress="hidden",
     ).then(
-        lambda inp, sett, hist, model, lang, prov: generation_code(inp, None, sett, hist, model, lang, prov),
+        generation_code_wrapper,
         inputs=[input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, history_output]
     ).then(
@@ -6485,7 +6489,7 @@ with gr.Blocks(
         outputs=[sidebar, generating_status],
         show_progress="hidden",
     ).then(
-        lambda inp, sett, hist, model, lang, prov: generation_code(inp, None, sett, hist, model, lang, prov),
+        generation_code_wrapper,
         inputs=[input, setting, history, current_model, language_dropdown, provider_state],
         outputs=[code_output, history, history_output]
     ).then(
