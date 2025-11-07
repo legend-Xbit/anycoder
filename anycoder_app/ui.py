@@ -1117,7 +1117,8 @@ with gr.Blocks(
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \\
+# Install system dependencies
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \\
     curl \\
     && rm -rf /var/lib/apt/lists/*
 

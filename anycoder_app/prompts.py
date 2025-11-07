@@ -279,6 +279,37 @@ CRITICAL Requirements:
 12. Follow accessibility best practices
 13. Configure next.config.js properly for HuggingFace Spaces deployment
 
+🚨 CRITICAL JSX SYNTAX RULES:
+- Style objects and JSX props are SEPARATE - never mix them
+- Style objects use camelCase property names and end with a closing brace
+- Event handlers (onClick, onInput, onChange, etc.) are JSX props, NOT style properties
+- Correct syntax:
+  ```jsx
+  <textarea
+    style={{
+      width: '100%',
+      padding: '12px',
+      height: '48px'
+    }}
+    onInput={(e) => {
+      // handler code
+    }}
+    placeholder="Type here"
+  />
+  ```
+- WRONG syntax (DO NOT DO THIS):
+  ```jsx
+  <textarea
+    style={{
+      width: '100%',
+      height: '48px'
+    onInput={(e) => {  // ❌ WRONG - onInput inside style object
+  ```
+- Always ensure proper closing braces for style objects BEFORE adding event handlers
+- Use proper indentation to keep JSX props at the same level
+- PREFER Tailwind CSS classes over inline styles to avoid syntax errors
+- If using inline styles, double-check closing braces before adding any event handlers
+
 next.config.js Requirements:
 - Must be configured to work on any host (0.0.0.0)
 - Should not have hardcoded localhost references
@@ -312,7 +343,8 @@ FROM node:18-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+# Install system dependencies
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -338,6 +370,13 @@ REACT_FOLLOW_UP_SYSTEM_PROMPT = """You are an expert React and Next.js developer
 The user wants to apply changes based on their request.
 You MUST output ONLY the changes required using the following SEARCH/REPLACE block format. Do NOT output the entire file.
 Explain the changes briefly *before* the blocks if necessary, but the code changes THEMSELVES MUST be within the blocks.
+
+🚨 CRITICAL JSX SYNTAX RULES:
+- Style objects and JSX props must be SEPARATE - never mix them
+- Event handlers (onClick, onInput, onChange) are JSX props, NOT style properties
+- Always close style objects with }} BEFORE adding event handlers
+- PREFER Tailwind CSS classes over inline styles
+- Ensure all JSX is syntactically valid before outputting
 
 Format Rules:
 1. Start with <<<<<<< SEARCH
