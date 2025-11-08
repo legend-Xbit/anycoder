@@ -45,7 +45,8 @@ from .deploy import (
     _parse_repo_or_model_url, load_project_from_url, check_hf_space_url,
     import_repo_to_app, extract_import_statements, 
     generate_requirements_txt_with_llm, prettify_comfyui_json_for_html,
-    get_trending_models, import_model_from_hf, get_trending_spaces, import_space_from_hf
+    get_trending_models, import_model_from_hf, get_trending_spaces, import_space_from_hf,
+    switch_model_code_type
 )
 from .agent import (
     agent_generate_with_questions, agent_process_answers_and_generate
@@ -113,6 +114,7 @@ with gr.Blocks(
     models_first_change = gr.State(True)
     spaces_first_change = gr.State(True)
     agent_mode_enabled = gr.State(False)
+    current_trending_model_id = gr.State("")  # Track current trending model for code switching
     agent_conversation_state = gr.State({
         "stage": "initial",  # initial, waiting_for_answers, generating
         "original_query": "",
@@ -155,6 +157,7 @@ with gr.Blocks(
             visible=True
         )
         trending_models_status = gr.Markdown(visible=False)
+        switch_model_code_btn = gr.Button("🔄 Switch Code Type", visible=False, size="sm", variant="secondary")
         
         # Trending HuggingFace Spaces section
         trending_spaces_dropdown = gr.Dropdown(
@@ -1934,7 +1937,9 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
                 hist,  # history
                 history_to_chatbot_messages(hist),  # history_output
                 history_to_chatbot_messages(hist),  # chat_history
-                False  # Set first_change to False after first trigger
+                False,  # Set first_change to False after first trigger
+                gr.update(visible=False),  # switch_model_code_btn
+                ""  # current_trending_model_id
             ]
         
         if not model_id or model_id == "":
@@ -1945,7 +1950,9 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
                 hist,  # history
                 history_to_chatbot_messages(hist),  # history_output
                 history_to_chatbot_messages(hist),  # chat_history
-                False  # Keep first_change as False
+                False,  # Keep first_change as False
+                gr.update(visible=False),  # switch_model_code_btn
+                ""  # current_trending_model_id
             ]
         
         # Import the model
@@ -1957,6 +1964,9 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
         # Determine code language for display
         code_lang = "python"
         
+        # Check if button should be visible (both code types available)
+        show_switch_btn = "Found multiple code options" in status
+        
         return [
             gr.update(value=status, visible=True),  # status
             gr.update(value=code, language=code_lang),  # code_output
@@ -1964,7 +1974,9 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
             loaded_history,  # history
             history_to_chatbot_messages(loaded_history),  # history_output
             history_to_chatbot_messages(loaded_history),  # chat_history
-            False  # Keep first_change as False
+            False,  # Keep first_change as False
+            gr.update(visible=show_switch_btn),  # switch_model_code_btn
+            model_id  # current_trending_model_id
         ]
     
     trending_models_dropdown.change(
@@ -1977,7 +1989,46 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
             history,
             history_output,
             chat_history,
-            models_first_change
+            models_first_change,
+            switch_model_code_btn,
+            current_trending_model_id
+        ]
+    )
+    
+    # Handle switching between inference provider and local code
+    def handle_switch_model_code(model_id, current_code, hist):
+        """Switch between inference provider and local transformers/diffusers code"""
+        if not model_id:
+            return [
+                gr.update(),  # status
+                gr.update(),  # code_output
+                hist,  # history
+                history_to_chatbot_messages(hist),  # history_output
+                history_to_chatbot_messages(hist)  # chat_history
+            ]
+        
+        status_msg, new_code = switch_model_code_type(model_id, current_code)
+        
+        # Update history with switch message
+        switch_history = hist + [[f"Switched code type for {model_id}", new_code]]
+        
+        return [
+            gr.update(value=status_msg, visible=True),  # status
+            gr.update(value=new_code, language="python"),  # code_output
+            switch_history,  # history
+            history_to_chatbot_messages(switch_history),  # history_output
+            history_to_chatbot_messages(switch_history)  # chat_history
+        ]
+    
+    switch_model_code_btn.click(
+        handle_switch_model_code,
+        inputs=[current_trending_model_id, code_output, history],
+        outputs=[
+            trending_models_status,
+            code_output,
+            history,
+            history_output,
+            chat_history
         ]
     )
     

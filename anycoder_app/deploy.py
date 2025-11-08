@@ -2030,9 +2030,301 @@ def import_space_from_hf(space_id: str) -> Tuple[str, str, str, str]:
     return status, code, language, space_url
 
 
-def import_model_from_hf(model_id: str) -> Tuple[str, str, str, str]:
+def _generate_inference_code_template(model_id: str, pipeline_tag: Optional[str], has_inference_providers: bool) -> Optional[str]:
+    """
+    Generate inference provider code template based on model's pipeline tag.
+    
+    Args:
+        model_id: The HuggingFace model ID
+        pipeline_tag: The model's pipeline tag (e.g., "text-generation", "text-to-image")
+        has_inference_providers: Whether the model has inference providers available
+    
+    Returns:
+        Generated code snippet or None
+    """
+    if not has_inference_providers:
+        return None
+    
+    # Map pipeline tags to code templates based on HuggingFace Inference Providers docs
+    # https://huggingface.co/docs/inference-providers
+    
+    # Chat Completion / Text Generation models
+    if pipeline_tag in ["text-generation", "conversational"]:
+        return f'''import os
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+completion = client.chat.completions.create(
+    model="{model_id}",
+    messages=[
+        {{
+            "role": "user",
+            "content": "What is the capital of France?"
+        }}
+    ],
+)
+
+print(completion.choices[0].message)'''
+    
+    # Vision-Language Models (Image-Text to Text)
+    elif pipeline_tag in ["image-text-to-text", "visual-question-answering"]:
+        return f'''import os
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+completion = client.chat.completions.create(
+    model="{model_id}",
+    messages=[
+        {{
+            "role": "user",
+            "content": [
+                {{
+                    "type": "text",
+                    "text": "Describe this image in one sentence."
+                }},
+                {{
+                    "type": "image_url",
+                    "image_url": {{
+                        "url": "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
+                    }}
+                }}
+            ]
+        }}
+    ],
+)
+
+print(completion.choices[0].message)'''
+    
+    # Text to Image models
+    elif pipeline_tag == "text-to-image":
+        return f'''import os
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+# output is a PIL.Image object
+image = client.text_to_image(
+    "Astronaut riding a horse",
+    model="{model_id}",
+)
+
+# Save the image
+image.save("output.png")'''
+    
+    # Text to Video models
+    elif pipeline_tag == "text-to-video":
+        return f'''import os
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+video = client.text_to_video(
+    "A young man walking on the street",
+    model="{model_id}",
+)
+
+# Save the video
+with open("output.mp4", "wb") as f:
+    f.write(video)'''
+    
+    # Image to Image models
+    elif pipeline_tag == "image-to-image":
+        return f'''import os
+from huggingface_hub import InferenceClient
+from PIL import Image
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+# Load input image
+input_image = Image.open("input.jpg")
+
+# output is a PIL.Image object
+output_image = client.image_to_image(
+    input_image,
+    model="{model_id}",
+    prompt="Make it more vibrant"
+)
+
+# Save the output
+output_image.save("output.png")'''
+    
+    # Text to Speech models
+    elif pipeline_tag == "text-to-speech":
+        return f'''import os
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+audio = client.text_to_speech(
+    "Hello world",
+    model="{model_id}",
+)
+
+# Save the audio
+with open("output.mp3", "wb") as f:
+    f.write(audio)'''
+    
+    # Automatic Speech Recognition
+    elif pipeline_tag == "automatic-speech-recognition":
+        return f'''import os
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+with open("audio.mp3", "rb") as f:
+    audio_data = f.read()
+
+result = client.automatic_speech_recognition(
+    audio_data,
+    model="{model_id}",
+)
+
+print(result)'''
+    
+    # Feature Extraction / Embeddings
+    elif pipeline_tag == "feature-extraction":
+        return f'''import os
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+embeddings = client.feature_extraction(
+    "Hello world",
+    model="{model_id}",
+)
+
+print(embeddings)'''
+    
+    # Default: try chat completion for conversational models
+    else:
+        # If it has inference providers but unknown task, try chat completion
+        return f'''import os
+from huggingface_hub import InferenceClient
+
+client = InferenceClient(
+    api_key=os.environ["HF_TOKEN"],
+)
+
+completion = client.chat.completions.create(
+    model="{model_id}",
+    messages=[
+        {{
+            "role": "user",
+            "content": "Hello, how are you?"
+        }}
+    ],
+)
+
+print(completion.choices[0].message)'''
+
+
+def _fetch_inference_provider_code(model_id: str) -> Optional[str]:
+    """
+    Fetch inference provider information from HuggingFace API and generate code template.
+    
+    Args:
+        model_id: The HuggingFace model ID (e.g., "moonshotai/Kimi-K2-Thinking")
+    
+    Returns:
+        The code snippet if model has inference providers, None otherwise
+    """
+    try:
+        # Fetch trending models data from HuggingFace API
+        response = requests.get("https://huggingface.co/api/trending", timeout=10)
+        
+        if response.status_code != 200:
+            print(f"Failed to fetch trending models API: HTTP {response.status_code}")
+            return None
+        
+        trending_data = response.json()
+        recently_trending = trending_data.get("recentlyTrending", [])
+        
+        # Find the specific model in trending data
+        model_info = None
+        for item in recently_trending:
+            repo_data = item.get("repoData", {})
+            if repo_data.get("id") == model_id:
+                model_info = repo_data
+                break
+        
+        # If not found in trending, try to get model info directly from API
+        if not model_info:
+            try:
+                api = HfApi()
+                info = api.model_info(model_id)
+                pipeline_tag = getattr(info, "pipeline_tag", None)
+                
+                # Check if model has inference providers via model info
+                # Note: The direct API might not have availableInferenceProviders
+                # In this case, we'll generate a generic template
+                has_inference = pipeline_tag is not None
+                
+                if has_inference:
+                    return _generate_inference_code_template(model_id, pipeline_tag, True)
+            except Exception as e:
+                print(f"Could not fetch model info for {model_id}: {e}")
+                return None
+        else:
+            # Extract pipeline tag and inference providers info
+            pipeline_tag = model_info.get("pipeline_tag")
+            inference_providers = model_info.get("availableInferenceProviders", [])
+            has_inference_providers = len(inference_providers) > 0
+            
+            # Generate code template based on pipeline tag
+            return _generate_inference_code_template(model_id, pipeline_tag, has_inference_providers)
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error fetching inference provider code: {e}")
+        return None
+
+
+# Global storage for code alternatives (used when both inference and local code are available)
+_model_code_alternatives = {}
+
+
+def store_model_code_alternatives(model_id: str, inference_code: Optional[str], local_code: Optional[str]):
+    """Store both code alternatives for a model for later retrieval."""
+    global _model_code_alternatives
+    _model_code_alternatives[model_id] = {
+        'inference': inference_code,
+        'local': local_code
+    }
+
+
+def get_model_code_alternatives(model_id: str) -> Dict[str, Optional[str]]:
+    """Retrieve stored code alternatives for a model."""
+    global _model_code_alternatives
+    return _model_code_alternatives.get(model_id, {'inference': None, 'local': None})
+
+
+def import_model_from_hf(model_id: str, prefer_local: bool = False) -> Tuple[str, str, str, str]:
     """
     Import a HuggingFace model by ID and extract code snippet.
+    Tries to fetch both inference provider code and transformers/diffusers code from README.
+    
+    Args:
+        model_id: The HuggingFace model ID
+        prefer_local: If True and both options available, return local code instead of inference code
     
     Returns: (status, code, language, model_url)
     """
@@ -2042,13 +2334,111 @@ def import_model_from_hf(model_id: str) -> Tuple[str, str, str, str]:
     # Build model URL
     model_url = f"https://huggingface.co/{model_id}"
     
-    # Use existing import_repo_to_app function
-    status, code, _ = import_repo_to_app(model_url)
+    # Try to fetch both types of code
+    inference_code = _fetch_inference_provider_code(model_id)
     
-    # Determine language - default to python for model imports
-    language = "gradio"  # Default framework for model demos
+    # Also try to extract transformers/diffusers code from README
+    readme_status, readme_code, _ = import_repo_to_app(model_url)
+    has_readme_code = readme_code and ("transformers" in readme_code or "diffusers" in readme_code)
     
-    return status, code, language, model_url
+    # Store both alternatives for later switching
+    store_model_code_alternatives(model_id, inference_code, readme_code if has_readme_code else None)
+    
+    # Build status message and code based on what's available
+    if inference_code and has_readme_code:
+        # Both available - provide choice
+        if prefer_local:
+            status = f"""✅ **Found multiple code options for `{model_id}`**
+
+**Currently showing:** Local Transformers/Diffusers Code (Option 2) 💻
+
+**Option 1: Inference Provider Code (Serverless)** ⚡
+- Uses HuggingFace Inference API (serverless, pay-per-use)
+- No GPU required, instant startup
+- Requires `HF_TOKEN` environment variable
+
+**Option 2: Local Transformers/Diffusers Code (Currently Active)** 💻
+- Runs locally on your hardware
+- Requires GPU for optimal performance
+- Full control over model parameters
+
+---
+
+To switch to inference provider code, click the button below or ask: "Show me the inference provider code instead"
+"""
+            code = readme_code
+        else:
+            status = f"""✅ **Found multiple code options for `{model_id}`**
+
+**Currently showing:** Inference Provider Code (Option 1) ⚡ *Recommended*
+
+**Option 1: Inference Provider Code (Serverless - Currently Active)** ⚡
+- Uses HuggingFace Inference API (serverless, pay-per-use)
+- No GPU required, instant startup
+- Requires `HF_TOKEN` environment variable
+
+**Option 2: Local Transformers/Diffusers Code** 💻
+- Runs locally on your hardware
+- Requires GPU for optimal performance
+- Full control over model parameters
+
+---
+
+To switch to local transformers/diffusers code, click the button below or ask: "Show me the local transformers code instead"
+"""
+            code = inference_code
+        
+        language = "gradio"
+        return status, code, language, model_url
+        
+    elif inference_code:
+        # Only inference provider code available
+        status = f"✅ Imported inference provider code for `{model_id}` (serverless inference)"
+        language = "gradio"
+        return status, inference_code, language, model_url
+        
+    elif has_readme_code:
+        # Only README code available
+        status = f"✅ Imported transformers/diffusers code from README for `{model_id}` (local inference)"
+        language = "gradio"
+        return status, readme_code, language, model_url
+        
+    else:
+        # No code found
+        status = f"⚠️ No inference provider or transformers/diffusers code found for `{model_id}`"
+        return status, "", "python", model_url
+
+
+def switch_model_code_type(model_id: str, current_code: str) -> Tuple[str, str]:
+    """
+    Switch between inference provider code and local transformers/diffusers code.
+    
+    Args:
+        model_id: The model ID
+        current_code: The currently displayed code
+    
+    Returns: (status_message, new_code)
+    """
+    alternatives = get_model_code_alternatives(model_id)
+    inference_code = alternatives['inference']
+    local_code = alternatives['local']
+    
+    if not inference_code and not local_code:
+        return "⚠️ No alternative code available for this model.", current_code
+    
+    # Determine which code is currently shown
+    is_showing_inference = current_code == inference_code
+    
+    if is_showing_inference and local_code:
+        # Switch to local code
+        status = f"✅ Switched to **Local Transformers/Diffusers Code** for `{model_id}` 💻\n\nThis code runs locally on your hardware."
+        return status, local_code
+    elif not is_showing_inference and inference_code:
+        # Switch to inference provider code
+        status = f"✅ Switched to **Inference Provider Code** for `{model_id}` ⚡\n\nThis code uses serverless HuggingFace Inference API."
+        return status, inference_code
+    else:
+        return "⚠️ Alternative code type not available for this model.", current_code
 
 
 def import_repo_to_app(url: str, framework: str = "Gradio") -> Tuple[str, str, str]:
