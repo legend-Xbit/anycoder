@@ -29,6 +29,9 @@ from .deploy import (
     generate_requirements_txt_with_llm, prettify_comfyui_json_for_html,
     get_trending_models, import_model_from_hf, get_trending_spaces, import_space_from_hf
 )
+from .agent import (
+    agent_generate_with_questions, agent_process_answers_and_generate
+)
 
 # Main application with proper Gradio theming
 with gr.Blocks(
@@ -91,6 +94,12 @@ with gr.Blocks(
     last_login_state = gr.State(None)
     models_first_change = gr.State(True)
     spaces_first_change = gr.State(True)
+    agent_mode_enabled = gr.State(False)
+    agent_conversation_state = gr.State({
+        "stage": "initial",  # initial, waiting_for_answers, generating
+        "original_query": "",
+        "questions": ""
+    })
 
     with gr.Sidebar() as sidebar:
         login_button = gr.LoginButton()
@@ -166,6 +175,15 @@ with gr.Blocks(
             label="Code Language",
             visible=True
         )
+        
+        # Agent mode checkbox
+        agent_mode_checkbox = gr.Checkbox(
+            label="🤖 Enable Agent Mode",
+            value=False,
+            info="Agent will ask follow-up questions and create a task list before coding",
+            visible=True
+        )
+        
         # Removed image generation components
         with gr.Row():
             btn = gr.Button("Generate", variant="secondary", size="lg", scale=2, visible=True, interactive=False)
@@ -861,35 +879,107 @@ with gr.Blocks(
 
 
 
-    def begin_generation_ui():
-        # Collapse the sidebar when generation starts; keep status hidden
-        return [gr.update(open=False), gr.update(visible=False)]
+    def begin_generation_ui(agent_enabled):
+        # In agent mode, keep sidebar open during question/task planning phase
+        # Only close it when actual code generation starts
+        if agent_enabled:
+            return [gr.update(), gr.update(visible=False)]  # Keep sidebar as-is
+        else:
+            # Normal mode: collapse sidebar immediately
+            return [gr.update(open=False), gr.update(visible=False)]
 
     def end_generation_ui():
         # Open sidebar after generation; hide the status
         return [gr.update(open=True), gr.update(visible=False)]
+    
+    def close_sidebar_for_coding():
+        # Close sidebar when transitioning to actual code generation
+        return gr.update(open=False)
 
-    def generation_code_wrapper(inp, sett, hist, model, lang, prov, profile: Optional[gr.OAuthProfile] = None, token: Optional[gr.OAuthToken] = None):
-        """Wrapper to call generation_code and pass component references"""
-        # Generate code and update both history and chat_history
-        for result in generation_code(inp, sett, hist, model, lang, prov, profile, token, code_output, history_output, history):
-            # generation_code yields dictionaries with component keys
-            # Extract the values and yield them for our outputs
-            code_val = result.get(code_output, "")
-            hist_val = result.get(history, hist)
-            history_output_val = result.get(history_output, [])
-            # Yield for: code_output, history, history_output, chat_history
-            yield code_val, hist_val, history_output_val, history_output_val
+    def generation_code_wrapper(inp, sett, hist, model, lang, prov, agent_enabled, agent_state, profile: Optional[gr.OAuthProfile] = None, token: Optional[gr.OAuthToken] = None):
+        """Wrapper to call generation_code or agent mode based on settings"""
+        
+        # Check if agent mode is enabled
+        if agent_enabled and agent_state["stage"] == "initial":
+            # Agent mode - first interaction, ask questions
+            # Sidebar stays open during this phase
+            for updated_hist, chatbot_msgs in agent_generate_with_questions(
+                inp, sett, hist, model, lang, prov, profile, token
+            ):
+                # Update agent state to track that we're waiting for answers
+                new_agent_state = {
+                    "stage": "waiting_for_answers",
+                    "original_query": inp,
+                    "questions": updated_hist[-1][1] if updated_hist else ""
+                }
+                # Yield: code_output, history, history_output, chat_history, agent_conversation_state, sidebar
+                yield "", updated_hist, chatbot_msgs, chatbot_msgs, new_agent_state, gr.update()
+            return
+        
+        elif agent_enabled and agent_state["stage"] == "waiting_for_answers":
+            # Agent mode - user has answered questions, now create task list and generate code
+            original_query = agent_state.get("original_query", "")
+            questions = agent_state.get("questions", "")
+            
+            # Track whether we've started code generation to close sidebar
+            started_code_generation = False
+            
+            # Process answers and generate code
+            for result in agent_process_answers_and_generate(
+                inp, original_query, questions, sett, hist, model, lang, prov,
+                profile, token, code_output, history_output, history
+            ):
+                # Extract values from result dict
+                code_val = result.get(code_output, "")
+                hist_val = result.get(history, hist)
+                history_output_val = result.get(history_output, [])
+                
+                # Reset agent state after generation
+                reset_agent_state = {
+                    "stage": "initial",
+                    "original_query": "",
+                    "questions": ""
+                }
+                
+                # Close sidebar when we start generating code (when code_output has content)
+                if code_val and not started_code_generation:
+                    sidebar_update = gr.update(open=False)
+                    started_code_generation = True
+                else:
+                    sidebar_update = gr.update()
+                
+                # Yield: code_output, history, history_output, chat_history, agent_conversation_state, sidebar
+                yield code_val, hist_val, history_output_val, history_output_val, reset_agent_state, sidebar_update
+            return
+        
+        else:
+            # Normal mode - direct code generation
+            # Sidebar was already closed by begin_generation_ui
+            for result in generation_code(inp, sett, hist, model, lang, prov, profile, token, code_output, history_output, history):
+                # generation_code yields dictionaries with component keys
+                # Extract the values and yield them for our outputs
+                code_val = result.get(code_output, "")
+                hist_val = result.get(history, hist)
+                history_output_val = result.get(history_output, [])
+                # Yield for: code_output, history, history_output, chat_history, agent_conversation_state, sidebar
+                yield code_val, hist_val, history_output_val, history_output_val, agent_state, gr.update()
 
+    # Update agent_mode_enabled state when checkbox changes
+    agent_mode_checkbox.change(
+        lambda enabled: enabled,
+        inputs=[agent_mode_checkbox],
+        outputs=[agent_mode_enabled]
+    )
+    
     btn.click(
         begin_generation_ui,
-        inputs=None,
+        inputs=[agent_mode_enabled],
         outputs=[sidebar, generating_status],
         show_progress="hidden",
     ).then(
         generation_code_wrapper,
-        inputs=[input, setting, history, current_model, language_dropdown, provider_state],
-        outputs=[code_output, history, history_output, chat_history]
+        inputs=[input, setting, history, current_model, language_dropdown, provider_state, agent_mode_enabled, agent_conversation_state],
+        outputs=[code_output, history, history_output, chat_history, agent_conversation_state, sidebar]
     ).then(
         end_generation_ui,
         inputs=None,
@@ -931,13 +1021,13 @@ with gr.Blocks(
     # Pressing Enter in the main input should trigger generation and collapse the sidebar
     input.submit(
         begin_generation_ui,
-        inputs=None,
+        inputs=[agent_mode_enabled],
         outputs=[sidebar, generating_status],
         show_progress="hidden",
     ).then(
         generation_code_wrapper,
-        inputs=[input, setting, history, current_model, language_dropdown, provider_state],
-        outputs=[code_output, history, history_output, chat_history]
+        inputs=[input, setting, history, current_model, language_dropdown, provider_state, agent_mode_enabled, agent_conversation_state],
+        outputs=[code_output, history, history_output, chat_history, agent_conversation_state, sidebar]
     ).then(
         end_generation_ui,
         inputs=None,
@@ -1001,8 +1091,17 @@ with gr.Blocks(
         </div>
         """
     
+    def reset_agent_state():
+        """Reset agent conversation state when clearing history"""
+        return {
+            "stage": "initial",
+            "original_query": "",
+            "questions": ""
+        }
+    
     clear_btn.click(clear_history, outputs=[history, history_output, chat_history])
     clear_btn.click(hide_deploy_components, None, [deploy_btn])
+    clear_btn.click(reset_agent_state, outputs=[agent_conversation_state])
     # Reset button text when clearing
     clear_btn.click(
         lambda: gr.update(value="Publish"),
