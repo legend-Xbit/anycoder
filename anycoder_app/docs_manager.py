@@ -383,6 +383,66 @@ def update_gradio_system_prompts():
 - Generate ONLY the requested code files and requirements.txt
 - No explanatory text outside the code blocks
 
+## 🎯 Working with Imported Model Code
+
+**CRITICAL: If the user has imported model code in the conversation history (InferenceClient, transformers, diffusers), you MUST integrate it into your Gradio application!**
+
+**For InferenceClient Code (HuggingFace Inference API):**
+- DO NOT just copy the standalone inference code
+- Create a complete Gradio application that wraps the inference code
+- Use `gr.ChatInterface()` for chat models or appropriate interface for other tasks
+- Extract the model name from the imported code
+- Implement proper streaming if the model supports it
+- Handle conversation history correctly
+
+**Example Structure for Chatbot:**
+```python
+import gradio as gr
+import os
+from huggingface_hub import InferenceClient
+
+# Use the InferenceClient configuration from imported code
+client = InferenceClient(api_key=os.environ["HF_TOKEN"])
+
+def respond(message, history):
+    # Build messages from history
+    messages = [{"role": "system", "content": "You are a helpful assistant."}]
+    for user_msg, assistant_msg in history:
+        messages.append({"role": "user", "content": user_msg})
+        messages.append({"role": "assistant", "content": assistant_msg})
+    messages.append({"role": "user", "content": message})
+    
+    # Call the model (use model name from imported code)
+    response = ""
+    for chunk in client.chat.completions.create(
+        model="MODEL_NAME_FROM_IMPORTED_CODE",
+        messages=messages,
+        stream=True,
+        max_tokens=1024,
+    ):
+        if chunk.choices[0].delta.content:
+            response += chunk.choices[0].delta.content
+            yield response
+
+demo = gr.ChatInterface(respond, title="Chatbot", description="Chat with the model")
+demo.launch()
+```
+
+**For Transformers/Diffusers Code:**
+- Extract model loading and inference logic
+- Wrap it in appropriate Gradio interface
+- For chat models: use gr.ChatInterface
+- For image generation: use gr.Interface with image output
+- For other tasks: choose appropriate interface type
+- Include proper error handling and loading states
+
+**Key Requirements:**
+1. ✅ ALWAYS create a complete Gradio application, not just inference code
+2. ✅ Extract model configuration from imported code
+3. ✅ Use appropriate Gradio interface for the task
+4. ✅ Include demo.launch() at the end
+5. ✅ Add requirements.txt with necessary dependencies
+
 ## Multi-File Application Structure
 
 When creating complex Gradio applications, organize your code into multiple files for better maintainability:
@@ -1286,8 +1346,14 @@ This reference is automatically synced from https://fastrtc.org/llms.txt to ensu
         search_prompt += fastrtc_section
     
     # Update the prompts in the prompts module
-    prompts.GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
-    prompts.GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + "\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.\n\nIMPORTANT: Always include \"Built with anycoder\" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"
+    final_instructions = """\n\nAlways use the exact function signatures from this API reference and follow modern Gradio patterns.
+
+🔍 BEFORE GENERATING: Review the conversation history carefully. If the user has imported any model code (InferenceClient, transformers, diffusers), you MUST integrate that code into your Gradio application. Do not generate standalone inference code - create a complete Gradio app that wraps the imported model functionality.
+
+IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
+    
+    prompts.GRADIO_SYSTEM_PROMPT = base_prompt + docs_content + final_instructions
+    prompts.GRADIO_SYSTEM_PROMPT_WITH_SEARCH = search_prompt + docs_content + final_instructions
 
 def update_json_system_prompts():
     """Update the global JSON system prompts with latest ComfyUI documentation"""
