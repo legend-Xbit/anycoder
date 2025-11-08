@@ -1,5 +1,7 @@
 git+https://github.com/huggingface/huggingface_hub.git
 gradio[oauth]
+fastapi==0.112.2
+httpx>=0.27.0
 PyPDF2
 python-docx
 pytesseract

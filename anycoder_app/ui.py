@@ -6,6 +6,24 @@ import os
 import gradio as gr
 from typing import Dict, Optional
 from huggingface_hub import HfApi
+import httpx
+
+# Monkey-patch httpx to increase timeout for OAuth
+# This prevents ReadTimeout errors during HuggingFace OAuth flow
+_original_client_init = httpx.AsyncClient.__init__
+
+def _patched_client_init(self, *args, **kwargs):
+    # If no timeout is specified, use longer timeouts
+    if 'timeout' not in kwargs:
+        kwargs['timeout'] = httpx.Timeout(
+            connect=30.0,  # 30 seconds for connection
+            read=60.0,     # 60 seconds for reading response (increased from default 5s)
+            write=30.0,    # 30 seconds for writing
+            pool=30.0      # 30 seconds for pool operations
+        )
+    return _original_client_init(self, *args, **kwargs)
+
+httpx.AsyncClient.__init__ = _patched_client_init
 
 from .config import (
     AVAILABLE_MODELS, DEFAULT_MODEL, DEFAULT_MODEL_NAME,
