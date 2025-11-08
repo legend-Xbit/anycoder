@@ -1,6 +1,6 @@
 ---
 title: Anycoder
-emoji: 🏢
+emoji: 🔥
 colorFrom: indigo
 colorTo: indigo
 sdk: gradio
