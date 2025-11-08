@@ -89,6 +89,8 @@ with gr.Blocks(
     current_model = gr.State(DEFAULT_MODEL)
     open_panel = gr.State(None)
     last_login_state = gr.State(None)
+    models_first_change = gr.State(True)
+    spaces_first_change = gr.State(True)
 
     with gr.Sidebar() as sidebar:
         login_button = gr.LoginButton()
@@ -1775,7 +1777,9 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
         models = get_trending_models(limit=10)
         # Create choices list with display names and values as model IDs
         choices = [(display, model_id) for display, model_id in models]
-        return gr.update(choices=choices)
+        # Set first model as default value if available
+        default_value = models[0][1] if models and len(models) > 0 and models[0][1] != "" else None
+        return gr.update(choices=choices, value=default_value)
     
     demo.load(
         load_trending_models,
@@ -1790,7 +1794,9 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
         spaces = get_trending_spaces(limit=10)
         # Create choices list with display names and values as space IDs
         choices = [(display, space_id) for display, space_id in spaces]
-        return gr.update(choices=choices)
+        # Set first space as default value if available
+        default_value = spaces[0][1] if spaces and len(spaces) > 0 and spaces[0][1] != "" else None
+        return gr.update(choices=choices, value=default_value)
     
     demo.load(
         load_trending_spaces,
@@ -1800,8 +1806,20 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
     )
     
     # Handle trending model selection
-    def handle_trending_model_selection(model_id, hist):
+    def handle_trending_model_selection(model_id, hist, is_first):
         """Handle when user selects a trending model"""
+        # Skip import on first change (when default value is set on load)
+        if is_first:
+            return [
+                gr.update(),  # status
+                gr.update(),  # code_output
+                gr.update(),  # language_dropdown
+                hist,  # history
+                history_to_chatbot_messages(hist),  # history_output
+                history_to_chatbot_messages(hist),  # chat_history
+                False  # Set first_change to False after first trigger
+            ]
+        
         if not model_id or model_id == "":
             return [
                 gr.update(value="Please select a model.", visible=True),  # status
@@ -1810,7 +1828,7 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
                 hist,  # history
                 history_to_chatbot_messages(hist),  # history_output
                 history_to_chatbot_messages(hist),  # chat_history
-                gr.update(value=None)  # reset dropdown
+                False  # Keep first_change as False
             ]
         
         # Import the model
@@ -1829,12 +1847,12 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
             loaded_history,  # history
             history_to_chatbot_messages(loaded_history),  # history_output
             history_to_chatbot_messages(loaded_history),  # chat_history
-            gr.update(value=None)  # reset dropdown
+            False  # Keep first_change as False
         ]
     
     trending_models_dropdown.change(
         handle_trending_model_selection,
-        inputs=[trending_models_dropdown, history],
+        inputs=[trending_models_dropdown, history, models_first_change],
         outputs=[
             trending_models_status,
             code_output,
@@ -1842,13 +1860,26 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
             history,
             history_output,
             chat_history,
-            trending_models_dropdown
+            models_first_change
         ]
     )
     
     # Handle trending space selection
-    def handle_trending_space_selection(space_id, hist):
+    def handle_trending_space_selection(space_id, hist, is_first):
         """Handle when user selects a trending space"""
+        # Skip import on first change (when default value is set on load)
+        if is_first:
+            return [
+                gr.update(),  # status
+                gr.update(),  # code_output
+                gr.update(),  # language_dropdown
+                hist,  # history
+                history_to_chatbot_messages(hist),  # history_output
+                history_to_chatbot_messages(hist),  # chat_history
+                gr.update(),  # deploy_btn
+                False  # Set first_change to False after first trigger
+            ]
+        
         if not space_id or space_id == "":
             return [
                 gr.update(value="Please select a space.", visible=True),  # status
@@ -1858,7 +1889,7 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
                 history_to_chatbot_messages(hist),  # history_output
                 history_to_chatbot_messages(hist),  # chat_history
                 gr.update(visible=True),  # deploy_btn
-                gr.update(value=None)  # reset dropdown
+                False  # Keep first_change as False
             ]
         
         # Import the space
@@ -1883,12 +1914,12 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
             history_to_chatbot_messages(loaded_history),  # history_output
             history_to_chatbot_messages(loaded_history),  # chat_history
             gr.update(value="Publish", visible=True),  # deploy_btn
-            gr.update(value=None)  # reset dropdown
+            False  # Keep first_change as False
         ]
     
     trending_spaces_dropdown.change(
         handle_trending_space_selection,
-        inputs=[trending_spaces_dropdown, history],
+        inputs=[trending_spaces_dropdown, history, spaces_first_change],
         outputs=[
             trending_spaces_status,
             code_output,
@@ -1897,7 +1928,7 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
             history_output,
             chat_history,
             deploy_btn,
-            trending_spaces_dropdown
+            spaces_first_change
         ]
     )
 
