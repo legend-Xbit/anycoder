@@ -118,6 +118,10 @@ def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Op
             'import streamlit' in last_assistant_msg or
             'def ' in last_assistant_msg and 'app' in last_assistant_msg or
             'IMPORTED PROJECT FROM HUGGING FACE SPACE' in last_assistant_msg or
+            'InferenceClient' in last_assistant_msg or  # Inference provider code
+            'from huggingface_hub import' in last_assistant_msg or  # Inference provider code
+            'from transformers import' in last_assistant_msg or  # Transformers code
+            'from diffusers import' in last_assistant_msg or  # Diffusers code
             '=== index.html ===' in last_assistant_msg or
             '=== index.js ===' in last_assistant_msg or
             '=== style.css ===' in last_assistant_msg or
@@ -280,10 +284,32 @@ Generate the exact search/replace blocks needed to make these changes."""
 
     messages = history_to_messages(_history, system_prompt)
 
+    # Check if user has imported inference provider or model code and enhance the query
+    has_imported_model_code = False
+    imported_model_info = ""
+    
+    if _history:
+        for user_msg, assistant_msg in _history:
+            # Check if this is an imported model
+            if "Imported model:" in user_msg or "Imported inference provider code" in assistant_msg:
+                has_imported_model_code = True
+                # Extract the model code from assistant message
+                if "InferenceClient" in assistant_msg or "from huggingface_hub import" in assistant_msg:
+                    # Provide specific instructions based on the type of app being created
+                    if language == "gradio":
+                        imported_model_info = f"\n\n**CRITICAL INSTRUCTION: The user has imported HuggingFace Inference Provider code in the previous message. You MUST use this code as the backend for the Gradio application. Create a Gradio interface that:**\n1. Uses the InferenceClient from the imported code\n2. Creates a chatbot interface with gr.ChatInterface or gr.Blocks\n3. Implements a function that calls the model using client.chat.completions.create()\n4. Handles streaming responses properly\n5. Includes proper error handling\n\n**DO NOT ignore the imported code - integrate it into your Gradio app!**"
+                    else:
+                        imported_model_info = f"\n\n**IMPORTANT: The user has already imported model inference code in the conversation history. When creating the {language} application, USE the imported inference code as the backend. Integrate it properly into your application.**"
+                    break
+                elif "from transformers import" in assistant_msg or "from diffusers import" in assistant_msg:
+                    if language == "gradio":
+                        imported_model_info = f"\n\n**CRITICAL INSTRUCTION: The user has imported transformers/diffusers model code in the previous message. You MUST use this code as the backend for the Gradio application. Create a Gradio interface that:**\n1. Uses the model loading code from the imported code\n2. Creates an appropriate interface based on the model type\n3. Implements inference functions that use the imported model\n4. Includes proper error handling\n\n**DO NOT ignore the imported code - integrate it into your Gradio app!**"
+                    else:
+                        imported_model_info = f"\n\n**IMPORTANT: The user has already imported transformers/diffusers model code in the conversation history. When creating the {language} application, USE the imported model code as the backend. Integrate it properly into your application.**"
+                    break
 
-
-    # Use the original query without search enhancement
-    enhanced_query = query
+    # Use the original query, enhanced with context about imported code if applicable
+    enhanced_query = query + imported_model_info
 
     # Check if this is GLM-4.5 model and handle with simple HuggingFace InferenceClient
     if _current_model["id"] == "zai-org/GLM-4.5":
