@@ -122,7 +122,7 @@ AVAILABLE_MODELS = [
 k2_model_name_tag = "moonshotai/Kimi-K2-Thinking"
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Kimi K2 Thinking"
+DEFAULT_MODEL_NAME = "MiniMax M2"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
