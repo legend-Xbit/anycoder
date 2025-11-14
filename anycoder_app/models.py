@@ -44,6 +44,30 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("POE_API_KEY"),
             base_url="https://api.poe.com/v1"
         )
+    elif model_id == "gpt-5.1":
+        # Use Poe (OpenAI-compatible) client for GPT-5.1 model
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
+    elif model_id == "gpt-5.1-instant":
+        # Use Poe (OpenAI-compatible) client for GPT-5.1 Instant model
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
+    elif model_id == "gpt-5.1-codex":
+        # Use Poe (OpenAI-compatible) client for GPT-5.1 Codex model
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
+    elif model_id == "gpt-5.1-codex-mini":
+        # Use Poe (OpenAI-compatible) client for GPT-5.1 Codex Mini model
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
     elif model_id == "grok-4":
         # Use Poe (OpenAI-compatible) client for Grok-4 model
         return OpenAI(

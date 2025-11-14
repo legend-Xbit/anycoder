@@ -78,6 +78,26 @@ AVAILABLE_MODELS = [
         "description": "OpenAI GPT-5 model for advanced code generation and general tasks"
     },
     {
+        "name": "GPT-5.1",
+        "id": "gpt-5.1",
+        "description": "OpenAI GPT-5.1 model via Poe for advanced code generation and general tasks"
+    },
+    {
+        "name": "GPT-5.1 Instant",
+        "id": "gpt-5.1-instant",
+        "description": "OpenAI GPT-5.1 Instant model via Poe for fast responses"
+    },
+    {
+        "name": "GPT-5.1 Codex",
+        "id": "gpt-5.1-codex",
+        "description": "OpenAI GPT-5.1 Codex model via Poe optimized for code generation"
+    },
+    {
+        "name": "GPT-5.1 Codex Mini",
+        "id": "gpt-5.1-codex-mini",
+        "description": "OpenAI GPT-5.1 Codex Mini model via Poe for lightweight code generation"
+    },
+    {
         "name": "Grok-4",
         "id": "grok-4",
         "description": "Grok-4 model via Poe (OpenAI-compatible) for advanced tasks"
@@ -122,7 +142,7 @@ AVAILABLE_MODELS = [
 k2_model_name_tag = "moonshotai/Kimi-K2-Thinking"
 
 # Default model selection
-DEFAULT_MODEL_NAME = "MiniMax M2"
+DEFAULT_MODEL_NAME = "GPT-5.1 Codex"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:
