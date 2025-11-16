@@ -136,13 +136,23 @@ AVAILABLE_MODELS = [
         "name": "Kimi K2 Thinking",
         "id": "moonshotai/Kimi-K2-Thinking",
         "description": "Moonshot Kimi K2 Thinking model for advanced reasoning and code generation"
+    },
+    {
+        "name": "Sherlock Dash Alpha",
+        "id": "openrouter/sherlock-dash-alpha",
+        "description": "Sherlock Dash Alpha model via OpenRouter for advanced code generation and reasoning"
+    },
+    {
+        "name": "Sherlock Think Alpha",
+        "id": "openrouter/sherlock-think-alpha",
+        "description": "Sherlock Think Alpha model via OpenRouter for advanced reasoning with thinking capabilities"
     }
 ]
 
 k2_model_name_tag = "moonshotai/Kimi-K2-Thinking"
 
 # Default model selection
-DEFAULT_MODEL_NAME = "GPT-5.1 Codex"
+DEFAULT_MODEL_NAME = "Sherlock Dash Alpha"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:

@@ -116,6 +116,18 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
         )
+    elif model_id == "openrouter/sherlock-dash-alpha":
+        # Use OpenRouter client for Sherlock Dash Alpha model
+        return OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+        )
+    elif model_id == "openrouter/sherlock-think-alpha":
+        # Use OpenRouter client for Sherlock Think Alpha model
+        return OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+        )
     elif model_id == "MiniMaxAI/MiniMax-M2":
         # Use HuggingFace InferenceClient with Novita provider for MiniMax M2 model
         provider = "novita"
