@@ -348,9 +348,11 @@ def deploy_to_huggingface_space(
             elif language in ["gradio", "streamlit"]:
                 files = parse_multi_file_python_output(code)
                 
-                # Write Python files
+                # Write Python files (create subdirectories if needed)
                 for filename, content in files.items():
-                    (temp_path / filename).write_text(content, encoding='utf-8')
+                    file_path = temp_path / filename
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(content, encoding='utf-8')
                 
                 # Ensure requirements.txt exists
                 if "requirements.txt" not in files:
@@ -365,26 +367,38 @@ def deploy_to_huggingface_space(
                         dockerfile = create_dockerfile_for_streamlit(space_name)
                         (temp_path / "Dockerfile").write_text(dockerfile, encoding='utf-8')
                     app_port = 7860  # Set app_port for Docker spaces
+                    use_individual_uploads = True  # Streamlit uses individual file uploads
                 
             elif language == "react":
-                # For React, we'd need package.json and other files
-                # This is more complex, so for now just create a placeholder
+                # Parse React output to get all files (uses same multi-file format as Python)
                 files = parse_multi_file_python_output(code)
                 
-                for filename, content in files.items():
-                    (temp_path / filename).write_text(content, encoding='utf-8')
+                if not files:
+                    return False, "Error: Could not parse React output", None
                 
-                # Create Dockerfile
-                dockerfile = create_dockerfile_for_react(space_name)
-                (temp_path / "Dockerfile").write_text(dockerfile, encoding='utf-8')
+                # If Dockerfile is missing, use template
+                if 'Dockerfile' not in files:
+                    dockerfile = create_dockerfile_for_react(space_name)
+                    files['Dockerfile'] = dockerfile
+                
+                # Write all React files (create subdirectories if needed)
+                for filename, content in files.items():
+                    file_path = temp_path / filename
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(content, encoding='utf-8')
+                
                 app_port = 7860  # Set app_port for Docker spaces
+                use_individual_uploads = True  # React uses individual file uploads
             
             else:
                 # Default: treat as Gradio app
                 files = parse_multi_file_python_output(code)
                 
+                # Write files (create subdirectories if needed)
                 for filename, content in files.items():
-                    (temp_path / filename).write_text(content, encoding='utf-8')
+                    file_path = temp_path / filename
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
+                    file_path.write_text(content, encoding='utf-8')
                 
                 if "requirements.txt" not in files:
                     (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
@@ -438,13 +452,26 @@ def deploy_to_huggingface_space(
             
             try:
                 if use_individual_uploads:
-                    # For transformers.js, upload each file individually (matches original deploy.py)
+                    # For transformers.js, React, Streamlit: upload each file individually (matches original deploy.py)
                     import time
-                    files_to_upload = ["index.html", "index.js", "style.css"]
+                    
+                    # Get list of files to upload from temp directory
+                    files_to_upload = []
+                    for file_path in temp_path.rglob('*'):
+                        if file_path.is_file():
+                            # Get relative path from temp directory (use forward slashes for repo paths)
+                            rel_path = file_path.relative_to(temp_path)
+                            files_to_upload.append(str(rel_path).replace('\\', '/'))
+                    
+                    if not files_to_upload:
+                        return False, "No files to upload", None
+                    
+                    print(f"[Deploy] Uploading {len(files_to_upload)} files individually: {files_to_upload}")
                     
                     max_attempts = 3
                     for filename in files_to_upload:
-                        file_path = temp_path / filename
+                        # Convert back to Path for filesystem operations
+                        file_path = temp_path / filename.replace('/', os.sep)
                         if not file_path.exists():
                             return False, f"Failed to upload: {filename} not found", None
                         
@@ -462,6 +489,7 @@ def deploy_to_huggingface_space(
                                     commit_message=f"{commit_message} - {filename}"
                                 )
                                 success = True
+                                print(f"[Deploy] Successfully uploaded {filename}")
                                 break
                             except Exception as e:
                                 last_error = e
@@ -469,6 +497,7 @@ def deploy_to_huggingface_space(
                                     return False, f"Permission denied uploading {filename}. Check your token has write access.", None
                                 if attempt < max_attempts - 1:
                                     time.sleep(2)  # Wait before retry
+                                    print(f"[Deploy] Retry {attempt + 1}/{max_attempts} for {filename}")
                         
                         if not success:
                             return False, f"Failed to upload {filename} after {max_attempts} attempts: {last_error}", None
