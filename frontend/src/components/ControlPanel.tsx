@@ -11,7 +11,7 @@ interface ControlPanelProps {
   onModelChange: (modelId: string) => void;
   onDeploy: () => void;
   onClear: () => void;
-  onImport?: (code: string, language: Language) => void;
+  onImport?: (code: string, language: Language, importUrl?: string) => void;
   isGenerating: boolean;
 }
 
@@ -83,7 +83,7 @@ export default function ControlPanel({
         
         // Call the onImport callback if provided
         if (onImport && result.code) {
-          onImport(result.code, result.language || 'html');
+          onImport(result.code, result.language || 'html', importUrl);
         }
         
         // Close modal and reset

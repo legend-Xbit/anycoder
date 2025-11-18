@@ -17,6 +17,8 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState('gemini-3.0-pro');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);  // Track imported/deployed space
+  const [username, setUsername] = useState<string | null>(null);  // Track current user
   
   // Mobile view state: 'chat', 'editor', or 'settings'
   const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('editor');
@@ -28,7 +30,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  const checkAuth = () => {
+  const checkAuth = async () => {
     const authenticated = checkIsAuthenticated();
     setIsAuthenticated(authenticated);
     
@@ -37,6 +39,16 @@ export default function Home() {
       const token = getStoredToken();
       if (token) {
         apiClient.setToken(token);
+        
+        // Get username from auth status
+        try {
+          const authStatus = await apiClient.getAuthStatus();
+          if (authStatus.username) {
+            setUsername(authStatus.username);
+          }
+        } catch (error) {
+          console.error('Failed to get username:', error);
+        }
       }
     }
   };
@@ -151,17 +163,60 @@ export default function Home() {
       return;
     }
 
-    const spaceName = prompt('Enter HuggingFace Space name (or leave empty for auto-generated):');
-    if (spaceName === null) return; // User cancelled
+    // Determine if we're updating an existing space or creating a new one
+    let existingRepoId = currentRepoId;
+    let actionMessage = 'Deploy';
+    
+    // If we have a current repo, check if user owns it
+    if (currentRepoId && username) {
+      const ownsSpace = currentRepoId.startsWith(`${username}/`);
+      if (ownsSpace) {
+        actionMessage = 'Update';
+        const confirmUpdate = confirm(`Update existing space: ${currentRepoId}?`);
+        if (!confirmUpdate) {
+          existingRepoId = null;  // Create new space instead
+          actionMessage = 'Deploy';
+        }
+      } else {
+        // User doesn't own the imported space, create a new one
+        existingRepoId = null;
+        actionMessage = 'Deploy';
+      }
+    }
+
+    // Only prompt for space name if creating new space
+    let spaceName = undefined;
+    if (!existingRepoId) {
+      const input = prompt('Enter HuggingFace Space name (or leave empty for auto-generated):');
+      if (input === null) return; // User cancelled
+      spaceName = input || undefined;
+    }
 
     try {
       const response = await apiClient.deploy({
         code: generatedCode,
-        space_name: spaceName || undefined,
+        space_name: spaceName,
         language: selectedLanguage,
+        existing_repo_id: existingRepoId || undefined,
+        commit_message: existingRepoId ? 'Update via AnyCoder' : undefined,
       });
 
       if (response.success) {
+        // Update current repo ID if we got one back
+        if (response.repo_id) {
+          setCurrentRepoId(response.repo_id);
+        }
+        
+        // Add deployment message to chat
+        const deployMessage: Message = {
+          role: 'assistant',
+          content: existingRepoId 
+            ? `✅ Updated space: ${response.space_url}` 
+            : `✅ Deployed to: ${response.space_url}`,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, deployMessage]);
+        
         // Open the space URL in a new tab
         window.open(response.space_url, '_blank');
         
@@ -169,7 +224,9 @@ export default function Home() {
         const isDev = response.dev_mode;
         const message = isDev 
           ? '🚀 Opening HuggingFace Spaces creation page...\nPlease complete the space setup in the new tab.'
-          : `✅ Deployed successfully!\n\nOpening: ${response.space_url}`;
+          : existingRepoId
+            ? `✅ Updated successfully!\n\nOpening: ${response.space_url}`
+            : `✅ Deployed successfully!\n\nOpening: ${response.space_url}`;
         alert(message);
       } else {
         alert(`Deployment failed: ${response.message}`);
@@ -186,14 +243,33 @@ export default function Home() {
     }
   };
 
-  const handleImport = (code: string, language: Language) => {
+  const handleImport = (code: string, language: Language, importUrl?: string) => {
     setGeneratedCode(code);
     setSelectedLanguage(language);
+    
+    // Extract repo_id from import URL if provided
+    if (importUrl) {
+      const spaceMatch = importUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+      if (spaceMatch) {
+        const importedRepoId = spaceMatch[1];
+        // Only set as current repo if user owns it
+        if (username && importedRepoId.startsWith(`${username}/`)) {
+          setCurrentRepoId(importedRepoId);
+          console.log('[Import] Set current repo to:', importedRepoId);
+        } else {
+          // User doesn't own the imported space, clear current repo
+          setCurrentRepoId(null);
+          console.log('[Import] User does not own imported space:', importedRepoId);
+        }
+      }
+    }
     
     // Add messages that include the imported code so LLM can see it
     const userMessage: Message = {
       role: 'user',
-      content: `I imported a ${language} project. Here's the code that was imported.`,
+      content: importUrl 
+        ? `Imported Space from ${importUrl}`
+        : `I imported a ${language} project. Here's the code that was imported.`,
       timestamp: new Date().toISOString(),
     };
     

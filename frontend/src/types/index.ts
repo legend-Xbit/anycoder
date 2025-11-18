@@ -47,6 +47,8 @@ export interface DeploymentRequest {
   space_name?: string;
   language: string;
   requirements?: string;
+  existing_repo_id?: string;  // For updating existing spaces
+  commit_message?: string;
 }
 
 export interface DeploymentResponse {
@@ -54,6 +56,7 @@ export interface DeploymentResponse {
   space_url?: string;
   message: string;
   dev_mode?: boolean;
+  repo_id?: string;
 }
 
 export type Language = 'html' | 'gradio' | 'transformers.js' | 'streamlit' | 'comfyui' | 'react';
