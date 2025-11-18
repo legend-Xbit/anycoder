@@ -198,7 +198,13 @@ export default function Home() {
           <div className="flex items-center px-5 h-11 bg-[#28282a] border-b border-[#48484a]">
             <div className="flex items-center space-x-2">
               <div className="px-4 py-1.5 bg-[#1d1d1f] border-t-2 border-[#007aff] text-sm text-[#e5e5e7] rounded-t-lg shadow-sm font-medium">
-                {selectedLanguage}.{selectedLanguage === 'html' ? 'html' : selectedLanguage === 'python' ? 'py' : 'js'}
+                {selectedLanguage}.{
+                  selectedLanguage === 'html' ? 'html' : 
+                  selectedLanguage === 'gradio' || selectedLanguage === 'streamlit' ? 'py' : 
+                  selectedLanguage === 'transformers.js' ? 'js' :
+                  selectedLanguage === 'comfyui' ? 'json' :
+                  'jsx'
+                }
               </div>
             </div>
             <div className="ml-auto flex items-center space-x-3 text-xs text-[#a1a1a6]">
