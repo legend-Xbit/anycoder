@@ -412,9 +412,15 @@ async def generate_code(
                 )
                 # Add :novita suffix for the API call
                 actual_model_id = "MiniMaxAI/MiniMax-M2:novita"
+                print(f"[Generate] Using HuggingFace router for MiniMax M2")
             elif actual_model_id.startswith("deepseek-ai/"):
-                # DeepSeek models via HuggingFace
-                client = InferenceClient(token=os.getenv("HF_TOKEN"))
+                # DeepSeek models via HuggingFace - use OpenAI client for better streaming
+                from openai import OpenAI
+                client = OpenAI(
+                    base_url="https://api-inference.huggingface.co/v1",
+                    api_key=os.getenv("HF_TOKEN")
+                )
+                print(f"[Generate] Using HuggingFace Inference API for DeepSeek")
             elif actual_model_id == "qwen3-max-preview":
                 # Qwen via DashScope (would need separate implementation)
                 # For now, fall back to HF
@@ -499,9 +505,11 @@ async def generate_code(
         event_stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
+            "X-Accel-Buffering": "no",
+            "Content-Encoding": "none",
+            "Transfer-Encoding": "chunked"
         }
     )
 

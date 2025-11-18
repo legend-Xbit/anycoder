@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import Header from '@/components/Header';
 import ChatInterface from '@/components/ChatInterface';
 import CodeEditor from '@/components/CodeEditor';
@@ -78,14 +79,16 @@ export default function Home() {
     try {
       apiClient.generateCodeStream(
         request,
-        // onChunk - Update code editor in real-time
+        // onChunk - Update code editor in real-time with immediate flush
         (chunk: string) => {
           console.log('[Stream] Received chunk:', chunk.substring(0, 50), '... (length:', chunk.length, ')');
-          // Use functional update to ensure we always append to latest state
-          setGeneratedCode((prevCode) => {
-            const newCode = prevCode + chunk;
-            console.log('[Stream] Total code length:', newCode.length);
-            return newCode;
+          // Use flushSync to force immediate DOM update without React batching
+          flushSync(() => {
+            setGeneratedCode((prevCode) => {
+              const newCode = prevCode + chunk;
+              console.log('[Stream] Total code length:', newCode.length);
+              return newCode;
+            });
           });
         },
         // onComplete
