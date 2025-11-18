@@ -79,6 +79,8 @@ export default function Home() {
         // onChunk - Update code editor in real-time, NOT the chat
         (chunk: string) => {
           generatedCodeBuffer += chunk;
+          console.log('[Stream] Received chunk:', chunk.substring(0, 50), '... (length:', chunk.length, ')');
+          console.log('[Stream] Buffer size:', generatedCodeBuffer.length);
           setGeneratedCode(generatedCodeBuffer);
         },
         // onComplete

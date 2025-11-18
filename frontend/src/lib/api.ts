@@ -119,13 +119,16 @@ class ApiClient {
     eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log('[SSE] Received event:', data.type, data.content?.substring(0, 30));
         
         if (data.type === 'chunk' && data.content) {
           onChunk(data.content);
         } else if (data.type === 'complete' && data.code) {
+          console.log('[SSE] Generation complete, total code length:', data.code.length);
           onComplete(data.code);
           eventSource.close();
         } else if (data.type === 'error') {
+          console.error('[SSE] Error:', data.message);
           onError(data.message || 'Unknown error occurred');
           eventSource.close();
         }

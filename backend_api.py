@@ -19,6 +19,30 @@ import os
 from huggingface_hub import InferenceClient
 import httpx
 
+# Import system prompts for code generation
+from anycoder_app.prompts import (
+    HTML_SYSTEM_PROMPT,
+    TRANSFORMERS_JS_SYSTEM_PROMPT,
+    STREAMLIT_SYSTEM_PROMPT,
+    REACT_SYSTEM_PROMPT,
+    GRADIO_SYSTEM_PROMPT,
+    JSON_SYSTEM_PROMPT,
+    GENERIC_SYSTEM_PROMPT
+)
+
+# Initialize Gradio and ComfyUI prompts on startup
+try:
+    from anycoder_app.docs_manager import update_gradio_system_prompts, update_json_system_prompts
+    print("[Startup] Initializing Gradio and ComfyUI system prompts...")
+    update_gradio_system_prompts()
+    update_json_system_prompts()
+    # Re-import to get updated prompts
+    from anycoder_app.prompts import GRADIO_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT
+    print("[Startup] System prompts initialized successfully")
+except Exception as e:
+    print(f"[Startup] Warning: Could not initialize dynamic prompts: {e}")
+    print("[Startup] Will use fallback prompts")
+
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
     {"name": "Sherlock Dash Alpha", "id": "openrouter/sherlock-dash-alpha", "description": "Sherlock Dash Alpha model via OpenRouter"},
@@ -310,8 +334,18 @@ async def generate_code(
             # Track generated code
             generated_code = ""
             
-            # Use a simple system prompt
-            system_prompt = "You are a helpful AI assistant that generates code based on user requirements. Generate clean, well-commented code."
+            # Select appropriate system prompt based on language
+            prompt_map = {
+                "html": HTML_SYSTEM_PROMPT,
+                "gradio": GRADIO_SYSTEM_PROMPT,
+                "streamlit": STREAMLIT_SYSTEM_PROMPT,
+                "transformers.js": TRANSFORMERS_JS_SYSTEM_PROMPT,
+                "react": REACT_SYSTEM_PROMPT,
+                "comfyui": JSON_SYSTEM_PROMPT,
+            }
+            system_prompt = prompt_map.get(language, GENERIC_SYSTEM_PROMPT.format(language=language))
+            
+            print(f"[Generate] Using {language} prompt for query: {query[:100]}...")
             
             # Get the real model ID
             actual_model_id = selected_model["id"]
@@ -372,6 +406,7 @@ async def generate_code(
                     stream=True
                 )
                 
+                chunk_count = 0
                 for chunk in stream:
                     # Check if choices array has elements before accessing
                     if (hasattr(chunk, 'choices') and 
@@ -382,6 +417,7 @@ async def generate_code(
                         chunk.choices[0].delta.content):
                         content = chunk.choices[0].delta.content
                         generated_code += content
+                        chunk_count += 1
                         
                         # Send chunk as Server-Sent Event
                         event_data = json.dumps({
@@ -390,7 +426,11 @@ async def generate_code(
                             "timestamp": datetime.now().isoformat()
                         })
                         yield f"data: {event_data}\n\n"
-                        await asyncio.sleep(0)  # Allow other tasks to run
+                        
+                        # Ensure immediate flush to client
+                        await asyncio.sleep(0.01)  # Small delay to ensure flushing
+                
+                print(f"[Generate] Completed with {chunk_count} chunks, total length: {len(generated_code)}")
                 
                 # Send completion event
                 completion_data = json.dumps({
