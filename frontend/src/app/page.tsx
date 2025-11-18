@@ -193,6 +193,15 @@ export default function Home() {
     }
 
     try {
+      console.log('[Deploy] Deploying with params:', {
+        language: selectedLanguage,
+        space_name: spaceName,
+        existing_repo_id: existingRepoId,
+        currentRepoId: currentRepoId,
+        username: username,
+        code_length: generatedCode.length
+      });
+      
       const response = await apiClient.deploy({
         code: generatedCode,
         space_name: spaceName,
@@ -204,7 +213,15 @@ export default function Home() {
       if (response.success) {
         // Update current repo ID if we got one back
         if (response.repo_id) {
+          console.log('[Deploy] Setting currentRepoId to:', response.repo_id);
           setCurrentRepoId(response.repo_id);
+        } else if (response.space_url) {
+          // Extract repo_id from space_url as fallback
+          const match = response.space_url.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+          if (match) {
+            console.log('[Deploy] Extracted repo_id from URL:', match[1]);
+            setCurrentRepoId(match[1]);
+          }
         }
         
         // Add deployment message to chat
@@ -244,24 +261,31 @@ export default function Home() {
   };
 
   const handleImport = (code: string, language: Language, importUrl?: string) => {
+    console.log('[Import] Importing project:', { language, importUrl, username });
     setGeneratedCode(code);
     setSelectedLanguage(language);
     
     // Extract repo_id from import URL if provided
     if (importUrl) {
       const spaceMatch = importUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+      console.log('[Import] Regex match result:', spaceMatch);
       if (spaceMatch) {
         const importedRepoId = spaceMatch[1];
+        console.log('[Import] Extracted repo_id:', importedRepoId, 'Username:', username);
         // Only set as current repo if user owns it
         if (username && importedRepoId.startsWith(`${username}/`)) {
           setCurrentRepoId(importedRepoId);
-          console.log('[Import] Set current repo to:', importedRepoId);
+          console.log('[Import] ✅ Set current repo to:', importedRepoId);
         } else {
           // User doesn't own the imported space, clear current repo
           setCurrentRepoId(null);
-          console.log('[Import] User does not own imported space:', importedRepoId);
+          console.log('[Import] ⚠️ User does not own imported space:', importedRepoId, '(username:', username, ')');
         }
+      } else {
+        console.log('[Import] ⚠️ Could not extract repo_id from URL:', importUrl);
       }
+    } else {
+      console.log('[Import] No import URL provided');
     }
     
     // Add messages that include the imported code so LLM can see it

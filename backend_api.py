@@ -567,6 +567,7 @@ async def deploy(
             raise HTTPException(status_code=401, detail="No HuggingFace token available. Please sign in first.")
         
         print(f"[Deploy] Attempting deployment with token (first 10 chars): {user_token[:10]}...")
+        print(f"[Deploy] Request parameters - language: {request.language}, space_name: {request.space_name}, existing_repo_id: {request.existing_repo_id}")
         
         # Check for existing deployed space in this session
         existing_repo_id = request.existing_repo_id
@@ -585,6 +586,7 @@ async def deploy(
                     break
         
         # Use the standalone deployment function
+        print(f"[Deploy] Calling deploy_to_huggingface_space with existing_repo_id: {existing_repo_id}")
         success, message, space_url = deploy_to_huggingface_space(
             code=request.code,
             language=request.language,
@@ -598,9 +600,12 @@ async def deploy(
         )
         
         if success:
+            # Extract repo_id from space_url
+            repo_id = space_url.split("/spaces/")[-1] if space_url else None
+            print(f"[Deploy] Success! Repo ID: {repo_id}")
+            
             # Track deployed space in session for follow-up updates
             if session_token and session_token in user_sessions:
-                repo_id = space_url.split("/spaces/")[-1] if space_url else None
                 if repo_id:
                     session = user_sessions[session_token]
                     deployed_spaces = session.get("deployed_spaces", [])
@@ -623,7 +628,7 @@ async def deploy(
                 "success": True,
                 "space_url": space_url,
                 "message": message,
-                "repo_id": repo_id if 'repo_id' in locals() else None
+                "repo_id": repo_id
             }
         else:
             # Provide user-friendly error message based on the error
