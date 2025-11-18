@@ -62,7 +62,7 @@ print("[Startup] System prompts initialization complete")
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
-    {"name": "Gemini 3 Pro Preview", "id": "gemini-3-pro-preview", "description": "Google Gemini 3 Pro Preview with deep thinking, Google Search integration, and advanced reasoning"},
+    {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning"},
     {"name": "Sherlock Dash Alpha", "id": "openrouter/sherlock-dash-alpha", "description": "Sherlock Dash Alpha model via OpenRouter"},
     {"name": "MiniMax M2", "id": "MiniMaxAI/MiniMax-M2", "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider"},
     {"name": "DeepSeek V3.2-Exp", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental via HuggingFace"},
@@ -112,7 +112,7 @@ user_sessions = {}
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "gemini-3-pro-preview"
+    model_id: str = "gemini-3.0-pro"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False
@@ -389,19 +389,8 @@ async def generate_code(
             
             # Stream the response
             try:
-                # Handle Gemini 3 Pro Preview with native SDK
-                if selected_model_id == "gemini-3-pro-preview":
-                    print("[Generate] Using Gemini 3 native SDK")
-                    contents, config = create_gemini3_messages(messages)
-                    
-                    stream = client.models.generate_content_stream(
-                        model="gemini-3-pro-preview",
-                        contents=contents,
-                        config=config,
-                    )
-                
                 # Handle Mistral models with different API
-                elif is_mistral_model(selected_model_id):
+                if is_mistral_model(selected_model_id):
                     print("[Generate] Using Mistral SDK")
                     stream = client.chat.stream(
                         model=actual_model_id,
@@ -426,11 +415,7 @@ async def generate_code(
                     # Handle different response formats
                     chunk_content = None
                     
-                    if selected_model_id == "gemini-3-pro-preview":
-                        # Gemini native SDK format: chunk.text
-                        if hasattr(chunk, 'text') and chunk.text:
-                            chunk_content = chunk.text
-                    elif is_mistral_model(selected_model_id):
+                    if is_mistral_model(selected_model_id):
                         # Mistral format: chunk.data.choices[0].delta.content
                         if (hasattr(chunk, "data") and chunk.data and
                             hasattr(chunk.data, "choices") and chunk.data.choices and 

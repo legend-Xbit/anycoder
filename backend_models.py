@@ -8,32 +8,25 @@ from typing import Optional
 from openai import OpenAI
 from mistralai import Mistral
 
-# Import genai for Gemini 3
+# Import genai for Gemini (legacy - no longer used with Poe API)
 try:
     from google import genai
     from google.genai import types
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
-    print("WARNING: google-genai not available, Gemini 3 will not work")
 
 def get_inference_client(model_id: str, provider: str = "auto"):
     """
     Return an appropriate client based on model_id.
     
-    For Gemini 3: Returns genai.Client (native Google SDK)
-    For others: Returns OpenAI-compatible client or raises error
+    Returns OpenAI-compatible client for all models or raises error if not configured.
     """
-    if model_id == "gemini-3-pro-preview":
-        if not GEMINI_AVAILABLE:
-            raise ImportError("google-genai package required for Gemini 3. Install with: pip install google-genai")
-        # Use native Google GenAI client for Gemini 3 Pro Preview with v1alpha API
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable required for Gemini 3")
-        return genai.Client(
-            api_key=api_key,
-            http_options={'api_version': 'v1alpha'}
+    if model_id == "gemini-3.0-pro":
+        # Use Poe (OpenAI-compatible) client for Gemini 3.0 Pro
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
         )
     
     elif model_id == "qwen3-30b-a3b-instruct-2507":
@@ -328,7 +321,7 @@ def create_gemini3_messages(messages: list) -> tuple:
 
 def is_native_sdk_model(model_id: str) -> bool:
     """Check if model uses native SDK (not OpenAI-compatible)"""
-    return model_id in ["gemini-3-pro-preview"]
+    return False  # All models now use OpenAI-compatible APIs
 
 
 def is_mistral_model(model_id: str) -> bool:

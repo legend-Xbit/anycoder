@@ -48,9 +48,9 @@ _fastrtc_docs_last_fetched: Optional[datetime] = None
 # Available Models Configuration
 AVAILABLE_MODELS = [
     {
-        "name": "Gemini 3 Pro Preview",
-        "id": "gemini-3-pro-preview",
-        "description": "Google Gemini 3 Pro Preview with deep thinking, Google Search integration, and advanced reasoning"
+        "name": "Gemini 3.0 Pro",
+        "id": "gemini-3.0-pro",
+        "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning"
     },
     {
         "name": "DeepSeek V3.2-Exp",

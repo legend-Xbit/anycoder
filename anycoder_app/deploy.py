@@ -178,7 +178,7 @@ def _generation_code_impl(query: Optional[str], _setting: Dict[str, str], _histo
     if has_existing_content and query.strip():
         # Skip search/replace for models that use native clients (non-OpenAI-compatible)
         # These models need the full generation flow to work properly
-        native_client_models = ["gemini-3-pro-preview"]
+        native_client_models = []  # All models now use OpenAI-compatible APIs
         
         if _current_model['id'] not in native_client_models:
             try:
@@ -463,42 +463,8 @@ Generate the exact search/replace blocks needed to make these changes."""
     
     messages.append({'role': 'user', 'content': enhanced_query})
     try:
-        # Handle Gemini 3 Pro Preview with native SDK
-        if _current_model["id"] == "gemini-3-pro-preview":
-            # Convert messages to Gemini format
-            from google.genai import types
-            contents = []
-            for msg in messages:
-                if msg['role'] != 'system':  # Gemini doesn't use system role the same way
-                    contents.append(
-                        types.Content(
-                            role="user" if msg['role'] == 'user' else "model",
-                            parts=[types.Part.from_text(text=msg['content'])]
-                        )
-                    )
-            
-            # Add system prompt as first user message if exists
-            if messages and messages[0]['role'] == 'system':
-                system_content = messages[0]['content']
-                contents.insert(0, types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text=f"System instructions: {system_content}")]
-                ))
-            
-            tools = [types.Tool(googleSearch=types.GoogleSearch())]
-            generate_content_config = types.GenerateContentConfig(
-                thinkingConfig=types.ThinkingConfig(thinkingLevel="HIGH"),
-                tools=tools,
-                max_output_tokens=16384
-            )
-            
-            completion = client.models.generate_content_stream(
-                model="gemini-3-pro-preview",
-                contents=contents,
-                config=generate_content_config,
-            )
         # Handle Mistral API method difference
-        elif _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
+        if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
             completion = client.chat.stream(
                 model=get_real_model_id(_current_model["id"]),
                 messages=messages,
@@ -556,11 +522,7 @@ Generate the exact search/replace blocks needed to make these changes."""
         for chunk in completion:
             # Handle different response formats for Mistral vs others
             chunk_content = None
-            if _current_model["id"] == "gemini-3-pro-preview":
-                # Gemini native SDK format: chunk.text
-                if hasattr(chunk, 'text') and chunk.text:
-                    chunk_content = chunk.text
-            elif _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
+            if _current_model["id"] in ("codestral-2508", "mistral-medium-2508"):
                 # Mistral format: chunk.data.choices[0].delta.content
                 if (
                     hasattr(chunk, "data") and chunk.data and
@@ -2338,7 +2300,7 @@ def _fetch_inference_provider_code(model_id: str) -> Optional[str]:
     """
     # Skip non-HuggingFace models (external APIs)
     non_hf_models = [
-        "gemini-3-pro-preview", "gemini-2.5-flash", "gemini-2.5-pro",
+        "gemini-3.0-pro", "gemini-2.5-flash", "gemini-2.5-pro",
         "gemini-flash-latest", "gemini-flash-lite-latest",
         "gpt-5", "gpt-5.1", "gpt-5.1-instant", "gpt-5.1-codex", "gpt-5.1-codex-mini",
         "grok-4", "Grok-Code-Fast-1",
@@ -2442,7 +2404,7 @@ def import_model_from_hf(model_id: str, prefer_local: bool = False) -> Tuple[str
     
     # Skip non-HuggingFace models (external APIs) - these are not importable
     non_hf_models = [
-        "gemini-3-pro-preview", "gemini-2.5-flash", "gemini-2.5-pro",
+        "gemini-3.0-pro", "gemini-2.5-flash", "gemini-2.5-pro",
         "gemini-flash-latest", "gemini-flash-lite-latest",
         "gpt-5", "gpt-5.1", "gpt-5.1-instant", "gpt-5.1-codex", "gpt-5.1-codex-mini",
         "grok-4", "Grok-Code-Fast-1",
