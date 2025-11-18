@@ -55,6 +55,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY --chown=user:user anycoder_app/ ./anycoder_app/
 COPY --chown=user:user backend_api.py .
 COPY --chown=user:user backend_prompts.py .
+COPY --chown=user:user backend_deploy.py .
 COPY --chown=user:user app.py .
 
 # Copy built frontend from builder stage

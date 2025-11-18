@@ -511,19 +511,10 @@ async def deploy(
     # Check if this is dev mode (no real token)
     if auth.token and auth.token.startswith("dev_token_"):
         # In dev mode, open HF Spaces creation page
-        import urllib.parse
+        from backend_deploy import detect_sdk_from_code
         base_url = "https://huggingface.co/new-space"
         
-        # Map language to SDK
-        language_to_sdk = {
-            "gradio": "gradio",
-            "streamlit": "docker",
-            "react": "docker",
-            "html": "static",
-            "transformers.js": "static",
-            "comfyui": "static"
-        }
-        sdk = language_to_sdk.get(request.language, "gradio")
+        sdk = detect_sdk_from_code(request.code, request.language)
         
         params = urllib.parse.urlencode({
             "name": request.space_name or "my-anycoder-app",
@@ -552,9 +543,7 @@ async def deploy(
     
     # Production mode with real OAuth token
     try:
-        from huggingface_hub import HfApi
-        import tempfile
-        import uuid
+        from backend_deploy import deploy_to_huggingface_space
         
         # Get user token - should be the access_token from OAuth session
         user_token = auth.token if auth.token else os.getenv("HF_TOKEN")
@@ -564,102 +553,40 @@ async def deploy(
         
         print(f"[Deploy] Attempting deployment with token (first 10 chars): {user_token[:10]}...")
         
-        # Create API client
-        api = HfApi(token=user_token)
+        # Use the standalone deployment function
+        success, message, space_url = deploy_to_huggingface_space(
+            code=request.code,
+            language=request.language,
+            space_name=request.space_name,
+            token=user_token,
+            username=auth.username,
+            description=request.description if hasattr(request, 'description') else None,
+            private=False
+        )
         
-        # Get the actual username from HuggingFace API
-        try:
-            user_info = api.whoami()
-            print(f"[Deploy] User info from HF API: {user_info}")
-            username = user_info.get("name") or user_info.get("preferred_username") or auth.username or "user"
-        except Exception as e:
-            print(f"[Deploy] Failed to get user info from HF API: {e}")
-            # Fallback to auth username if available
-            username = auth.username
-            if not username:
-                raise HTTPException(
-                    status_code=401, 
-                    detail="Failed to verify HuggingFace account. Please sign in again."
-                )
-        
-        # Generate space name if not provided
-        space_name = request.space_name or f"anycoder-{uuid.uuid4().hex[:8]}"
-        repo_id = f"{username}/{space_name}"
-        
-        print(f"[Deploy] Creating/updating space: {repo_id}")
-        
-        # Map language to SDK
-        language_to_sdk = {
-            "gradio": "gradio",
-            "streamlit": "docker",
-            "react": "docker",
-            "html": "static",
-            "transformers.js": "static",
-            "comfyui": "static"
-        }
-        sdk = language_to_sdk.get(request.language, "gradio")
-        
-        # Create the space
-        try:
-            api.create_repo(
-                repo_id=repo_id,
-                repo_type="space",
-                space_sdk=sdk,
-                exist_ok=False
-            )
-        except Exception as e:
-            if "already exists" in str(e).lower():
-                # Space exists, we'll update it
-                pass
-            else:
-                raise
-        
-        # Upload the code file
-        if request.language in ["html", "transformers.js", "comfyui"]:
-            file_name = "index.html"
-        else:
-            file_name = "app.py"
-        
-        with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
-            f.write(request.code)
-            temp_path = f.name
-        
-        try:
-            api.upload_file(
-                path_or_fileobj=temp_path,
-                path_in_repo=file_name,
-                repo_id=repo_id,
-                repo_type="space"
-            )
-            
-            # For Gradio apps, also upload requirements.txt if needed
-            if request.language == "gradio":
-                # Simple requirements for basic Gradio app
-                requirements = "gradio>=4.0.0\n"
-                with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as req_f:
-                    req_f.write(requirements)
-                    req_temp_path = req_f.name
-                
-                try:
-                    api.upload_file(
-                        path_or_fileobj=req_temp_path,
-                        path_in_repo="requirements.txt",
-                        repo_id=repo_id,
-                        repo_type="space"
-                    )
-                finally:
-                    os.unlink(req_temp_path)
-            
-            space_url = f"https://huggingface.co/spaces/{repo_id}"
-            
+        if success:
             return {
                 "success": True,
                 "space_url": space_url,
-                "message": f"✅ Deployed successfully to {repo_id}!"
+                "message": message
             }
-            
-        finally:
-            os.unlink(temp_path)
+        else:
+            # Provide user-friendly error message based on the error
+            if "401" in message or "Unauthorized" in message:
+                raise HTTPException(
+                    status_code=401, 
+                    detail="Authentication failed. Please sign in again with HuggingFace."
+                )
+            elif "403" in message or "Forbidden" in message or "Permission" in message:
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Permission denied. Your HuggingFace token may not have the required permissions (manage-repos scope)."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500, 
+                    detail=message
+                )
             
     except HTTPException:
         # Re-raise HTTP exceptions as-is
@@ -670,23 +597,10 @@ async def deploy(
         error_details = traceback.format_exc()
         print(f"[Deploy] Deployment error: {error_details}")
         
-        # Provide user-friendly error message
-        error_msg = str(e)
-        if "401" in error_msg or "Unauthorized" in error_msg:
-            raise HTTPException(
-                status_code=401, 
-                detail="Authentication failed. Please sign in again with HuggingFace."
-            )
-        elif "403" in error_msg or "Forbidden" in error_msg:
-            raise HTTPException(
-                status_code=403, 
-                detail="Permission denied. Your HuggingFace token may not have the required permissions (manage-repos scope)."
-            )
-        else:
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Deployment failed: {error_msg}"
-            )
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Deployment failed: {str(e)}"
+        )
 
 
 @app.websocket("/ws/generate")
