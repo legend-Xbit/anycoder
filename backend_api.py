@@ -19,29 +19,47 @@ import os
 from huggingface_hub import InferenceClient
 import httpx
 
-# Import system prompts for code generation
-from anycoder_app.prompts import (
-    HTML_SYSTEM_PROMPT,
-    TRANSFORMERS_JS_SYSTEM_PROMPT,
-    STREAMLIT_SYSTEM_PROMPT,
-    REACT_SYSTEM_PROMPT,
-    GRADIO_SYSTEM_PROMPT,
-    JSON_SYSTEM_PROMPT,
-    GENERIC_SYSTEM_PROMPT
-)
-
-# Initialize Gradio and ComfyUI prompts on startup
+# Import system prompts for code generation - use fallback if imports fail
 try:
-    from anycoder_app.docs_manager import update_gradio_system_prompts, update_json_system_prompts
-    print("[Startup] Initializing Gradio and ComfyUI system prompts...")
-    update_gradio_system_prompts()
-    update_json_system_prompts()
-    # Re-import to get updated prompts
-    from anycoder_app.prompts import GRADIO_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT
-    print("[Startup] System prompts initialized successfully")
+    from anycoder_app.prompts import (
+        HTML_SYSTEM_PROMPT,
+        TRANSFORMERS_JS_SYSTEM_PROMPT,
+        STREAMLIT_SYSTEM_PROMPT,
+        REACT_SYSTEM_PROMPT,
+        GENERIC_SYSTEM_PROMPT
+    )
+    # Try to import and initialize dynamic prompts (Gradio, ComfyUI)
+    try:
+        from anycoder_app.docs_manager import update_gradio_system_prompts, update_json_system_prompts
+        from anycoder_app.prompts import GRADIO_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT
+        print("[Startup] Initializing Gradio and ComfyUI system prompts...")
+        update_gradio_system_prompts()
+        update_json_system_prompts()
+        # Re-import to get updated prompts
+        from anycoder_app.prompts import GRADIO_SYSTEM_PROMPT as GRADIO_PROMPT_UPDATED
+        from anycoder_app.prompts import JSON_SYSTEM_PROMPT as JSON_PROMPT_UPDATED
+        GRADIO_SYSTEM_PROMPT = GRADIO_PROMPT_UPDATED
+        JSON_SYSTEM_PROMPT = JSON_PROMPT_UPDATED
+        print("[Startup] System prompts initialized successfully")
+    except Exception as e:
+        print(f"[Startup] Warning: Could not initialize dynamic prompts: {e}")
+        # Use fallback prompts
+        GRADIO_SYSTEM_PROMPT = "You are an expert Gradio developer. Create complete, working Gradio applications."
+        JSON_SYSTEM_PROMPT = "You are an expert at generating JSON configurations. Create valid, well-structured JSON."
+    
+    print("[Startup] System prompts loaded successfully")
+    
 except Exception as e:
-    print(f"[Startup] Warning: Could not initialize dynamic prompts: {e}")
-    print("[Startup] Will use fallback prompts")
+    print(f"[Startup] ERROR: Could not import prompts from anycoder_app: {e}")
+    print("[Startup] Using basic fallback prompts")
+    # Define minimal fallback prompts
+    HTML_SYSTEM_PROMPT = "You are an expert web developer. Create complete HTML applications with CSS and JavaScript."
+    TRANSFORMERS_JS_SYSTEM_PROMPT = "You are an expert at creating transformers.js applications. Generate complete working code."
+    STREAMLIT_SYSTEM_PROMPT = "You are an expert Streamlit developer. Create complete Streamlit applications."
+    REACT_SYSTEM_PROMPT = "You are an expert React developer. Create complete React applications with Next.js."
+    GRADIO_SYSTEM_PROMPT = "You are an expert Gradio developer. Create complete, working Gradio applications."
+    JSON_SYSTEM_PROMPT = "You are an expert at generating JSON configurations. Create valid, well-structured JSON."
+    GENERIC_SYSTEM_PROMPT = "You are an expert {language} developer. Create complete, working {language} applications."
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
