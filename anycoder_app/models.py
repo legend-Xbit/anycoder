@@ -23,9 +23,10 @@ Messages = List[Dict[str, str]]
 def get_inference_client(model_id, provider="auto"):
     """Return an InferenceClient with provider based on model_id and user selection."""
     if model_id == "gemini-3-pro-preview":
-        # Use native Google GenAI client for Gemini 3 Pro Preview
+        # Use native Google GenAI client for Gemini 3 Pro Preview with v1alpha API
         return genai.Client(
             api_key=os.getenv("GEMINI_API_KEY"),
+            http_options={'api_version': 'v1alpha'}
         )
     elif model_id == "qwen3-30b-a3b-instruct-2507":
         # Use DashScope OpenAI client

@@ -97,6 +97,44 @@ def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Op
             yield (error_message, _history or [], history_to_chatbot_messages(_history or []))
         return
     
+    # CRITICAL: Catch any HuggingFace API errors for non-HF models like Gemini 3
+    try:
+        yield from _generation_code_impl(query, _setting, _history, _current_model, language, provider, profile, token, code_output, history_output, history)
+    except Exception as e:
+        import traceback
+        error_str = str(e)
+        if "Repository Not Found" in error_str and "inferenceProviderMapping" in error_str:
+            # This is a HuggingFace API error for a non-HF model
+            model_id = _current_model.get('id', 'unknown')
+            
+            # Get full traceback to see where the call originated
+            tb = traceback.format_exc()
+            print(f"DEBUG: HuggingFace API error for model {model_id}")
+            print(f"DEBUG: Full traceback:\n{tb}")
+            
+            error_message = f"""❌ Error: Attempted to validate model '{model_id}' against HuggingFace API, but this is not a HuggingFace model.
+
+This error should not occur. Please check the server logs for the full traceback.
+
+- Model: {model_id}
+- Error: {error_str}
+
+Try reloading the page and selecting the model again."""
+            if code_output is not None and history_output is not None:
+                yield {
+                    code_output: error_message,
+                    history_output: history_to_chatbot_messages(_history or []),
+                }
+            else:
+                yield (error_message, _history or [], history_to_chatbot_messages(_history or []))
+            return
+        else:
+            # Re-raise other errors
+            raise
+
+def _generation_code_impl(query: Optional[str], _setting: Dict[str, str], _history: Optional[History], _current_model: Dict, language: str = "html", provider: str = "auto", profile: Optional[gr.OAuthProfile] = None, token: Optional[gr.OAuthToken] = None, code_output=None, history_output=None, history=None):
+    """Internal implementation of generation_code"""
+    
     if query is None:
         query = ''
     if _history is None:
@@ -138,11 +176,16 @@ def generation_code(query: Optional[str], _setting: Dict[str, str], _history: Op
 
     # If this is a modification request, try to apply search/replace first
     if has_existing_content and query.strip():
-        try:
-            # Use the current model to generate search/replace instructions
-            client = get_inference_client(_current_model['id'], provider)
-            
-            system_prompt = """You are a code editor assistant. Given existing code and modification instructions, generate EXACT search/replace blocks.
+        # Skip search/replace for models that use native clients (non-OpenAI-compatible)
+        # These models need the full generation flow to work properly
+        native_client_models = ["gemini-3-pro-preview"]
+        
+        if _current_model['id'] not in native_client_models:
+            try:
+                # Use the current model to generate search/replace instructions
+                client = get_inference_client(_current_model['id'], provider)
+                
+                system_prompt = """You are a code editor assistant. Given existing code and modification instructions, generate EXACT search/replace blocks.
 
 CRITICAL REQUIREMENTS:
 1. Use EXACTLY these markers: <<<<<<< SEARCH, =======, >>>>>>> REPLACE
@@ -163,73 +206,73 @@ Example format:
     }
 >>>>>>> REPLACE"""
 
-            user_prompt = f"""Existing code:
+                user_prompt = f"""Existing code:
 {last_assistant_msg}
 Modification instructions:
 {query}
 
 Generate the exact search/replace blocks needed to make these changes."""
 
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            
-            # Generate search/replace instructions
-            if _current_model.get('type') == 'openai':
-                response = client.chat.completions.create(
-                    model=get_real_model_id(_current_model['id']),
-                    messages=messages,
-                    max_tokens=4000,
-                    temperature=0.1
-                )
-                changes_text = response.choices[0].message.content
-            elif _current_model.get('type') == 'mistral':
-                response = client.chat.complete(
-                    model=get_real_model_id(_current_model['id']),
-                    messages=messages,
-                    max_tokens=4000,
-                    temperature=0.1
-                )
-                changes_text = response.choices[0].message.content
-            else:  # Hugging Face or other
-                completion = client.chat.completions.create(
-                    model=get_real_model_id(_current_model['id']),
-                    messages=messages,
-                    max_tokens=4000,
-                    temperature=0.1
-                )
-                changes_text = completion.choices[0].message.content
-            
-            # Apply the search/replace changes
-            if language == "transformers.js" and ('=== index.html ===' in last_assistant_msg):
-                modified_content = apply_transformers_js_search_replace_changes(last_assistant_msg, changes_text)
-            else:
-                modified_content = apply_search_replace_changes(last_assistant_msg, changes_text)
-            
-            # If changes were successfully applied, return the modified content
-            if modified_content != last_assistant_msg:
-                _history.append([query, modified_content])
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
                 
-                # Generate deployment message instead of preview
-                deploy_message = f"""
-                <div style='padding: 1.5em; text-align: center; background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 10px; color: #0c4a6e;'>
-                    <h3 style='margin-top: 0; color: #0ea5e9;'>✅ Code Updated Successfully!</h3>
-                    <p style='margin: 0.5em 0; font-size: 1.1em;'>Your {language.upper()} code has been modified and is ready for deployment.</p>
-                    <p style='margin: 0.5em 0; font-weight: bold;'>👉 Use the Deploy button in the sidebar to publish your app!</p>
-                </div>
-                """
+                # Generate search/replace instructions
+                if _current_model.get('type') == 'openai':
+                    response = client.chat.completions.create(
+                        model=get_real_model_id(_current_model['id']),
+                        messages=messages,
+                        max_tokens=4000,
+                        temperature=0.1
+                    )
+                    changes_text = response.choices[0].message.content
+                elif _current_model.get('type') == 'mistral':
+                    response = client.chat.complete(
+                        model=get_real_model_id(_current_model['id']),
+                        messages=messages,
+                        max_tokens=4000,
+                        temperature=0.1
+                    )
+                    changes_text = response.choices[0].message.content
+                else:  # Hugging Face or other
+                    completion = client.chat.completions.create(
+                        model=get_real_model_id(_current_model['id']),
+                        messages=messages,
+                        max_tokens=4000,
+                        temperature=0.1
+                    )
+                    changes_text = completion.choices[0].message.content
                 
-                yield {
-                    code_output: modified_content,
-                    history: _history,
-                    history_output: history_to_chatbot_messages(_history),
-                }
-                return
+                # Apply the search/replace changes
+                if language == "transformers.js" and ('=== index.html ===' in last_assistant_msg):
+                    modified_content = apply_transformers_js_search_replace_changes(last_assistant_msg, changes_text)
+                else:
+                    modified_content = apply_search_replace_changes(last_assistant_msg, changes_text)
                 
-        except Exception as e:
-            print(f"Search/replace failed, falling back to normal generation: {e}")
-            # If search/replace fails, continue with normal generation
+                # If changes were successfully applied, return the modified content
+                if modified_content != last_assistant_msg:
+                    _history.append([query, modified_content])
+                    
+                    # Generate deployment message instead of preview
+                    deploy_message = f"""
+                    <div style='padding: 1.5em; text-align: center; background: #f0f9ff; border: 2px solid #0ea5e9; border-radius: 10px; color: #0c4a6e;'>
+                        <h3 style='margin-top: 0; color: #0ea5e9;'>✅ Code Updated Successfully!</h3>
+                        <p style='margin: 0.5em 0; font-size: 1.1em;'>Your {language.upper()} code has been modified and is ready for deployment.</p>
+                        <p style='margin: 0.5em 0; font-weight: bold;'>👉 Use the Deploy button in the sidebar to publish your app!</p>
+                    </div>
+                    """
+                    
+                    yield {
+                        code_output: modified_content,
+                        history: _history,
+                        history_output: history_to_chatbot_messages(_history),
+                    }
+                    return
+                    
+            except Exception as e:
+                print(f"Search/replace failed, falling back to normal generation: {e}")
+                # If search/replace fails, continue with normal generation
 
     # Create/lookup a session id for temp-file tracking and cleanup
     if _setting is not None and isinstance(_setting, dict):
@@ -415,7 +458,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                 }
         return
     
-    # Use dynamic client based on selected model
+    # Use dynamic client based on selected model  
     client = get_inference_client(_current_model["id"], provider)
     
     messages.append({'role': 'user', 'content': enhanced_query})
@@ -2293,6 +2336,25 @@ def _fetch_inference_provider_code(model_id: str) -> Optional[str]:
     Returns:
         The code snippet if model has inference providers, None otherwise
     """
+    # Skip non-HuggingFace models (external APIs)
+    non_hf_models = [
+        "gemini-3-pro-preview", "gemini-2.5-flash", "gemini-2.5-pro",
+        "gemini-flash-latest", "gemini-flash-lite-latest",
+        "gpt-5", "gpt-5.1", "gpt-5.1-instant", "gpt-5.1-codex", "gpt-5.1-codex-mini",
+        "grok-4", "Grok-Code-Fast-1",
+        "claude-opus-4.1", "claude-sonnet-4.5", "claude-haiku-4.5",
+        "qwen3-30b-a3b-instruct-2507", "qwen3-30b-a3b-thinking-2507",
+        "qwen3-coder-30b-a3b-instruct", "qwen3-max-preview",
+        "kimi-k2-turbo-preview", "step-3",
+        "codestral-2508", "mistral-medium-2508",
+        "stealth-model-1",
+        "openrouter/sonoma-dusk-alpha", "openrouter/sonoma-sky-alpha",
+        "openrouter/sherlock-dash-alpha", "openrouter/sherlock-think-alpha"
+    ]
+    
+    if model_id in non_hf_models:
+        return None
+    
     try:
         # Fetch trending models data from HuggingFace API
         response = requests.get("https://huggingface.co/api/trending", timeout=10)
@@ -2377,6 +2439,25 @@ def import_model_from_hf(model_id: str, prefer_local: bool = False) -> Tuple[str
     """
     if not model_id or model_id == "":
         return "Please select a model.", "", "python", ""
+    
+    # Skip non-HuggingFace models (external APIs) - these are not importable
+    non_hf_models = [
+        "gemini-3-pro-preview", "gemini-2.5-flash", "gemini-2.5-pro",
+        "gemini-flash-latest", "gemini-flash-lite-latest",
+        "gpt-5", "gpt-5.1", "gpt-5.1-instant", "gpt-5.1-codex", "gpt-5.1-codex-mini",
+        "grok-4", "Grok-Code-Fast-1",
+        "claude-opus-4.1", "claude-sonnet-4.5", "claude-haiku-4.5",
+        "qwen3-30b-a3b-instruct-2507", "qwen3-30b-a3b-thinking-2507",
+        "qwen3-coder-30b-a3b-instruct", "qwen3-max-preview",
+        "kimi-k2-turbo-preview", "step-3",
+        "codestral-2508", "mistral-medium-2508",
+        "stealth-model-1",
+        "openrouter/sonoma-dusk-alpha", "openrouter/sonoma-sky-alpha",
+        "openrouter/sherlock-dash-alpha", "openrouter/sherlock-think-alpha"
+    ]
+    
+    if model_id in non_hf_models:
+        return f"❌ `{model_id}` is not a HuggingFace model and cannot be imported. This model is accessed via external API.", "", "python", ""
     
     # Build model URL
     model_url = f"https://huggingface.co/{model_id}"

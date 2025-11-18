@@ -19,6 +19,15 @@ import os
 from huggingface_hub import InferenceClient
 import httpx
 
+# Import model handling from backend_models
+from backend_models import (
+    get_inference_client, 
+    get_real_model_id,
+    create_gemini3_messages,
+    is_native_sdk_model,
+    is_mistral_model
+)
+
 # Import system prompts from standalone backend_prompts.py
 # No dependencies on Gradio or heavy libraries
 print("[Startup] Loading system prompts from backend_prompts...")
@@ -333,16 +342,20 @@ async def generate_code(
     
     async def event_stream() -> AsyncGenerator[str, None]:
         """Stream generated code chunks"""
+        # Use the model_id from outer scope
+        selected_model_id = model_id
+        
         try:
             # Find the selected model
             selected_model = None
             for model in AVAILABLE_MODELS:
-                if model["id"] == model_id:
+                if model["id"] == selected_model_id:
                     selected_model = model
                     break
             
             if not selected_model:
                 selected_model = AVAILABLE_MODELS[0]
+                selected_model_id = selected_model["id"]
             
             # Track generated code
             generated_code = ""
@@ -360,62 +373,13 @@ async def generate_code(
             
             print(f"[Generate] Using {language} prompt for query: {query[:100]}...")
             
-            # Get the real model ID
-            actual_model_id = selected_model["id"]
+            # Get the client using backend_models
+            print(f"[Generate] Getting client for model: {selected_model_id}")
+            client = get_inference_client(selected_model_id, provider)
             
-            # Determine which provider/API to use based on model ID
-            if actual_model_id.startswith("openrouter/"):
-                # OpenRouter models - use OpenAI client directly
-                from openai import OpenAI
-                api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("HF_TOKEN")
-                client = OpenAI(
-                    base_url="https://openrouter.ai/api/v1",
-                    api_key=api_key,
-                    default_headers={
-                        "HTTP-Referer": "https://huggingface.co/spaces/akhaliq/anycoder",
-                        "X-Title": "AnyCoder"
-                    }
-                )
-                print(f"[Generate] Using OpenRouter with model: {actual_model_id}")
-            elif actual_model_id == "MiniMaxAI/MiniMax-M2":
-                # MiniMax M2 via HuggingFace with Novita provider
-                hf_token = os.getenv("HF_TOKEN")
-                if not hf_token:
-                    error_data = json.dumps({
-                        "type": "error",
-                        "message": "HF_TOKEN environment variable not set. Please set it in your terminal.",
-                        "timestamp": datetime.now().isoformat()
-                    })
-                    yield f"data: {error_data}\n\n"
-                    return
-                
-                # Use OpenAI client with HuggingFace router
-                from openai import OpenAI
-                client = OpenAI(
-                    base_url="https://router.huggingface.co/v1",
-                    api_key=hf_token,
-                    default_headers={
-                        "X-HF-Bill-To": "huggingface"
-                    }
-                )
-                # Add :novita suffix for the API call
-                actual_model_id = "MiniMaxAI/MiniMax-M2:novita"
-                print(f"[Generate] Using HuggingFace router for MiniMax M2")
-            elif actual_model_id.startswith("deepseek-ai/"):
-                # DeepSeek models via HuggingFace - use OpenAI client for better streaming
-                from openai import OpenAI
-                client = OpenAI(
-                    base_url="https://api-inference.huggingface.co/v1",
-                    api_key=os.getenv("HF_TOKEN")
-                )
-                print(f"[Generate] Using HuggingFace Inference API for DeepSeek")
-            elif actual_model_id == "qwen3-max-preview":
-                # Qwen via DashScope (would need separate implementation)
-                # For now, fall back to HF
-                client = InferenceClient(token=os.getenv("HF_TOKEN"))
-            else:
-                # Default: HuggingFace models
-                client = InferenceClient(token=os.getenv("HF_TOKEN"))
+            # Get the real model ID with provider suffixes
+            actual_model_id = get_real_model_id(selected_model_id)
+            print(f"[Generate] Using model ID: {actual_model_id}")
             
             # Prepare messages
             messages = [
@@ -425,26 +389,67 @@ async def generate_code(
             
             # Stream the response
             try:
-                stream = client.chat.completions.create(
-                    model=actual_model_id,
-                    messages=messages,
-                    temperature=0.7,
-                    max_tokens=10000,
-                    stream=True
-                )
+                # Handle Gemini 3 Pro Preview with native SDK
+                if selected_model_id == "gemini-3-pro-preview":
+                    print("[Generate] Using Gemini 3 native SDK")
+                    contents, config = create_gemini3_messages(messages)
+                    
+                    stream = client.models.generate_content_stream(
+                        model="gemini-3-pro-preview",
+                        contents=contents,
+                        config=config,
+                    )
+                
+                # Handle Mistral models with different API
+                elif is_mistral_model(selected_model_id):
+                    print("[Generate] Using Mistral SDK")
+                    stream = client.chat.stream(
+                        model=actual_model_id,
+                        messages=messages,
+                        max_tokens=10000
+                    )
+                
+                # All other models use OpenAI-compatible API
+                else:
+                    stream = client.chat.completions.create(
+                        model=actual_model_id,
+                        messages=messages,
+                        temperature=0.7,
+                        max_tokens=10000,
+                        stream=True
+                    )
                 
                 chunk_count = 0
                 print(f"[Generate] Starting to stream from {actual_model_id}...")
                 
                 for chunk in stream:
-                    # Check if choices array has elements before accessing
-                    if (hasattr(chunk, 'choices') and 
-                        chunk.choices and 
-                        len(chunk.choices) > 0 and
-                        hasattr(chunk.choices[0], 'delta') and 
-                        hasattr(chunk.choices[0].delta, 'content') and 
-                        chunk.choices[0].delta.content):
-                        content = chunk.choices[0].delta.content
+                    # Handle different response formats
+                    chunk_content = None
+                    
+                    if selected_model_id == "gemini-3-pro-preview":
+                        # Gemini native SDK format: chunk.text
+                        if hasattr(chunk, 'text') and chunk.text:
+                            chunk_content = chunk.text
+                    elif is_mistral_model(selected_model_id):
+                        # Mistral format: chunk.data.choices[0].delta.content
+                        if (hasattr(chunk, "data") and chunk.data and
+                            hasattr(chunk.data, "choices") and chunk.data.choices and 
+                            hasattr(chunk.data.choices[0], "delta") and 
+                            hasattr(chunk.data.choices[0].delta, "content") and 
+                            chunk.data.choices[0].delta.content is not None):
+                            chunk_content = chunk.data.choices[0].delta.content
+                    else:
+                        # OpenAI format: chunk.choices[0].delta.content
+                        if (hasattr(chunk, 'choices') and 
+                            chunk.choices and 
+                            len(chunk.choices) > 0 and
+                            hasattr(chunk.choices[0], 'delta') and 
+                            hasattr(chunk.choices[0].delta, 'content') and 
+                            chunk.choices[0].delta.content):
+                            chunk_content = chunk.choices[0].delta.content
+                    
+                    if chunk_content:
+                        content = chunk_content
                         generated_code += content
                         chunk_count += 1
                         
