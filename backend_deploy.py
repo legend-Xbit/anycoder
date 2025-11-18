@@ -324,18 +324,27 @@ def deploy_to_huggingface_space(
             use_individual_uploads = False  # Flag for transformers.js
             
             if language == "transformers.js":
-                files = parse_transformers_js_output(code)
-                
-                # Validate all three files are present
-                if not files.get('index.html') or not files.get('index.js') or not files.get('style.css'):
-                    return False, "Error: Could not parse transformers.js output. Missing index.html, index.js, or style.css", None
-                
-                # Write transformers.js files
-                for filename, content in files.items():
-                    (temp_path / filename).write_text(content, encoding='utf-8')
-                
-                # For transformers.js, we'll upload files individually (not via upload_folder)
-                use_individual_uploads = True
+                try:
+                    files = parse_transformers_js_output(code)
+                    print(f"[Deploy] Parsed transformers.js files: {list(files.keys())}")
+                    
+                    # Validate all three files are present (match original deploy.py check)
+                    if not files['index.html'] or not files['index.js'] or not files['style.css']:
+                        return False, "Error: Could not parse transformers.js output. Please regenerate the code.", None
+                    
+                    # Write transformers.js files
+                    for filename, content in files.items():
+                        print(f"[Deploy] Writing {filename} ({len(content)} chars)")
+                        (temp_path / filename).write_text(content, encoding='utf-8')
+                    
+                    # For transformers.js, we'll upload files individually (not via upload_folder)
+                    use_individual_uploads = True
+                    
+                except Exception as e:
+                    print(f"[Deploy] Error parsing transformers.js: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return False, f"Error parsing transformers.js output: {str(e)}", None
                 
             elif language == "html":
                 html_code = parse_html_code(code)
@@ -411,18 +420,25 @@ def deploy_to_huggingface_space(
                 try:
                     if language == "transformers.js":
                         # For transformers.js, duplicate the template space
-                        from huggingface_hub import duplicate_space
-                        
+                        print(f"[Deploy] Creating transformers.js space: {repo_id}")
                         try:
-                            duplicate_space(
+                            from huggingface_hub import duplicate_space
+                            
+                            # IMPORTANT: duplicate_space expects just the space name, not the full repo_id
+                            # It will automatically prepend the username
+                            print(f"[Deploy] Attempting to duplicate template space to: {space_name}")
+                            result = duplicate_space(
                                 from_id="static-templates/transformers.js",
-                                to_id=repo_id,
+                                to_id=space_name,  # Just the space name, not username/space-name
                                 token=token,
                                 exist_ok=True
                             )
+                            print(f"[Deploy] Template duplication result: {result}")
                         except Exception as e:
                             # If template duplication fails, fall back to regular create
                             print(f"[Deploy] Template duplication failed, creating regular static space: {e}")
+                            import traceback
+                            traceback.print_exc()
                             api.create_repo(
                                 repo_id=repo_id,
                                 repo_type="space",
