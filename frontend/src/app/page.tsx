@@ -14,7 +14,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('openrouter/sherlock-dash-alpha');
+  const [selectedModel, setSelectedModel] = useState('gemini-3-pro-preview');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
