@@ -19,45 +19,28 @@ import os
 from huggingface_hub import InferenceClient
 import httpx
 
-# Import system prompts for code generation
-# Use try/except to handle import failures gracefully
-print("[Startup] Loading system prompts...")
+# Import system prompts from standalone backend_prompts.py
+# No dependencies on Gradio or heavy libraries
+print("[Startup] Loading system prompts from backend_prompts...")
 
 try:
-    from anycoder_app.prompts import (
+    from backend_prompts import (
         HTML_SYSTEM_PROMPT,
         TRANSFORMERS_JS_SYSTEM_PROMPT,
         STREAMLIT_SYSTEM_PROMPT,
         REACT_SYSTEM_PROMPT,
+        GRADIO_SYSTEM_PROMPT,
+        JSON_SYSTEM_PROMPT,
         GENERIC_SYSTEM_PROMPT
     )
-    print("[Startup] ✅ Loaded basic prompts from anycoder_app.prompts")
-    
-    # Try to initialize dynamic Gradio and ComfyUI system prompts with full API docs
-    try:
-        from anycoder_app.docs_manager import update_gradio_system_prompts, update_json_system_prompts
-        print("[Startup] Initializing Gradio and ComfyUI prompts with API documentation...")
-        update_gradio_system_prompts()
-        update_json_system_prompts()
-        
-        # Import the now-populated prompts
-        from anycoder_app.prompts import GRADIO_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT
-        print("[Startup] ✅ All system prompts loaded successfully with full API documentation")
-    except Exception as e:
-        import traceback
-        print(f"[Startup] ⚠️  Failed to load dynamic Gradio/ComfyUI prompts: {e}")
-        print(f"[Startup] Traceback: {traceback.format_exc()}")
-        print("[Startup] Using basic fallback prompts for Gradio and ComfyUI")
-        GRADIO_SYSTEM_PROMPT = "You are an expert Gradio developer. Create complete, working Gradio applications with proper documentation."
-        JSON_SYSTEM_PROMPT = "You are an expert at generating JSON configurations. Create valid, well-structured JSON for ComfyUI workflows."
-        
+    print("[Startup] ✅ All system prompts loaded successfully from backend_prompts.py")
 except Exception as e:
     import traceback
-    print(f"[Startup] ❌ ERROR: Could not import from anycoder_app: {e}")
+    print(f"[Startup] ❌ ERROR: Could not import from backend_prompts: {e}")
     print(f"[Startup] Traceback: {traceback.format_exc()}")
-    print("[Startup] Using minimal fallback prompts - functionality will be limited")
+    print("[Startup] Using minimal fallback prompts")
     
-    # Define minimal fallback prompts to allow backend to start
+    # Define minimal fallback prompts
     HTML_SYSTEM_PROMPT = "You are an expert web developer. Create complete HTML applications with CSS and JavaScript."
     TRANSFORMERS_JS_SYSTEM_PROMPT = "You are an expert at creating transformers.js applications. Generate complete working code."
     STREAMLIT_SYSTEM_PROMPT = "You are an expert Streamlit developer. Create complete Streamlit applications."
