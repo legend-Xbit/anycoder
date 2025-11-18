@@ -40,7 +40,7 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     """Parse transformers.js output into separate files"""
     files = {}
     
-    # Pattern to match file sections
+    # First try: Pattern to match === filename === sections
     pattern = r'===\s*(\S+\.(?:html|js|css))\s*===\s*(.*?)(?====|$)'
     matches = re.finditer(pattern, code, re.DOTALL | re.IGNORECASE)
     
@@ -54,7 +54,34 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
         
         files[filename] = content
     
-    # If no files were parsed, try to extract as single HTML file
+    # Fallback: Try to extract from markdown code blocks if === format not found
+    if not files:
+        print("[Deploy] === format not found, trying markdown code blocks fallback")
+        
+        # Try to find ```html, ```javascript, ```css blocks
+        html_match = re.search(r'```html\s*(.*?)```', code, re.DOTALL | re.IGNORECASE)
+        js_match = re.search(r'```javascript\s*(.*?)```', code, re.DOTALL | re.IGNORECASE)
+        css_match = re.search(r'```css\s*(.*?)```', code, re.DOTALL | re.IGNORECASE)
+        
+        if html_match:
+            content = html_match.group(1).strip()
+            # Remove comment lines like "<!-- index.html content here -->"
+            content = re.sub(r'<!--\s*index\.html.*?-->\s*', '', content, flags=re.IGNORECASE)
+            files['index.html'] = content
+            
+        if js_match:
+            content = js_match.group(1).strip()
+            # Remove comment lines like "// index.js content here"
+            content = re.sub(r'//\s*index\.js.*?\n', '', content, flags=re.IGNORECASE)
+            files['index.js'] = content
+            
+        if css_match:
+            content = css_match.group(1).strip()
+            # Remove comment lines like "/* style.css content here */"
+            content = re.sub(r'/\*\s*style\.css.*?\*/', '', content, flags=re.IGNORECASE)
+            files['style.css'] = content
+    
+    # Last resort: try to extract as single HTML file
     if not files:
         html_content = parse_html_code(code)
         if html_content:
@@ -328,9 +355,28 @@ def deploy_to_huggingface_space(
                     files = parse_transformers_js_output(code)
                     print(f"[Deploy] Parsed transformers.js files: {list(files.keys())}")
                     
-                    # Validate all three files are present (match original deploy.py check)
-                    if not files['index.html'] or not files['index.js'] or not files['style.css']:
-                        return False, "Error: Could not parse transformers.js output. Please regenerate the code.", None
+                    # Validate all three files are present
+                    missing_files = []
+                    if not files.get('index.html'):
+                        missing_files.append('index.html')
+                    if not files.get('index.js'):
+                        missing_files.append('index.js')
+                    if not files.get('style.css'):
+                        missing_files.append('style.css')
+                    
+                    if missing_files:
+                        error_msg = f"Missing required files: {', '.join(missing_files)}. "
+                        error_msg += f"Found only: {', '.join(files.keys()) if files else 'no files'}. "
+                        error_msg += "Transformers.js apps require all three files with === filename === markers. Please regenerate the code."
+                        print(f"[Deploy] {error_msg}")
+                        return False, error_msg, None
+                    
+                    # Validate files have content
+                    empty_files = [name for name, content in files.items() if not content or not content.strip()]
+                    if empty_files:
+                        error_msg = f"Empty files detected: {', '.join(empty_files)}. Please regenerate the code with actual content."
+                        print(f"[Deploy] {error_msg}")
+                        return False, error_msg, None
                     
                     # Write transformers.js files
                     for filename, content in files.items():

@@ -26,19 +26,23 @@ TRANSFORMERS_JS_SYSTEM_PROMPT = """You are an expert web developer creating a tr
 - A template README.md is automatically provided and will be overridden by the deployment system
 - Generating a README.md will break the deployment process
 
-IMPORTANT: You MUST output ALL THREE files in the following format:
+**🚨 CRITICAL: Required Output Format**
+You MUST output ALL THREE files using this EXACT format with === markers:
 
-```html
+=== index.html ===
+<!DOCTYPE html>
+<html lang="en">
 <!-- index.html content here -->
-```
+</html>
 
-```javascript
+=== index.js ===
 // index.js content here
-```
 
-```css
+=== style.css ===
 /* style.css content here */
-```
+
+DO NOT use markdown code blocks (```html, ```javascript, ```css).
+ONLY use the === filename === format shown above.
 
 Requirements:
 1. Create a modern, responsive web application using transformers.js
