@@ -223,7 +223,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                     response = client.chat.completions.create(
                         model=get_real_model_id(_current_model['id']),
                         messages=messages,
-                        max_tokens=4000,
+                        max_tokens=10000,
                         temperature=0.1
                     )
                     changes_text = response.choices[0].message.content
@@ -231,7 +231,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                     response = client.chat.complete(
                         model=get_real_model_id(_current_model['id']),
                         messages=messages,
-                        max_tokens=4000,
+                        max_tokens=10000,
                         temperature=0.1
                     )
                     changes_text = response.choices[0].message.content
@@ -239,7 +239,7 @@ Generate the exact search/replace blocks needed to make these changes."""
                     completion = client.chat.completions.create(
                         model=get_real_model_id(_current_model['id']),
                         messages=messages,
-                        max_tokens=4000,
+                        max_tokens=10000,
                         temperature=0.1
                     )
                     changes_text = completion.choices[0].message.content

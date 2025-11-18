@@ -345,17 +345,20 @@ async def auth_status(authorization: Optional[str] = Header(None)):
     )
 
 
-@app.get("/api/generate")
+@app.post("/api/generate")
 async def generate_code(
-    query: str,
-    language: str = "html",
-    model_id: str = "openrouter/sherlock-dash-alpha",
-    provider: str = "auto",
+    request: CodeGenerationRequest,
     authorization: Optional[str] = Header(None)
 ):
     """Generate code based on user query - returns streaming response"""
     # Dev mode: No authentication required - just use server's HF_TOKEN
     # In production, you would check real OAuth tokens here
+    
+    # Extract parameters from request body
+    query = request.query
+    language = request.language
+    model_id = request.model_id
+    provider = request.provider
     
     async def event_stream() -> AsyncGenerator[str, None]:
         """Stream generated code chunks"""

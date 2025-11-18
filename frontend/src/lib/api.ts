@@ -97,7 +97,7 @@ class ApiClient {
     }
   }
 
-  // Stream-based code generation using EventSource (Server-Sent Events)
+  // Stream-based code generation using Fetch API with streaming (supports POST)
   generateCodeStream(
     request: CodeGenerationRequest,
     onChunk: (content: string) => void,
@@ -107,45 +107,100 @@ class ApiClient {
     // Build the URL correctly whether we have a base URL or not
     const baseUrl = API_URL || window.location.origin;
     const url = new URL('/api/generate', baseUrl);
-    url.search = new URLSearchParams({
-      query: request.query,
-      language: request.language,
-      model_id: request.model_id,
-      provider: request.provider,
-    }).toString();
     
-    const eventSource = new EventSource(url.toString());
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[SSE] Received event:', data.type, data.content?.substring(0, 30));
-        
-        if (data.type === 'chunk' && data.content) {
-          onChunk(data.content);
-        } else if (data.type === 'complete' && data.code) {
-          console.log('[SSE] Generation complete, total code length:', data.code.length);
-          onComplete(data.code);
-          eventSource.close();
-        } else if (data.type === 'error') {
-          console.error('[SSE] Error:', data.message);
-          onError(data.message || 'Unknown error occurred');
-          eventSource.close();
+    let abortController = new AbortController();
+    let accumulatedCode = '';
+    let buffer = ''; // Buffer for incomplete SSE lines
+    
+    // Use fetch with POST to support large payloads
+    fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+      },
+      body: JSON.stringify(request),
+      signal: abortController.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-      } catch (error) {
-        console.error('Error parsing SSE data:', error);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      console.error('EventSource error:', error);
-      onError('Connection error occurred');
-      eventSource.close();
-    };
+        
+        if (!response.body) {
+          throw new Error('Response body is null');
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log('[Stream] Stream ended, total code length:', accumulatedCode.length);
+            if (accumulatedCode) {
+              onComplete(accumulatedCode);
+            }
+            break;
+          }
+          
+          // Decode chunk and add to buffer
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Process complete SSE messages (ending with \n\n)
+          const messages = buffer.split('\n\n');
+          
+          // Keep the last incomplete message in the buffer
+          buffer = messages.pop() || '';
+          
+          // Process each complete message
+          for (const message of messages) {
+            if (!message.trim()) continue;
+            
+            // Parse SSE format: "data: {...}"
+            const lines = message.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const jsonStr = line.substring(6);
+                  const data = JSON.parse(jsonStr);
+                  console.log('[Stream] Received event:', data.type, data.content?.substring(0, 50));
+                  
+                  if (data.type === 'chunk' && data.content) {
+                    accumulatedCode += data.content;
+                    onChunk(data.content);
+                  } else if (data.type === 'complete') {
+                    console.log('[Stream] Generation complete, total code length:', data.code?.length || accumulatedCode.length);
+                    // Use the complete code from the message if available, otherwise use accumulated
+                    const finalCode = data.code || accumulatedCode;
+                    onComplete(finalCode);
+                    return; // Exit the processing loop
+                  } else if (data.type === 'error') {
+                    console.error('[Stream] Error:', data.message);
+                    onError(data.message || 'Unknown error occurred');
+                    return; // Exit the processing loop
+                  }
+                } catch (error) {
+                  console.error('Error parsing SSE data:', error, 'Line:', line);
+                }
+              }
+            }
+          }
+        }
+      })
+      .catch((error) => {
+        if (error.name === 'AbortError') {
+          console.log('[Stream] Request aborted');
+          return;
+        }
+        console.error('[Stream] Fetch error:', error);
+        onError(error.message || 'Connection error occurred');
+      });
 
     // Return cleanup function
     return () => {
-      eventSource.close();
+      abortController.abort();
     };
   }
 
