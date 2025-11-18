@@ -256,19 +256,23 @@ def deploy_to_huggingface_space(
     token: Optional[str] = None,
     username: Optional[str] = None,
     description: Optional[str] = None,
-    private: bool = False
+    private: bool = False,
+    existing_repo_id: Optional[str] = None,
+    commit_message: Optional[str] = None
 ) -> Tuple[bool, str, Optional[str]]:
     """
-    Deploy code to HuggingFace Spaces
+    Deploy code to HuggingFace Spaces (create new or update existing)
     
     Args:
         code: Generated code to deploy
         language: Target language/framework (html, gradio, streamlit, react, transformers.js, comfyui)
-        space_name: Name for the space (auto-generated if None)
+        space_name: Name for the space (auto-generated if None, ignored if existing_repo_id provided)
         token: HuggingFace API token
         username: HuggingFace username
         description: Space description
-        private: Whether to make the space private
+        private: Whether to make the space private (only for new spaces)
+        existing_repo_id: If provided (username/space-name), updates this space instead of creating new one
+        commit_message: Custom commit message (defaults to "Deploy from anycoder" or "Update from anycoder")
     
     Returns:
         Tuple of (success: bool, message: str, space_url: Optional[str])
@@ -281,23 +285,32 @@ def deploy_to_huggingface_space(
     try:
         api = HfApi(token=token)
         
-        # Get username if not provided
-        if not username:
-            try:
-                user_info = api.whoami()
-                username = user_info.get("name") or user_info.get("preferred_username") or "user"
-            except Exception as e:
-                return False, f"Failed to get user info: {str(e)}", None
+        # Determine if this is an update or new deployment
+        is_update = existing_repo_id is not None
         
-        # Generate space name if not provided
-        if not space_name:
-            space_name = f"anycoder-{uuid.uuid4().hex[:8]}"
-        
-        # Clean space name (no spaces, lowercase, alphanumeric + hyphens)
-        space_name = re.sub(r'[^a-z0-9-]', '-', space_name.lower())
-        space_name = re.sub(r'-+', '-', space_name).strip('-')
-        
-        repo_id = f"{username}/{space_name}"
+        if is_update:
+            # Use existing repo
+            repo_id = existing_repo_id
+            space_name = existing_repo_id.split('/')[-1]
+            username = existing_repo_id.split('/')[0] if '/' in existing_repo_id else username
+        else:
+            # Get username if not provided
+            if not username:
+                try:
+                    user_info = api.whoami()
+                    username = user_info.get("name") or user_info.get("preferred_username") or "user"
+                except Exception as e:
+                    return False, f"Failed to get user info: {str(e)}", None
+            
+            # Generate space name if not provided
+            if not space_name:
+                space_name = f"anycoder-{uuid.uuid4().hex[:8]}"
+            
+            # Clean space name (no spaces, lowercase, alphanumeric + hyphens)
+            space_name = re.sub(r'[^a-z0-9-]', '-', space_name.lower())
+            space_name = re.sub(r'-+', '-', space_name).strip('-')
+            
+            repo_id = f"{username}/{space_name}"
         
         # Detect SDK
         sdk = detect_sdk_from_code(code, language)
@@ -371,46 +384,52 @@ def deploy_to_huggingface_space(
             # Don't create README - HuggingFace will auto-generate it
             # We'll add the anycoder tag after deployment
             
-            # Create the space
-            try:
-                api.create_repo(
-                    repo_id=repo_id,
-                    repo_type="space",
-                    space_sdk=sdk,
-                    private=private,
-                    exist_ok=False
-                )
-            except Exception as e:
-                if "already exists" in str(e).lower():
-                    # Space exists, we'll update it
-                    pass
-                else:
-                    return False, f"Failed to create space: {str(e)}", None
+            # Create the space (only for new deployments)
+            if not is_update:
+                try:
+                    api.create_repo(
+                        repo_id=repo_id,
+                        repo_type="space",
+                        space_sdk=sdk,
+                        private=private,
+                        exist_ok=False
+                    )
+                except Exception as e:
+                    if "already exists" in str(e).lower():
+                        # Space exists, treat as update
+                        is_update = True
+                    else:
+                        return False, f"Failed to create space: {str(e)}", None
             
             # Upload all files
+            if not commit_message:
+                commit_message = "Update from anycoder" if is_update else "Deploy from anycoder"
+            
             try:
                 api.upload_folder(
                     folder_path=str(temp_path),
                     repo_id=repo_id,
                     repo_type="space",
-                    commit_message="Deploy from anycoder"
+                    commit_message=commit_message
                 )
             except Exception as e:
                 return False, f"Failed to upload files: {str(e)}", None
             
             # After successful upload, modify the auto-generated README to add anycoder tag
-            # HuggingFace automatically creates README.md when space is created
-            # Wait a moment for it to be generated, then modify it
+            # For new spaces: HF auto-generates README, wait and modify it
+            # For updates: README should already exist, just add tag if missing
             try:
                 import time
-                time.sleep(2)  # Give HF time to generate README
+                if not is_update:
+                    time.sleep(2)  # Give HF time to generate README for new spaces
                 add_anycoder_tag_to_readme(api, repo_id, app_port)
             except Exception as e:
                 # Don't fail deployment if README modification fails
                 print(f"Warning: Could not add anycoder tag to README: {e}")
             
             space_url = f"https://huggingface.co/spaces/{repo_id}"
-            return True, f"✅ Successfully deployed to {repo_id}!", space_url
+            action = "Updated" if is_update else "Deployed"
+            return True, f"✅ {action} successfully to {repo_id}!", space_url
             
     except Exception as e:
         return False, f"Deployment error: {str(e)}", None

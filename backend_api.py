@@ -110,9 +110,11 @@ class CodeGenerationRequest(BaseModel):
 
 class DeploymentRequest(BaseModel):
     code: str
-    space_name: str
+    space_name: Optional[str] = None
     language: str
     requirements: Optional[str] = None
+    existing_repo_id: Optional[str] = None  # For updating existing spaces
+    commit_message: Optional[str] = None
 
 
 class AuthStatus(BaseModel):
@@ -273,6 +275,8 @@ async def oauth_callback(code: str, state: str, request: Request):
                 "access_token": access_token,
                 "user_info": user_info,
                 "timestamp": datetime.now(),
+                "username": user_info.get("name") or user_info.get("preferred_username") or "user",
+                "deployed_spaces": []  # Track deployed spaces for follow-up updates
             }
             
             # Redirect to frontend with session token
@@ -553,6 +557,22 @@ async def deploy(
         
         print(f"[Deploy] Attempting deployment with token (first 10 chars): {user_token[:10]}...")
         
+        # Check for existing deployed space in this session
+        existing_repo_id = request.existing_repo_id
+        session_token = authorization.replace("Bearer ", "") if authorization else None
+        
+        # If no existing_repo_id provided, check session for previously deployed spaces
+        if not existing_repo_id and session_token and session_token in user_sessions:
+            session = user_sessions[session_token]
+            deployed_spaces = session.get("deployed_spaces", [])
+            
+            # Find the most recent space for this language
+            for space in reversed(deployed_spaces):
+                if space.get("language") == request.language:
+                    existing_repo_id = space.get("repo_id")
+                    print(f"[Deploy] Found existing space for {request.language}: {existing_repo_id}")
+                    break
+        
         # Use the standalone deployment function
         success, message, space_url = deploy_to_huggingface_space(
             code=request.code,
@@ -561,14 +581,38 @@ async def deploy(
             token=user_token,
             username=auth.username,
             description=request.description if hasattr(request, 'description') else None,
-            private=False
+            private=False,
+            existing_repo_id=existing_repo_id,
+            commit_message=request.commit_message
         )
         
         if success:
+            # Track deployed space in session for follow-up updates
+            if session_token and session_token in user_sessions:
+                repo_id = space_url.split("/spaces/")[-1] if space_url else None
+                if repo_id:
+                    session = user_sessions[session_token]
+                    deployed_spaces = session.get("deployed_spaces", [])
+                    
+                    # Update or add the space
+                    space_entry = {
+                        "repo_id": repo_id,
+                        "language": request.language,
+                        "timestamp": datetime.now()
+                    }
+                    
+                    # Remove old entry for same repo_id if exists
+                    deployed_spaces = [s for s in deployed_spaces if s.get("repo_id") != repo_id]
+                    deployed_spaces.append(space_entry)
+                    
+                    session["deployed_spaces"] = deployed_spaces
+                    print(f"[Deploy] Tracked space in session: {repo_id}")
+            
             return {
                 "success": True,
                 "space_url": space_url,
-                "message": message
+                "message": message,
+                "repo_id": repo_id if 'repo_id' in locals() else None
             }
         else:
             # Provide user-friendly error message based on the error
