@@ -28,6 +28,9 @@ from backend_models import (
     is_mistral_model
 )
 
+# Import project importer for importing from HF/GitHub
+from project_importer import ProjectImporter
+
 # Import system prompts from standalone backend_prompts.py
 # No dependencies on Gradio or heavy libraries
 print("[Startup] Loading system prompts from backend_prompts...")
@@ -143,6 +146,20 @@ class CodeGenerationResponse(BaseModel):
     code: str
     history: List[List[str]]
     status: str
+
+
+class ImportRequest(BaseModel):
+    url: str
+    prefer_local: bool = False
+
+
+class ImportResponse(BaseModel):
+    status: str
+    message: str
+    code: str
+    language: str
+    url: str
+    metadata: Dict
 
 
 # Mock authentication for development
@@ -636,6 +653,100 @@ async def deploy(
             status_code=500, 
             detail=f"Deployment failed: {str(e)}"
         )
+
+
+@app.post("/api/import", response_model=ImportResponse)
+async def import_project(request: ImportRequest):
+    """
+    Import a project from HuggingFace Space, HuggingFace Model, or GitHub repo
+    
+    Supports URLs like:
+    - https://huggingface.co/spaces/username/space-name
+    - https://huggingface.co/username/model-name
+    - https://github.com/username/repo-name
+    """
+    try:
+        importer = ProjectImporter()
+        result = importer.import_from_url(request.url)
+        
+        # Handle model-specific prefer_local flag
+        if request.prefer_local and result.get('metadata', {}).get('has_alternatives'):
+            # Switch to local code if available
+            local_code = result['metadata'].get('local_code')
+            if local_code:
+                result['code'] = local_code
+                result['metadata']['code_type'] = 'local'
+                result['message'] = result['message'].replace('inference', 'local')
+        
+        return ImportResponse(**result)
+    
+    except Exception as e:
+        return ImportResponse(
+            status="error",
+            message=f"Import failed: {str(e)}",
+            code="",
+            language="unknown",
+            url=request.url,
+            metadata={}
+        )
+
+
+@app.get("/api/import/space/{username}/{space_name}")
+async def import_space(username: str, space_name: str):
+    """Import a specific HuggingFace Space by username and space name"""
+    try:
+        importer = ProjectImporter()
+        result = importer.import_space(username, space_name)
+        return result
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to import space: {str(e)}",
+            "code": "",
+            "language": "unknown",
+            "url": f"https://huggingface.co/spaces/{username}/{space_name}",
+            "metadata": {}
+        }
+
+
+@app.get("/api/import/model/{path:path}")
+async def import_model(path: str, prefer_local: bool = False):
+    """
+    Import a specific HuggingFace Model by model ID
+    
+    Example: /api/import/model/meta-llama/Llama-3.2-1B-Instruct
+    """
+    try:
+        importer = ProjectImporter()
+        result = importer.import_model(path, prefer_local=prefer_local)
+        return result
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to import model: {str(e)}",
+            "code": "",
+            "language": "python",
+            "url": f"https://huggingface.co/{path}",
+            "metadata": {}
+        }
+
+
+@app.get("/api/import/github/{owner}/{repo}")
+async def import_github(owner: str, repo: str):
+    """Import a GitHub repository by owner and repo name"""
+    try:
+        importer = ProjectImporter()
+        result = importer.import_github_repo(owner, repo)
+        return result
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to import repository: {str(e)}",
+            "code": "",
+            "language": "python",
+            "url": f"https://github.com/{owner}/{repo}",
+            "metadata": {}
+        }
 
 
 @app.websocket("/ws/generate")

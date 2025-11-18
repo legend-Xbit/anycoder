@@ -196,6 +196,28 @@ class ApiClient {
     return response.data;
   }
 
+  async importProject(url: string, preferLocal: boolean = false): Promise<any> {
+    const response = await this.client.post('/api/import', { url, prefer_local: preferLocal });
+    return response.data;
+  }
+
+  async importSpace(username: string, spaceName: string): Promise<any> {
+    const response = await this.client.get(`/api/import/space/${username}/${spaceName}`);
+    return response.data;
+  }
+
+  async importModel(modelId: string, preferLocal: boolean = false): Promise<any> {
+    const response = await this.client.get(`/api/import/model/${modelId}`, {
+      params: { prefer_local: preferLocal }
+    });
+    return response.data;
+  }
+
+  async importGithub(owner: string, repo: string): Promise<any> {
+    const response = await this.client.get(`/api/import/github/${owner}/${repo}`);
+    return response.data;
+  }
+
   logout() {
     this.token = null;
   }

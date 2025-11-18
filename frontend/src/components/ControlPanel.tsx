@@ -11,6 +11,7 @@ interface ControlPanelProps {
   onModelChange: (modelId: string) => void;
   onDeploy: () => void;
   onClear: () => void;
+  onImport?: (code: string, language: Language) => void;
   isGenerating: boolean;
 }
 
@@ -21,11 +22,16 @@ export default function ControlPanel({
   onModelChange,
   onDeploy,
   onClear,
+  onImport,
   isGenerating,
 }: ControlPanelProps) {
   const [models, setModels] = useState<Model[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -56,6 +62,42 @@ export default function ControlPanel({
       setLanguages(languagesList);
     } catch (error) {
       console.error('Failed to load languages:', error);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importUrl.trim()) {
+      setImportError('Please enter a valid URL');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportError(null);
+
+    try {
+      console.log('Importing from:', importUrl);
+      const result = await apiClient.importProject(importUrl);
+      
+      if (result.status === 'success') {
+        console.log('Import successful:', result);
+        
+        // Call the onImport callback if provided
+        if (onImport && result.code) {
+          onImport(result.code, result.language || 'html');
+        }
+        
+        // Close modal and reset
+        setShowImportModal(false);
+        setImportUrl('');
+        setImportError(null);
+      } else {
+        setImportError(result.message || 'Import failed');
+      }
+    } catch (error: any) {
+      console.error('Import error:', error);
+      setImportError(error.response?.data?.message || error.message || 'Failed to import project');
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -121,6 +163,14 @@ export default function ControlPanel({
       {/* Action Buttons */}
       <div className="flex flex-col space-y-3 pt-4">
         <button
+          onClick={() => setShowImportModal(true)}
+          disabled={isGenerating}
+          className="w-full px-4 py-3.5 bg-[#34c759] text-white text-sm rounded-xl hover:bg-[#30b350] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center space-x-2 shadow-md active:scale-95"
+        >
+          <span>📥</span>
+          <span>Import Project</span>
+        </button>
+        <button
           onClick={onDeploy}
           disabled={isGenerating}
           className="w-full px-4 py-3.5 bg-[#007aff] text-white text-sm rounded-xl hover:bg-[#0051d5] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center space-x-2 shadow-md active:scale-95"
@@ -142,12 +192,68 @@ export default function ControlPanel({
       <div className="mt-6 p-4 bg-[#2c2c2e] border border-[#48484a] rounded-xl shadow-sm">
         <h4 className="text-sm font-semibold text-[#e5e5e7] mb-3 tracking-tight">💡 Tips</h4>
         <ul className="text-xs text-[#86868b] space-y-2 leading-relaxed">
+          <li>• Import projects from HF/GitHub</li>
           <li>• Be specific in your requirements</li>
           <li>• Try different AI models</li>
-          <li>• Edit code in the editor</li>
           <li>• Deploy to HF Spaces</li>
         </ul>
       </div>
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#2c2c2e] border border-[#48484a] rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <h3 className="text-lg font-semibold text-[#e5e5e7] mb-4 tracking-tight">📥 Import Project</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#e5e5e7] mb-2">
+                  Project URL
+                </label>
+                <input
+                  type="text"
+                  value={importUrl}
+                  onChange={(e) => setImportUrl(e.target.value)}
+                  placeholder="https://huggingface.co/spaces/..."
+                  disabled={isImporting}
+                  className="w-full px-4 py-3 bg-[#3a3a3c] text-[#e5e5e7] text-sm border border-[#48484a] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#34c759] focus:border-transparent disabled:opacity-50 placeholder-[#86868b] font-medium"
+                  onKeyDown={(e) => e.key === 'Enter' && handleImport()}
+                />
+                <p className="text-xs text-[#86868b] mt-2">
+                  Supported: HF Spaces, HF Models, GitHub repos
+                </p>
+              </div>
+
+              {importError && (
+                <div className="p-3 bg-[#ff3b30] bg-opacity-10 border border-[#ff3b30] rounded-xl">
+                  <p className="text-sm text-[#ff3b30]">{importError}</p>
+                </div>
+              )}
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleImport}
+                  disabled={isImporting || !importUrl.trim()}
+                  className="flex-1 px-4 py-3 bg-[#34c759] text-white text-sm rounded-xl hover:bg-[#30b350] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold active:scale-95"
+                >
+                  {isImporting ? '⏳ Importing...' : '✓ Import'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportUrl('');
+                    setImportError(null);
+                  }}
+                  disabled={isImporting}
+                  className="flex-1 px-4 py-3 bg-[#3a3a3c] text-[#e5e5e7] text-sm rounded-xl hover:bg-[#48484a] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold border border-[#48484a] active:scale-95"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

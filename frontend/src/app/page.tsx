@@ -176,6 +176,22 @@ export default function Home() {
     }
   };
 
+  const handleImport = (code: string, language: Language) => {
+    setGeneratedCode(code);
+    setSelectedLanguage(language);
+    
+    // Add a system message
+    const importMessage: Message = {
+      role: 'assistant',
+      content: `✅ Project imported successfully! Language: ${language}`,
+      timestamp: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, importMessage]);
+    
+    // Switch to editor view on mobile
+    setMobileView('editor');
+  };
+
   return (
     <div className="h-screen flex flex-col bg-[#1d1d1f]">
       <Header />
@@ -263,6 +279,7 @@ export default function Home() {
             onModelChange={setSelectedModel}
             onDeploy={handleDeploy}
             onClear={handleClear}
+            onImport={handleImport}
             isGenerating={isGenerating}
           />
         </div>
