@@ -321,13 +321,21 @@ def deploy_to_huggingface_space(
             
             # Parse code based on language
             app_port = None  # Track if we need app_port for Docker spaces
+            use_individual_uploads = False  # Flag for transformers.js
             
             if language == "transformers.js":
                 files = parse_transformers_js_output(code)
                 
+                # Validate all three files are present
+                if not files.get('index.html') or not files.get('index.js') or not files.get('style.css'):
+                    return False, "Error: Could not parse transformers.js output. Missing index.html, index.js, or style.css", None
+                
                 # Write transformers.js files
                 for filename, content in files.items():
                     (temp_path / filename).write_text(content, encoding='utf-8')
+                
+                # For transformers.js, we'll upload files individually (not via upload_folder)
+                use_individual_uploads = True
                 
             elif language == "html":
                 html_code = parse_html_code(code)
@@ -387,13 +395,36 @@ def deploy_to_huggingface_space(
             # Create the space (only for new deployments)
             if not is_update:
                 try:
-                    api.create_repo(
-                        repo_id=repo_id,
-                        repo_type="space",
-                        space_sdk=sdk,
-                        private=private,
-                        exist_ok=False
-                    )
+                    if language == "transformers.js":
+                        # For transformers.js, duplicate the template space
+                        from huggingface_hub import duplicate_space
+                        
+                        try:
+                            duplicate_space(
+                                from_id="static-templates/transformers.js",
+                                to_id=repo_id,
+                                token=token,
+                                exist_ok=True
+                            )
+                        except Exception as e:
+                            # If template duplication fails, fall back to regular create
+                            print(f"[Deploy] Template duplication failed, creating regular static space: {e}")
+                            api.create_repo(
+                                repo_id=repo_id,
+                                repo_type="space",
+                                space_sdk=sdk,
+                                private=private,
+                                exist_ok=False
+                            )
+                    else:
+                        # For other languages, create space normally
+                        api.create_repo(
+                            repo_id=repo_id,
+                            repo_type="space",
+                            space_sdk=sdk,
+                            private=private,
+                            exist_ok=False
+                        )
                 except Exception as e:
                     if "already exists" in str(e).lower():
                         # Space exists, treat as update
@@ -401,17 +432,54 @@ def deploy_to_huggingface_space(
                     else:
                         return False, f"Failed to create space: {str(e)}", None
             
-            # Upload all files
+            # Upload files
             if not commit_message:
                 commit_message = "Update from anycoder" if is_update else "Deploy from anycoder"
             
             try:
-                api.upload_folder(
-                    folder_path=str(temp_path),
-                    repo_id=repo_id,
-                    repo_type="space",
-                    commit_message=commit_message
-                )
+                if use_individual_uploads:
+                    # For transformers.js, upload each file individually (matches original deploy.py)
+                    import time
+                    files_to_upload = ["index.html", "index.js", "style.css"]
+                    
+                    max_attempts = 3
+                    for filename in files_to_upload:
+                        file_path = temp_path / filename
+                        if not file_path.exists():
+                            return False, f"Failed to upload: {filename} not found", None
+                        
+                        # Upload with retry logic (like original)
+                        success = False
+                        last_error = None
+                        
+                        for attempt in range(max_attempts):
+                            try:
+                                api.upload_file(
+                                    path_or_fileobj=str(file_path),
+                                    path_in_repo=filename,
+                                    repo_id=repo_id,
+                                    repo_type="space",
+                                    commit_message=f"{commit_message} - {filename}"
+                                )
+                                success = True
+                                break
+                            except Exception as e:
+                                last_error = e
+                                if "403" in str(e) or "Forbidden" in str(e):
+                                    return False, f"Permission denied uploading {filename}. Check your token has write access.", None
+                                if attempt < max_attempts - 1:
+                                    time.sleep(2)  # Wait before retry
+                        
+                        if not success:
+                            return False, f"Failed to upload {filename} after {max_attempts} attempts: {last_error}", None
+                else:
+                    # For other languages, use upload_folder
+                    api.upload_folder(
+                        folder_path=str(temp_path),
+                        repo_id=repo_id,
+                        repo_type="space",
+                        commit_message=commit_message
+                    )
             except Exception as e:
                 return False, f"Failed to upload files: {str(e)}", None
             
