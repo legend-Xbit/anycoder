@@ -51,6 +51,9 @@ export default function Home() {
     };
     setMessages((prev) => [...prev, userMessage]);
     setIsGenerating(true);
+    
+    // Clear previous code to show streaming from start
+    setGeneratedCode('');
 
     // Prepare request
     const request: CodeGenerationRequest = {
@@ -62,7 +65,6 @@ export default function Home() {
       agent_mode: false,
     };
 
-    let generatedCodeBuffer = '';
     const assistantMessage: Message = {
       role: 'assistant',
       content: '⏳ Generating code...',
@@ -76,12 +78,15 @@ export default function Home() {
     try {
       apiClient.generateCodeStream(
         request,
-        // onChunk - Update code editor in real-time, NOT the chat
+        // onChunk - Update code editor in real-time
         (chunk: string) => {
-          generatedCodeBuffer += chunk;
           console.log('[Stream] Received chunk:', chunk.substring(0, 50), '... (length:', chunk.length, ')');
-          console.log('[Stream] Buffer size:', generatedCodeBuffer.length);
-          setGeneratedCode(generatedCodeBuffer);
+          // Use functional update to ensure we always append to latest state
+          setGeneratedCode((prevCode) => {
+            const newCode = prevCode + chunk;
+            console.log('[Stream] Total code length:', newCode.length);
+            return newCode;
+          });
         },
         // onComplete
         (code: string) => {
