@@ -34,6 +34,13 @@ LANGUAGE_CHOICES = ["html", "gradio", "transformers.js", "streamlit", "comfyui",
 
 app = FastAPI(title="AnyCoder API", version="1.0.0")
 
+# OAuth and environment configuration (must be before CORS)
+OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "")
+OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "")
+OAUTH_SCOPES = os.getenv("OAUTH_SCOPES", "openid profile manage-repos")
+OPENID_PROVIDER_URL = os.getenv("OPENID_PROVIDER_URL", "https://huggingface.co")
+SPACE_HOST = os.getenv("SPACE_HOST", "localhost:7860")
+
 # Configure CORS - allow all origins in production, specific in dev
 # In Docker Space, requests come from the same domain via Next.js proxy
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",") if os.getenv("ALLOWED_ORIGINS") else [
@@ -49,15 +56,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_origin_regex=r"https://.*\.hf\.space" if os.getenv("SPACE_HOST") else None,
+    allow_origin_regex=r"https://.*\.hf\.space" if SPACE_HOST and not SPACE_HOST.startswith("localhost") else None,
 )
-
-# OAuth configuration
-OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "")
-OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "")
-OAUTH_SCOPES = os.getenv("OAUTH_SCOPES", "openid profile manage-repos")
-OPENID_PROVIDER_URL = os.getenv("OPENID_PROVIDER_URL", "https://huggingface.co")
-SPACE_HOST = os.getenv("SPACE_HOST", "localhost:7860")
 
 # In-memory store for OAuth states (in production, use Redis or similar)
 oauth_states = {}
