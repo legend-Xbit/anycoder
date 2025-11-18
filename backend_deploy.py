@@ -135,30 +135,78 @@ def detect_sdk_from_code(code: str, language: str) -> str:
         return "gradio"  # Default
 
 
-def create_space_readme(space_name: str, sdk: str, description: str = None) -> str:
-    """Create README.md for HuggingFace Space"""
-    readme = f"""---
-title: {space_name}
-emoji: 🚀
-colorFrom: blue
-colorTo: purple
-sdk: {sdk}
-sdk_version: 4.44.1
-app_file: app.py
-pinned: false
-"""
+def add_anycoder_tag_to_readme(api, repo_id: str, app_port: Optional[int] = None) -> None:
+    """
+    Download existing README, add anycoder tag and app_port if needed, and upload back.
+    Preserves all existing README content and frontmatter.
     
-    if sdk == "docker":
-        readme += "app_port: 7860\n"
-    
-    readme += "---\n\n"
-    
-    if description:
-        readme += f"{description}\n\n"
-    else:
-        readme += f"# {space_name}\n\nBuilt with [anycoder](https://huggingface.co/spaces/akhaliq/anycoder)\n"
-    
-    return readme
+    Args:
+        api: HuggingFace API client
+        repo_id: Repository ID (username/space-name)
+        app_port: Optional port number to set for Docker spaces (e.g., 7860)
+    """
+    try:
+        import tempfile
+        import re
+        
+        # Download the existing README
+        readme_path = api.hf_hub_download(
+            repo_id=repo_id,
+            filename="README.md",
+            repo_type="space"
+        )
+        
+        # Read the existing README content
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Parse frontmatter and content
+        if content.startswith('---'):
+            # Split frontmatter and body
+            parts = content.split('---', 2)
+            if len(parts) >= 3:
+                frontmatter = parts[1].strip()
+                body = parts[2] if len(parts) > 2 else ""
+                
+                # Check if tags already exist
+                if 'tags:' in frontmatter:
+                    # Add anycoder to existing tags if not present
+                    if '- anycoder' not in frontmatter:
+                        frontmatter = re.sub(r'(tags:\s*\n(?:\s*-\s*[^\n]+\n)*)', r'\1- anycoder\n', frontmatter)
+                else:
+                    # Add tags section with anycoder
+                    frontmatter += '\ntags:\n- anycoder'
+                
+                # Add app_port if specified and not already present
+                if app_port is not None and 'app_port:' not in frontmatter:
+                    frontmatter += f'\napp_port: {app_port}'
+                
+                # Reconstruct the README
+                new_content = f"---\n{frontmatter}\n---{body}"
+            else:
+                # Malformed frontmatter, just add tags at the end of frontmatter
+                new_content = content.replace('---', '---\ntags:\n- anycoder\n---', 1)
+        else:
+            # No frontmatter, add it at the beginning
+            app_port_line = f'\napp_port: {app_port}' if app_port else ''
+            new_content = f"---\ntags:\n- anycoder{app_port_line}\n---\n\n{content}"
+        
+        # Upload the modified README
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding='utf-8') as f:
+            f.write(new_content)
+            temp_path = f.name
+        
+        api.upload_file(
+            path_or_fileobj=temp_path,
+            path_in_repo="README.md",
+            repo_id=repo_id,
+            repo_type="space"
+        )
+        
+        os.unlink(temp_path)
+        
+    except Exception as e:
+        print(f"Warning: Could not modify README.md to add anycoder tag: {e}")
 
 
 def create_dockerfile_for_streamlit(space_name: str) -> str:
@@ -259,6 +307,8 @@ def deploy_to_huggingface_space(
             temp_path = Path(temp_dir)
             
             # Parse code based on language
+            app_port = None  # Track if we need app_port for Docker spaces
+            
             if language == "transformers.js":
                 files = parse_transformers_js_output(code)
                 
@@ -266,25 +316,13 @@ def deploy_to_huggingface_space(
                 for filename, content in files.items():
                     (temp_path / filename).write_text(content, encoding='utf-8')
                 
-                # Create README
-                readme = create_space_readme(space_name, "static", description)
-                (temp_path / "README.md").write_text(readme, encoding='utf-8')
-                
             elif language == "html":
                 html_code = parse_html_code(code)
                 (temp_path / "index.html").write_text(html_code, encoding='utf-8')
                 
-                # Create README
-                readme = create_space_readme(space_name, "static", description)
-                (temp_path / "README.md").write_text(readme, encoding='utf-8')
-                
             elif language == "comfyui":
                 # ComfyUI is JSON, wrap in HTML viewer
                 (temp_path / "index.html").write_text(code, encoding='utf-8')
-                
-                # Create README
-                readme = create_space_readme(space_name, "static", description)
-                (temp_path / "README.md").write_text(readme, encoding='utf-8')
                 
             elif language in ["gradio", "streamlit"]:
                 files = parse_multi_file_python_output(code)
@@ -305,10 +343,7 @@ def deploy_to_huggingface_space(
                     if language == "streamlit":
                         dockerfile = create_dockerfile_for_streamlit(space_name)
                         (temp_path / "Dockerfile").write_text(dockerfile, encoding='utf-8')
-                
-                # Create README
-                readme = create_space_readme(space_name, sdk, description)
-                (temp_path / "README.md").write_text(readme, encoding='utf-8')
+                    app_port = 7860  # Set app_port for Docker spaces
                 
             elif language == "react":
                 # For React, we'd need package.json and other files
@@ -321,10 +356,7 @@ def deploy_to_huggingface_space(
                 # Create Dockerfile
                 dockerfile = create_dockerfile_for_react(space_name)
                 (temp_path / "Dockerfile").write_text(dockerfile, encoding='utf-8')
-                
-                # Create README
-                readme = create_space_readme(space_name, "docker", description)
-                (temp_path / "README.md").write_text(readme, encoding='utf-8')
+                app_port = 7860  # Set app_port for Docker spaces
             
             else:
                 # Default: treat as Gradio app
@@ -335,10 +367,9 @@ def deploy_to_huggingface_space(
                 
                 if "requirements.txt" not in files:
                     (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
-                
-                # Create README
-                readme = create_space_readme(space_name, "gradio", description)
-                (temp_path / "README.md").write_text(readme, encoding='utf-8')
+            
+            # Don't create README - HuggingFace will auto-generate it
+            # We'll add the anycoder tag after deployment
             
             # Create the space
             try:
@@ -366,6 +397,17 @@ def deploy_to_huggingface_space(
                 )
             except Exception as e:
                 return False, f"Failed to upload files: {str(e)}", None
+            
+            # After successful upload, modify the auto-generated README to add anycoder tag
+            # HuggingFace automatically creates README.md when space is created
+            # Wait a moment for it to be generated, then modify it
+            try:
+                import time
+                time.sleep(2)  # Give HF time to generate README
+                add_anycoder_tag_to_readme(api, repo_id, app_port)
+            except Exception as e:
+                # Don't fail deployment if README modification fails
+                print(f"Warning: Could not add anycoder tag to README: {e}")
             
             space_url = f"https://huggingface.co/spaces/{repo_id}"
             return True, f"✅ Successfully deployed to {repo_id}!", space_url
