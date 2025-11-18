@@ -473,7 +473,14 @@ Generate the exact search/replace blocks needed to make these changes."""
 
         else:
             # Poe expects model id "GPT-5" and uses max_tokens
-            if _current_model["id"] == "gpt-5":
+            if _current_model["id"] == "gemini-3.0-pro":
+                completion = client.chat.completions.create(
+                    model="Gemini-3.0-Pro",
+                    messages=messages,
+                    stream=True,
+                    max_tokens=20000
+                )
+            elif _current_model["id"] == "gpt-5":
                 completion = client.chat.completions.create(
                     model="GPT-5",
                     messages=messages,
