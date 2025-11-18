@@ -86,7 +86,6 @@ export default function Header() {
     <header className="bg-[#28282a] text-white border-b border-[#48484a]">
       <div className="flex items-center justify-between px-3 md:px-5 h-12 md:h-14">
           <div className="flex items-center space-x-2 md:space-x-3">
-            <div className="text-xl md:text-2xl">🚀</div>
             <h1 className="text-sm md:text-base font-semibold text-[#e5e5e7] tracking-tight">AnyCoder</h1>
           </div>
           

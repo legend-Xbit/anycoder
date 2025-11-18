@@ -192,12 +192,7 @@ export default function Home() {
         `}>
           {/* Panel Header */}
           <div className="flex items-center px-5 py-4 bg-[#28282a] border-b border-[#48484a]">
-            <div className="flex space-x-2">
-              <div className="w-3 h-3 rounded-full bg-[#ff5f57] shadow-sm"></div>
-              <div className="w-3 h-3 rounded-full bg-[#ffbd2e] shadow-sm"></div>
-              <div className="w-3 h-3 rounded-full bg-[#28ca41] shadow-sm"></div>
-            </div>
-            <span className="ml-4 text-sm font-semibold text-[#e5e5e7] tracking-tight">Chat</span>
+            <span className="text-sm font-semibold text-[#e5e5e7] tracking-tight">Chat</span>
           </div>
           
           {/* Chat Panel */}

@@ -81,7 +81,7 @@ export default function ControlPanel({
           ) : (
             languages.map((lang) => (
               <option key={lang} value={lang} className="bg-[#3a3a3c]">
-                {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                {lang === 'html' ? 'HTML' : lang.charAt(0).toUpperCase() + lang.slice(1)}
               </option>
             ))
           )}
