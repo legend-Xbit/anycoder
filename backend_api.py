@@ -34,13 +34,22 @@ LANGUAGE_CHOICES = ["html", "gradio", "transformers.js", "streamlit", "comfyui",
 
 app = FastAPI(title="AnyCoder API", version="1.0.0")
 
-# Configure CORS
+# Configure CORS - allow all origins in production, specific in dev
+# In Docker Space, requests come from the same domain via Next.js proxy
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",") if os.getenv("ALLOWED_ORIGINS") else [
+    "http://localhost:3000",
+    "http://localhost:3001", 
+    "http://localhost:7860",
+    f"https://{SPACE_HOST}" if SPACE_HOST and not SPACE_HOST.startswith("localhost") else "http://localhost:7860"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001"],  # Frontend URLs
+    allow_origins=ALLOWED_ORIGINS if ALLOWED_ORIGINS != ["*"] else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex=r"https://.*\.hf\.space" if os.getenv("SPACE_HOST") else None,
 )
 
 # OAuth configuration

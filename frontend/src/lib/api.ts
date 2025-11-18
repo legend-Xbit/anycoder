@@ -11,11 +11,29 @@ import type {
 } from '@/types';
 
 // Use relative URLs in production (Next.js rewrites will proxy to backend)
-// In local dev without rewrites, use localhost:8000
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 
-  (typeof window !== 'undefined' && window.location.hostname !== 'localhost'
-    ? '' // Use relative URLs in production (proxied by Next.js)
-    : 'http://localhost:8000'); // Local development
+// In local dev, use localhost:8000 for direct backend access
+const getApiUrl = () => {
+  // If explicitly set via env var, use it
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  // For server-side rendering, always use relative URLs
+  if (typeof window === 'undefined') {
+    return '';
+  }
+  
+  // On localhost (dev mode), use direct backend URL
+  const hostname = window.location.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+  
+  // In production (HF Space), use relative URLs (Next.js proxies to backend)
+  return '';
+};
+
+const API_URL = getApiUrl();
 
 class ApiClient {
   private client: AxiosInstance;
@@ -82,15 +100,17 @@ class ApiClient {
     onComplete: (code: string) => void,
     onError: (error: string) => void
   ): () => void {
-    const url = new URL('/api/generate', API_URL);
-    const eventSource = new EventSource(
-      url.toString() + '?' + new URLSearchParams({
-        query: request.query,
-        language: request.language,
-        model_id: request.model_id,
-        provider: request.provider,
-      })
-    );
+    // Build the URL correctly whether we have a base URL or not
+    const baseUrl = API_URL || window.location.origin;
+    const url = new URL('/api/generate', baseUrl);
+    url.search = new URLSearchParams({
+      query: request.query,
+      language: request.language,
+      model_id: request.model_id,
+      provider: request.provider,
+    }).toString();
+    
+    const eventSource = new EventSource(url.toString());
 
     eventSource.onmessage = (event) => {
       try {
@@ -129,7 +149,9 @@ class ApiClient {
     onComplete: (code: string) => void,
     onError: (error: string) => void
   ): WebSocket {
-    const wsUrl = API_URL.replace('http', 'ws') + '/ws/generate';
+    // Build WebSocket URL correctly for both dev and production
+    const baseUrl = API_URL || window.location.origin;
+    const wsUrl = baseUrl.replace('http', 'ws') + '/ws/generate';
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
