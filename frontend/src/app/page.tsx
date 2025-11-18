@@ -17,6 +17,9 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState('openrouter/sherlock-dash-alpha');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Mobile view state: 'chat', 'editor', or 'settings'
+  const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('editor');
 
   useEffect(() => {
     checkAuth();
@@ -177,10 +180,16 @@ export default function Home() {
     <div className="h-screen flex flex-col bg-[#1d1d1f]">
       <Header />
       
-      {/* VS Code layout with Apple styling */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Chat Panel */}
-        <div className="w-80 bg-[#28282a] border-r border-[#48484a] flex flex-col shadow-xl">
+      {/* VS Code layout with Apple styling - Responsive */}
+      <main className="flex-1 flex overflow-hidden relative">
+        {/* Left Sidebar - Chat Panel (Hidden on mobile, shown when mobileView='chat') */}
+        <div className={`
+          ${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex
+          w-full md:w-80 
+          bg-[#28282a] border-r border-[#48484a] 
+          flex-col shadow-xl
+          absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
+        `}>
           {/* Panel Header */}
           <div className="flex items-center px-5 py-4 bg-[#28282a] border-b border-[#48484a]">
             <div className="flex space-x-2">
@@ -202,8 +211,12 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Center - Editor Group */}
-        <div className="flex-1 flex flex-col bg-[#1d1d1f]">
+        {/* Center - Editor Group (Always visible on mobile when mobileView='editor', always visible on desktop) */}
+        <div className={`
+          ${mobileView === 'editor' ? 'flex' : 'hidden'} md:flex
+          flex-1 flex-col bg-[#1d1d1f]
+          absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
+        `}>
           {/* Tab Bar */}
           <div className="flex items-center px-5 h-11 bg-[#28282a] border-b border-[#48484a]">
             <div className="flex items-center space-x-2">
@@ -239,8 +252,15 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right Sidebar - Configuration Panel */}
-        <div className="w-72 bg-[#28282a] border-l border-[#48484a] overflow-y-auto shadow-xl">
+        {/* Right Sidebar - Configuration Panel (Hidden on mobile, shown when mobileView='settings') */}
+        <div className={`
+          ${mobileView === 'settings' ? 'flex' : 'hidden'} md:flex
+          w-full md:w-72
+          bg-[#28282a] border-l border-[#48484a] 
+          overflow-y-auto shadow-xl
+          absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
+          flex-col
+        `}>
           <ControlPanel
             selectedLanguage={selectedLanguage}
             selectedModel={selectedModel}
@@ -253,8 +273,54 @@ export default function Home() {
         </div>
       </main>
 
-      {/* Status Bar - Apple style */}
-      <footer className="h-7 bg-[#28282a] border-t border-[#48484a] text-[#a1a1a6] text-xs flex items-center px-5 justify-between font-medium">
+      {/* Mobile Bottom Navigation (visible only on mobile) */}
+      <nav className="md:hidden bg-[#28282a] border-t border-[#48484a] flex items-center justify-around h-16 px-2 safe-area-bottom">
+        <button
+          onClick={() => setMobileView('chat')}
+          className={`flex flex-col items-center justify-center flex-1 py-2 rounded-lg transition-all ${
+            mobileView === 'chat' 
+              ? 'text-[#007aff] bg-[#1d1d1f]' 
+              : 'text-[#a1a1a6] hover:text-[#e5e5e7]'
+          }`}
+        >
+          <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <span className="text-xs font-medium">Chat</span>
+        </button>
+        
+        <button
+          onClick={() => setMobileView('editor')}
+          className={`flex flex-col items-center justify-center flex-1 py-2 rounded-lg transition-all ${
+            mobileView === 'editor' 
+              ? 'text-[#007aff] bg-[#1d1d1f]' 
+              : 'text-[#a1a1a6] hover:text-[#e5e5e7]'
+          }`}
+        >
+          <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          </svg>
+          <span className="text-xs font-medium">Code</span>
+        </button>
+        
+        <button
+          onClick={() => setMobileView('settings')}
+          className={`flex flex-col items-center justify-center flex-1 py-2 rounded-lg transition-all ${
+            mobileView === 'settings' 
+              ? 'text-[#007aff] bg-[#1d1d1f]' 
+              : 'text-[#a1a1a6] hover:text-[#e5e5e7]'
+          }`}
+        >
+          <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="text-xs font-medium">Settings</span>
+        </button>
+      </nav>
+
+      {/* Status Bar - Apple style (hidden on mobile) */}
+      <footer className="hidden md:flex h-7 bg-[#28282a] border-t border-[#48484a] text-[#a1a1a6] text-xs items-center px-5 justify-between font-medium">
         <div className="flex items-center space-x-5">
           <span className="flex items-center space-x-1.5">
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16">
