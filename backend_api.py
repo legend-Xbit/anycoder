@@ -377,10 +377,18 @@ async def generate_code(
             
             # Determine which provider/API to use based on model ID
             if actual_model_id.startswith("openrouter/"):
-                # OpenRouter models - use via OpenAI-compatible API
+                # OpenRouter models - use OpenAI client directly
+                from openai import OpenAI
                 api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("HF_TOKEN")
-                client = InferenceClient(api_key=api_key, provider="openai", base_url="https://openrouter.ai/api/v1")
-                # Keep the model_id as-is for OpenRouter
+                client = OpenAI(
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=api_key,
+                    default_headers={
+                        "HTTP-Referer": "https://huggingface.co/spaces/akhaliq/anycoder",
+                        "X-Title": "AnyCoder"
+                    }
+                )
+                print(f"[Generate] Using OpenRouter with model: {actual_model_id}")
             elif actual_model_id == "MiniMaxAI/MiniMax-M2":
                 # MiniMax M2 via HuggingFace with Novita provider
                 hf_token = os.getenv("HF_TOKEN")
@@ -432,6 +440,8 @@ async def generate_code(
                 )
                 
                 chunk_count = 0
+                print(f"[Generate] Starting to stream from {actual_model_id}...")
+                
                 for chunk in stream:
                     # Check if choices array has elements before accessing
                     if (hasattr(chunk, 'choices') and 
@@ -444,7 +454,11 @@ async def generate_code(
                         generated_code += content
                         chunk_count += 1
                         
-                        # Send chunk as Server-Sent Event
+                        # Log every 10th chunk to avoid spam
+                        if chunk_count % 10 == 0:
+                            print(f"[Generate] Streamed {chunk_count} chunks, {len(generated_code)} chars total")
+                        
+                        # Send chunk as Server-Sent Event - yield immediately for instant streaming
                         event_data = json.dumps({
                             "type": "chunk",
                             "content": content,
@@ -452,8 +466,8 @@ async def generate_code(
                         })
                         yield f"data: {event_data}\n\n"
                         
-                        # Ensure immediate flush to client
-                        await asyncio.sleep(0.01)  # Small delay to ensure flushing
+                        # Yield control to allow async processing - no artificial delay
+                        await asyncio.sleep(0)
                 
                 print(f"[Generate] Completed with {chunk_count} chunks, total length: {len(generated_code)}")
                 
