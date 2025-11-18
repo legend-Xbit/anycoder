@@ -47,7 +47,17 @@ export default function Home() {
       return;
     }
 
-    // Add user message
+    // If there's existing code, include it in the message context for modifications
+    let enhancedMessage = message;
+    const hasRealCode = generatedCode && 
+                        generatedCode.length > 50 && 
+                        !generatedCode.includes('Your generated code will appear here');
+    
+    if (hasRealCode) {
+      enhancedMessage = `I have existing code in the editor. Please modify it based on my request.\n\nCurrent code:\n\`\`\`${selectedLanguage}\n${generatedCode}\n\`\`\`\n\nMy request: ${message}`;
+    }
+
+    // Add user message (show original message to user, but send enhanced to API)
     const userMessage: Message = {
       role: 'user',
       content: message,
@@ -59,9 +69,9 @@ export default function Home() {
     // Clear previous code to show streaming from start
     setGeneratedCode('');
 
-    // Prepare request
+    // Prepare request with enhanced query that includes current code
     const request: CodeGenerationRequest = {
-      query: message,
+      query: enhancedMessage,
       language: selectedLanguage,
       model_id: selectedModel,
       provider: 'auto',
@@ -180,13 +190,20 @@ export default function Home() {
     setGeneratedCode(code);
     setSelectedLanguage(language);
     
-    // Add a system message
-    const importMessage: Message = {
-      role: 'assistant',
-      content: `✅ Project imported successfully! Language: ${language}`,
+    // Add messages that include the imported code so LLM can see it
+    const userMessage: Message = {
+      role: 'user',
+      content: `I imported a ${language} project. Here's the code that was imported.`,
       timestamp: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, importMessage]);
+    
+    const assistantMessage: Message = {
+      role: 'assistant',
+      content: `✅ I've loaded your ${language} project. The code is now in the editor. You can ask me to:\n\n• Modify existing features\n• Add new functionality\n• Fix bugs or improve code\n• Explain how it works\n• Deploy it to HuggingFace Spaces\n\nWhat would you like me to help you with?`,
+      timestamp: new Date().toISOString(),
+    };
+    
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
     
     // Switch to editor view on mobile
     setMobileView('editor');
