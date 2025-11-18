@@ -1,19 +1,23 @@
 """
 FastAPI backend for AnyCoder - provides REST API endpoints
 """
-from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Header, WebSocket, WebSocketDisconnect, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict, AsyncGenerator
 import json
 import asyncio
 from datetime import datetime
+import secrets
+import base64
+import urllib.parse
 
 # Import only what we need, avoiding Gradio UI imports
 import sys
 import os
 from huggingface_hub import InferenceClient
+import httpx
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
@@ -38,6 +42,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# OAuth configuration
+OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "")
+OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "")
+OAUTH_SCOPES = os.getenv("OAUTH_SCOPES", "openid profile manage-repos")
+OPENID_PROVIDER_URL = os.getenv("OPENID_PROVIDER_URL", "https://huggingface.co")
+SPACE_HOST = os.getenv("SPACE_HOST", "localhost:7860")
+
+# In-memory store for OAuth states (in production, use Redis or similar)
+oauth_states = {}
+
+# In-memory store for user sessions
+user_sessions = {}
 
 
 # Pydantic models for request/response
@@ -130,6 +147,106 @@ async def get_models():
 async def get_languages():
     """Get available programming languages/frameworks"""
     return {"languages": LANGUAGE_CHOICES}
+
+
+@app.get("/api/auth/login")
+async def oauth_login(request: Request):
+    """Initiate OAuth login flow"""
+    # Generate a random state to prevent CSRF
+    state = secrets.token_urlsafe(32)
+    oauth_states[state] = {"timestamp": datetime.now()}
+    
+    # Build redirect URI
+    protocol = "https" if SPACE_HOST and not SPACE_HOST.startswith("localhost") else "http"
+    redirect_uri = f"{protocol}://{SPACE_HOST}/api/auth/callback"
+    
+    # Build authorization URL
+    auth_url = (
+        f"{OPENID_PROVIDER_URL}/oauth/authorize"
+        f"?client_id={OAUTH_CLIENT_ID}"
+        f"&redirect_uri={urllib.parse.quote(redirect_uri)}"
+        f"&scope={urllib.parse.quote(OAUTH_SCOPES)}"
+        f"&state={state}"
+        f"&response_type=code"
+    )
+    
+    return JSONResponse({"login_url": auth_url, "state": state})
+
+
+@app.get("/api/auth/callback")
+async def oauth_callback(code: str, state: str, request: Request):
+    """Handle OAuth callback"""
+    # Verify state to prevent CSRF
+    if state not in oauth_states:
+        raise HTTPException(status_code=400, detail="Invalid state parameter")
+    
+    # Clean up old states
+    oauth_states.pop(state, None)
+    
+    # Exchange code for tokens
+    protocol = "https" if SPACE_HOST and not SPACE_HOST.startswith("localhost") else "http"
+    redirect_uri = f"{protocol}://{SPACE_HOST}/api/auth/callback"
+    
+    # Prepare authorization header
+    auth_string = f"{OAUTH_CLIENT_ID}:{OAUTH_CLIENT_SECRET}"
+    auth_bytes = auth_string.encode('utf-8')
+    auth_b64 = base64.b64encode(auth_bytes).decode('utf-8')
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            token_response = await client.post(
+                f"{OPENID_PROVIDER_URL}/oauth/token",
+                data={
+                    "client_id": OAUTH_CLIENT_ID,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": redirect_uri,
+                },
+                headers={
+                    "Authorization": f"Basic {auth_b64}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+            )
+            token_response.raise_for_status()
+            token_data = token_response.json()
+            
+            # Get user info
+            access_token = token_data.get("access_token")
+            userinfo_response = await client.get(
+                f"{OPENID_PROVIDER_URL}/oauth/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            userinfo_response.raise_for_status()
+            user_info = userinfo_response.json()
+            
+            # Create session
+            session_token = secrets.token_urlsafe(32)
+            user_sessions[session_token] = {
+                "access_token": access_token,
+                "user_info": user_info,
+                "timestamp": datetime.now(),
+            }
+            
+            # Redirect to frontend with session token
+            frontend_url = f"{protocol}://{SPACE_HOST}/?session={session_token}"
+            return RedirectResponse(url=frontend_url)
+            
+        except httpx.HTTPError as e:
+            print(f"OAuth error: {e}")
+            raise HTTPException(status_code=500, detail=f"OAuth failed: {str(e)}")
+
+
+@app.get("/api/auth/session")
+async def get_session(session: str):
+    """Get user info from session token"""
+    if session not in user_sessions:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    
+    session_data = user_sessions[session]
+    return {
+        "access_token": session_data["access_token"],
+        "user_info": session_data["user_info"],
+    }
 
 
 @app.get("/api/auth/status")

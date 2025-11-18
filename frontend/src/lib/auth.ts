@@ -1,18 +1,21 @@
-// HuggingFace OAuth authentication utilities
-import { oauthLoginUrl, oauthHandleRedirectIfPresent } from "@huggingface/hub";
+// HuggingFace OAuth authentication utilities (Server-side flow for Docker Spaces)
 
 const STORAGE_KEY = 'hf_oauth_token';
 const USER_INFO_KEY = 'hf_user_info';
 const DEV_MODE_KEY = 'hf_dev_mode';
+const API_BASE = '/api';
 
 // Check if we're in development mode (localhost)
 const isDevelopment = typeof window !== 'undefined' && 
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 export interface OAuthUserInfo {
-  id: string;
+  id?: string;
+  sub?: string;
   name: string;
+  preferred_username?: string;
   preferredUsername?: string;
+  picture?: string;
   avatarUrl?: string;
 }
 
@@ -43,13 +46,42 @@ export async function initializeOAuth(): Promise<OAuthResult | null> {
       return null;
     }
     
-    // Check if we're handling an OAuth redirect
-    const oauthResult = await oauthHandleRedirectIfPresent();
+    // Check if we're handling an OAuth callback (session parameter in URL)
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionToken = urlParams.get('session');
     
-    if (oauthResult) {
-      // Store the OAuth result
-      storeOAuthData(oauthResult);
-      return oauthResult;
+    if (sessionToken) {
+      // Fetch session data from backend
+      try {
+        const response = await fetch(`${API_BASE}/auth/session?session=${sessionToken}`);
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Normalize user info
+          const userInfo: OAuthUserInfo = {
+            id: data.user_info.sub || data.user_info.id,
+            name: data.user_info.name,
+            preferredUsername: data.user_info.preferred_username || data.user_info.preferredUsername,
+            avatarUrl: data.user_info.picture || data.user_info.avatarUrl,
+          };
+          
+          const oauthResult: OAuthResult = {
+            accessToken: data.access_token,
+            accessTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            userInfo,
+          };
+          
+          // Store the OAuth result
+          storeOAuthData(oauthResult);
+          
+          // Clean up URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          return oauthResult;
+        }
+      } catch (error) {
+        console.error('Failed to fetch session:', error);
+      }
     }
     
     // Check if we have stored credentials
@@ -59,7 +91,7 @@ export async function initializeOAuth(): Promise<OAuthResult | null> {
     if (storedToken && storedUserInfo) {
       return {
         accessToken: storedToken,
-        accessTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // Assume 24h
+        accessTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         userInfo: storedUserInfo,
       };
     }
@@ -72,18 +104,19 @@ export async function initializeOAuth(): Promise<OAuthResult | null> {
 }
 
 /**
- * Redirect to HuggingFace OAuth login page
+ * Redirect to HuggingFace OAuth login page (via backend)
  */
 export async function loginWithHuggingFace(): Promise<void> {
   try {
-    const loginUrl = await oauthLoginUrl({
-      // Redirect back to the current page
-      redirectUrl: window.location.href,
-      // Request scopes - adjust as needed
-      scopes: "openid profile inference-api",
-    });
+    // Call backend to get OAuth URL
+    const response = await fetch(`${API_BASE}/auth/login`);
+    if (!response.ok) {
+      throw new Error('Failed to get login URL');
+    }
     
-    window.location.href = loginUrl;
+    const data = await response.json();
+    // Redirect to the OAuth authorization URL
+    window.location.href = data.login_url;
   } catch (error) {
     console.error('Failed to initiate OAuth login:', error);
     throw new Error('Failed to start login process');
