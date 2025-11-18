@@ -13,23 +13,27 @@ import type {
 // Use relative URLs in production (Next.js rewrites will proxy to backend)
 // In local dev, use localhost:8000 for direct backend access
 const getApiUrl = () => {
-  // If explicitly set via env var, use it
+  // If explicitly set via env var, use it (for development)
   if (process.env.NEXT_PUBLIC_API_URL) {
+    console.log('[API Client] Using explicit API URL:', process.env.NEXT_PUBLIC_API_URL);
     return process.env.NEXT_PUBLIC_API_URL;
   }
   
   // For server-side rendering, always use relative URLs
   if (typeof window === 'undefined') {
+    console.log('[API Client] SSR mode: using relative URLs');
     return '';
   }
   
-  // On localhost (dev mode), use direct backend URL
+  // On localhost (dev mode), use direct backend URL  
   const hostname = window.location.hostname;
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    console.log('[API Client] Localhost dev mode: using http://localhost:8000');
     return 'http://localhost:8000';
   }
   
   // In production (HF Space), use relative URLs (Next.js proxies to backend)
+  console.log('[API Client] Production mode: using relative URLs (proxied by Next.js)');
   return '';
 };
 

@@ -64,6 +64,8 @@ COPY --chown=user:user --from=frontend-builder /build/next.config.js ./frontend/
 COPY --chown=user:user --from=frontend-builder /build/node_modules ./frontend/node_modules
 
 # Set environment variables for the application
+# BACKEND_HOST is used by Next.js server for proxying
+# Do NOT set NEXT_PUBLIC_API_URL - let frontend use relative URLs
 ENV BACKEND_HOST=http://localhost:8000 \
     PORT=7860
 
