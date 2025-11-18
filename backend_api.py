@@ -104,25 +104,18 @@ class CodeGenerationResponse(BaseModel):
 # Mock authentication for development
 # In production, integrate with HuggingFace OAuth
 class MockAuth:
-    def __init__(self, token: Optional[str] = None):
+    def __init__(self, token: Optional[str] = None, username: Optional[str] = None):
         self.token = token
-        # Extract username from dev token or use generic name
-        if token and token.startswith("dev_token_"):
-            # Extract username from dev token format: dev_token_<username>_<timestamp>
-            parts = token.split("_")
-            self.username = parts[2] if len(parts) > 2 else "user"
-        else:
-            self.username = "user" if token else None
+        self.username = username
     
     def is_authenticated(self):
-        # Accept any token (for dev mode)
         return bool(self.token)
 
 
 def get_auth_from_header(authorization: Optional[str] = None):
-    """Extract authentication from header"""
+    """Extract authentication from header or session token"""
     if not authorization:
-        return MockAuth(None)
+        return MockAuth(None, None)
     
     # Handle "Bearer " prefix
     if authorization.startswith("Bearer "):
@@ -130,7 +123,21 @@ def get_auth_from_header(authorization: Optional[str] = None):
     else:
         token = authorization
     
-    return MockAuth(token)
+    # Check if this is a session token (UUID format)
+    if token and "-" in token and len(token) > 20:
+        # Look up the session to get user info
+        if token in user_sessions:
+            session = user_sessions[token]
+            return MockAuth(session["access_token"], session["username"])
+    
+    # Dev token format: dev_token_<username>_<timestamp>
+    if token and token.startswith("dev_token_"):
+        parts = token.split("_")
+        username = parts[2] if len(parts) > 2 else "user"
+        return MockAuth(token, username)
+    
+    # Regular token (OAuth access token passed directly)
+    return MockAuth(token, None)
 
 
 @app.get("/")
@@ -473,24 +480,43 @@ async def deploy(
             "dev_mode": True
         }
     
-    # Production mode with real token
+    # Production mode with real OAuth token
     try:
         from huggingface_hub import HfApi
         import tempfile
         import uuid
         
-        # Get user token from header or use server token
+        # Get user token - should be the access_token from OAuth session
         user_token = auth.token if auth.token else os.getenv("HF_TOKEN")
         
         if not user_token:
-            raise HTTPException(status_code=401, detail="No HuggingFace token available")
+            raise HTTPException(status_code=401, detail="No HuggingFace token available. Please sign in first.")
+        
+        print(f"[Deploy] Attempting deployment with token (first 10 chars): {user_token[:10]}...")
         
         # Create API client
         api = HfApi(token=user_token)
         
+        # Get the actual username from HuggingFace API
+        try:
+            user_info = api.whoami()
+            print(f"[Deploy] User info from HF API: {user_info}")
+            username = user_info.get("name") or user_info.get("preferred_username") or auth.username or "user"
+        except Exception as e:
+            print(f"[Deploy] Failed to get user info from HF API: {e}")
+            # Fallback to auth username if available
+            username = auth.username
+            if not username:
+                raise HTTPException(
+                    status_code=401, 
+                    detail="Failed to verify HuggingFace account. Please sign in again."
+                )
+        
         # Generate space name if not provided
         space_name = request.space_name or f"anycoder-{uuid.uuid4().hex[:8]}"
-        repo_id = f"{auth.username}/{space_name}"
+        repo_id = f"{username}/{space_name}"
+        
+        print(f"[Deploy] Creating/updating space: {repo_id}")
         
         # Map language to SDK
         language_to_sdk = {
@@ -565,8 +591,32 @@ async def deploy(
         finally:
             os.unlink(temp_path)
             
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Deployment failed: {str(e)}")
+        # Log the full error for debugging
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"[Deploy] Deployment error: {error_details}")
+        
+        # Provide user-friendly error message
+        error_msg = str(e)
+        if "401" in error_msg or "Unauthorized" in error_msg:
+            raise HTTPException(
+                status_code=401, 
+                detail="Authentication failed. Please sign in again with HuggingFace."
+            )
+        elif "403" in error_msg or "Forbidden" in error_msg:
+            raise HTTPException(
+                status_code=403, 
+                detail="Permission denied. Your HuggingFace token may not have the required permissions (manage-repos scope)."
+            )
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Deployment failed: {error_msg}"
+            )
 
 
 @app.websocket("/ws/generate")
