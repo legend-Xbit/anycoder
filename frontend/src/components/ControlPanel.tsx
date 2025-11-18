@@ -25,15 +25,23 @@ export default function ControlPanel({
 }: ControlPanelProps) {
   const [models, setModels] = useState<Model[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadModels();
-    loadLanguages();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    await Promise.all([loadModels(), loadLanguages()]);
+    setIsLoading(false);
+  };
 
   const loadModels = async () => {
     try {
+      console.log('Loading models...');
       const modelsList = await apiClient.getModels();
+      console.log('Models loaded:', modelsList);
       setModels(modelsList);
     } catch (error) {
       console.error('Failed to load models:', error);
@@ -42,7 +50,9 @@ export default function ControlPanel({
 
   const loadLanguages = async () => {
     try {
+      console.log('Loading languages...');
       const { languages: languagesList } = await apiClient.getLanguages();
+      console.log('Languages loaded:', languagesList);
       setLanguages(languagesList);
     } catch (error) {
       console.error('Failed to load languages:', error);
@@ -61,14 +71,20 @@ export default function ControlPanel({
         <select
           value={selectedLanguage}
           onChange={(e) => onLanguageChange(e.target.value as Language)}
-          disabled={isGenerating}
+          disabled={isGenerating || isLoading}
           className="w-full px-4 py-3 bg-[#3a3a3c] text-[#e5e5e7] text-sm border border-[#48484a] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#007aff] focus:border-transparent disabled:opacity-50 font-medium shadow-sm"
         >
-          {languages.map((lang) => (
-            <option key={lang} value={lang} className="bg-[#3a3a3c]">
-              {lang.charAt(0).toUpperCase() + lang.slice(1)}
-            </option>
-          ))}
+          {isLoading ? (
+            <option value="">Loading...</option>
+          ) : languages.length === 0 ? (
+            <option value="">No languages available</option>
+          ) : (
+            languages.map((lang) => (
+              <option key={lang} value={lang} className="bg-[#3a3a3c]">
+                {lang.charAt(0).toUpperCase() + lang.slice(1)}
+              </option>
+            ))
+          )}
         </select>
       </div>
 
@@ -80,16 +96,22 @@ export default function ControlPanel({
         <select
           value={selectedModel}
           onChange={(e) => onModelChange(e.target.value)}
-          disabled={isGenerating}
+          disabled={isGenerating || isLoading}
           className="w-full px-4 py-3 bg-[#3a3a3c] text-[#e5e5e7] text-sm border border-[#48484a] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#007aff] focus:border-transparent disabled:opacity-50 font-medium shadow-sm"
         >
-          {models.map((model) => (
-            <option key={model.id} value={model.id} className="bg-[#3a3a3c]">
-              {model.name}
-            </option>
-          ))}
+          {isLoading ? (
+            <option value="">Loading...</option>
+          ) : models.length === 0 ? (
+            <option value="">No models available</option>
+          ) : (
+            models.map((model) => (
+              <option key={model.id} value={model.id} className="bg-[#3a3a3c]">
+                {model.name}
+              </option>
+            ))
+          )}
         </select>
-        {models.find(m => m.id === selectedModel) && (
+        {!isLoading && models.find(m => m.id === selectedModel) && (
           <p className="text-xs text-[#86868b] mt-3 leading-relaxed">
             {models.find(m => m.id === selectedModel)?.description}
           </p>
