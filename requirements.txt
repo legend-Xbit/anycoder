@@ -13,3 +13,4 @@ html2text
 openai
 mistralai
 dashscope
+google-genai

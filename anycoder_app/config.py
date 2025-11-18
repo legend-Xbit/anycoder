@@ -48,6 +48,11 @@ _fastrtc_docs_last_fetched: Optional[datetime] = None
 # Available Models Configuration
 AVAILABLE_MODELS = [
     {
+        "name": "Gemini 3 Pro Preview",
+        "id": "gemini-3-pro-preview",
+        "description": "Google Gemini 3 Pro Preview with deep thinking, Google Search integration, and advanced reasoning"
+    },
+    {
         "name": "DeepSeek V3.2-Exp",
         "id": "deepseek-ai/DeepSeek-V3.2-Exp",
         "description": "DeepSeek V3.2 Experimental model for cutting-edge code generation and reasoning"
@@ -152,7 +157,7 @@ AVAILABLE_MODELS = [
 k2_model_name_tag = "moonshotai/Kimi-K2-Thinking"
 
 # Default model selection
-DEFAULT_MODEL_NAME = "Sherlock Dash Alpha"
+DEFAULT_MODEL_NAME = "Gemini 3 Pro Preview"
 DEFAULT_MODEL = None
 for _m in AVAILABLE_MODELS:
     if _m.get("name") == DEFAULT_MODEL_NAME:

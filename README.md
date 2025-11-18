@@ -58,6 +58,7 @@ anycoder/
 1. **Backend**:
 ```bash
 export HF_TOKEN="your_huggingface_token"
+export GEMINI_API_KEY="your_gemini_api_key"
 python backend_api.py
 ```
 
@@ -73,6 +74,7 @@ npm run dev
 ### Using start script:
 ```bash
 export HF_TOKEN="your_token"
+export GEMINI_API_KEY="your_gemini_api_key"
 ./start_fullstack.sh
 ```
 
@@ -100,6 +102,7 @@ This app runs as a Docker Space on HuggingFace. The Dockerfile:
 
 ## 🤖 Available Models
 
+- **Gemini 3 Pro Preview** (Default) - Google's latest with deep thinking & Google Search
 - MiniMax M2 (via HF router with Novita)
 - DeepSeek V3/V3.1
 - DeepSeek R1
@@ -116,6 +119,11 @@ This app runs as a Docker Space on HuggingFace. The Dockerfile:
 ## 🛠️ Environment Variables
 
 - `HF_TOKEN` - HuggingFace API token (required)
+- `GEMINI_API_KEY` - Google Gemini API key (required for Gemini 3 Pro Preview)
+- `POE_API_KEY` - Poe API key (optional, for GPT-5 and Claude models)
+- `DASHSCOPE_API_KEY` - DashScope API key (optional, for Qwen models)
+- `OPENROUTER_API_KEY` - OpenRouter API key (optional, for Sherlock models)
+- `MISTRAL_API_KEY` - Mistral API key (optional, for Mistral models)
 
 ## 📦 Tech Stack
 
