@@ -57,6 +57,7 @@ COPY --chown=user:user backend_api.py .
 COPY --chown=user:user backend_models.py .
 COPY --chown=user:user backend_prompts.py .
 COPY --chown=user:user backend_deploy.py .
+COPY --chown=user:user project_importer.py .
 COPY --chown=user:user app.py .
 
 # Copy built frontend from builder stage
