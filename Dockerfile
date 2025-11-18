@@ -18,6 +18,14 @@ RUN npm run build
 # Stage 2: Production image
 FROM python:3.11-slim
 
+# Install system dependencies as root (git for pip, nodejs for frontend)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set up a new user named "user" with user ID 1000
 RUN useradd -m -u 1000 user
 
@@ -48,13 +56,6 @@ COPY --chown=user:user --from=frontend-builder /build/public ./frontend/public
 COPY --chown=user:user --from=frontend-builder /build/package*.json ./frontend/
 COPY --chown=user:user --from=frontend-builder /build/next.config.js ./frontend/
 COPY --chown=user:user --from=frontend-builder /build/node_modules ./frontend/node_modules
-
-# Install Node.js for running frontend
-USER root
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends nodejs npm && \
-    rm -rf /var/lib/apt/lists/*
-USER user
 
 # Set environment variables for the application
 ENV BACKEND_HOST=http://localhost:8000 \
