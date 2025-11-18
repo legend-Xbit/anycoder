@@ -20,24 +20,53 @@ from huggingface_hub import InferenceClient
 import httpx
 
 # Import system prompts for code generation
-# These come from anycoder_app which has all the detailed prompts
-from anycoder_app.prompts import (
-    HTML_SYSTEM_PROMPT,
-    TRANSFORMERS_JS_SYSTEM_PROMPT,
-    STREAMLIT_SYSTEM_PROMPT,
-    REACT_SYSTEM_PROMPT,
-    GENERIC_SYSTEM_PROMPT
-)
+# Use try/except to handle import failures gracefully
+print("[Startup] Loading system prompts...")
 
-# Initialize dynamic Gradio and ComfyUI system prompts with full API docs
-from anycoder_app.docs_manager import update_gradio_system_prompts, update_json_system_prompts
-print("[Startup] Initializing Gradio and ComfyUI system prompts with API documentation...")
-update_gradio_system_prompts()
-update_json_system_prompts()
+try:
+    from anycoder_app.prompts import (
+        HTML_SYSTEM_PROMPT,
+        TRANSFORMERS_JS_SYSTEM_PROMPT,
+        STREAMLIT_SYSTEM_PROMPT,
+        REACT_SYSTEM_PROMPT,
+        GENERIC_SYSTEM_PROMPT
+    )
+    print("[Startup] ✅ Loaded basic prompts from anycoder_app.prompts")
+    
+    # Try to initialize dynamic Gradio and ComfyUI system prompts with full API docs
+    try:
+        from anycoder_app.docs_manager import update_gradio_system_prompts, update_json_system_prompts
+        print("[Startup] Initializing Gradio and ComfyUI prompts with API documentation...")
+        update_gradio_system_prompts()
+        update_json_system_prompts()
+        
+        # Import the now-populated prompts
+        from anycoder_app.prompts import GRADIO_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT
+        print("[Startup] ✅ All system prompts loaded successfully with full API documentation")
+    except Exception as e:
+        import traceback
+        print(f"[Startup] ⚠️  Failed to load dynamic Gradio/ComfyUI prompts: {e}")
+        print(f"[Startup] Traceback: {traceback.format_exc()}")
+        print("[Startup] Using basic fallback prompts for Gradio and ComfyUI")
+        GRADIO_SYSTEM_PROMPT = "You are an expert Gradio developer. Create complete, working Gradio applications with proper documentation."
+        JSON_SYSTEM_PROMPT = "You are an expert at generating JSON configurations. Create valid, well-structured JSON for ComfyUI workflows."
+        
+except Exception as e:
+    import traceback
+    print(f"[Startup] ❌ ERROR: Could not import from anycoder_app: {e}")
+    print(f"[Startup] Traceback: {traceback.format_exc()}")
+    print("[Startup] Using minimal fallback prompts - functionality will be limited")
+    
+    # Define minimal fallback prompts to allow backend to start
+    HTML_SYSTEM_PROMPT = "You are an expert web developer. Create complete HTML applications with CSS and JavaScript."
+    TRANSFORMERS_JS_SYSTEM_PROMPT = "You are an expert at creating transformers.js applications. Generate complete working code."
+    STREAMLIT_SYSTEM_PROMPT = "You are an expert Streamlit developer. Create complete Streamlit applications."
+    REACT_SYSTEM_PROMPT = "You are an expert React developer. Create complete React applications with Next.js."
+    GRADIO_SYSTEM_PROMPT = "You are an expert Gradio developer. Create complete, working Gradio applications."
+    JSON_SYSTEM_PROMPT = "You are an expert at generating JSON configurations. Create valid, well-structured JSON."
+    GENERIC_SYSTEM_PROMPT = "You are an expert {language} developer. Create complete, working {language} applications."
 
-# Import the now-populated prompts
-from anycoder_app.prompts import GRADIO_SYSTEM_PROMPT, JSON_SYSTEM_PROMPT
-print("[Startup] ✅ All system prompts loaded successfully with full API documentation")
+print("[Startup] System prompts initialization complete")
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
