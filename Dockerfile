@@ -9,8 +9,14 @@ WORKDIR /build
 COPY frontend/package*.json ./
 RUN npm ci
 
-# Copy frontend source
-COPY frontend/ ./
+# Copy all frontend source files and configs
+COPY frontend/src ./src
+COPY frontend/public ./public
+COPY frontend/next.config.js ./
+COPY frontend/tsconfig.json ./
+COPY frontend/next-env.d.ts ./
+COPY frontend/tailwind.config.js ./
+COPY frontend/postcss.config.js ./
 
 # Build frontend
 RUN npm run build
