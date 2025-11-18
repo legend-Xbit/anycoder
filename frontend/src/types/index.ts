@@ -1,0 +1,60 @@
+// Type definitions for AnyCoder frontend
+
+export interface Model {
+  name: string;
+  id: string;
+  description: string;
+}
+
+export interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp?: string;
+}
+
+export interface CodeGenerationRequest {
+  query: string;
+  language: string;
+  model_id: string;
+  provider: string;
+  history: string[][];
+  agent_mode: boolean;
+}
+
+export interface CodeGenerationResponse {
+  code: string;
+  history: string[][];
+  status: string;
+}
+
+export interface StreamChunk {
+  type: 'chunk' | 'complete' | 'error' | 'status';
+  content?: string;
+  code?: string;
+  message?: string;
+  progress?: number;
+  timestamp?: string;
+}
+
+export interface AuthStatus {
+  authenticated: boolean;
+  username?: string;
+  message: string;
+}
+
+export interface DeploymentRequest {
+  code: string;
+  space_name?: string;
+  language: string;
+  requirements?: string;
+}
+
+export interface DeploymentResponse {
+  success: boolean;
+  space_url?: string;
+  message: string;
+  dev_mode?: boolean;
+}
+
+export type Language = 'html' | 'gradio' | 'transformers.js' | 'streamlit' | 'comfyui' | 'react';
+

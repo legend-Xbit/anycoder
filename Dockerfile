@@ -1,0 +1,91 @@
+# Multi-stage build for AnyCoder Docker Space
+
+# Stage 1: Build frontend
+FROM node:18-slim AS frontend-builder
+
+WORKDIR /build
+
+# Copy frontend package files
+COPY frontend/package*.json ./
+RUN npm ci
+
+# Copy frontend source
+COPY frontend/ ./
+
+# Build frontend
+RUN npm run build
+
+# Stage 2: Production image
+FROM python:3.11-slim
+
+# Set up a new user named "user" with user ID 1000
+RUN useradd -m -u 1000 user
+
+# Switch to the "user" user
+USER user
+
+# Set home to the user's home directory
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH \
+    PYTHONUNBUFFERED=1
+
+# Set the working directory to the user's home directory
+WORKDIR $HOME/app
+
+# Copy Python requirements and install dependencies
+COPY --chown=user:user requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY --chown=user:user anycoder_app/ ./anycoder_app/
+COPY --chown=user:user backend_api.py .
+COPY --chown=user:user app.py .
+
+# Copy built frontend from builder stage
+COPY --chown=user:user --from=frontend-builder /build/.next ./frontend/.next
+COPY --chown=user:user --from=frontend-builder /build/public ./frontend/public
+COPY --chown=user:user --from=frontend-builder /build/package*.json ./frontend/
+COPY --chown=user:user --from=frontend-builder /build/next.config.js ./frontend/
+COPY --chown=user:user --from=frontend-builder /build/node_modules ./frontend/node_modules
+
+# Install Node.js for running frontend
+USER root
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nodejs npm && \
+    rm -rf /var/lib/apt/lists/*
+USER user
+
+# Set environment variables for the application
+ENV BACKEND_HOST=http://localhost:8000 \
+    PORT=7860
+
+# Create startup script that runs both services
+# Backend on 8000, Frontend on 7860 (exposed port)
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "🚀 Starting AnyCoder Docker Space..."\n\
+\n\
+# Start backend on port 8000 in background\n\
+echo "📡 Starting FastAPI backend on port 8000..."\n\
+cd $HOME/app\n\
+uvicorn backend_api:app --host 0.0.0.0 --port 8000 &\n\
+BACKEND_PID=$!\n\
+\n\
+# Wait for backend to be ready\n\
+echo "⏳ Waiting for backend to start..."\n\
+sleep 5\n\
+\n\
+# Start frontend on port 7860 (HF Spaces exposed port)\n\
+echo "🎨 Starting Next.js frontend on port 7860..."\n\
+cd $HOME/app/frontend\n\
+PORT=7860 BACKEND_HOST=http://localhost:8000 npm start\n\
+' > $HOME/app/start.sh && chmod +x $HOME/app/start.sh
+
+# Expose port 7860 (HF Spaces default)
+EXPOSE 7860
+
+# Run the startup script
+CMD ["./start.sh"]
+
