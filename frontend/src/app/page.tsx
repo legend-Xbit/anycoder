@@ -187,29 +187,20 @@ export default function Home() {
       return;
     }
 
-    // Check authentication status
-    if (!isAuthenticated) {
-      alert('Please log in to deploy your app. Click the "Sign in with Hugging Face" button in the header.');
-      return;
-    }
-
-    // Ensure username is loaded
+    // Get current username (fetch if not loaded)
     let currentUsername = username;
     if (!currentUsername) {
-      console.warn('[Deploy] Username not loaded yet, fetching...');
+      console.log('[Deploy] Username not in state, fetching from auth...');
       try {
         const authStatus = await apiClient.getAuthStatus();
         if (authStatus.username) {
           currentUsername = authStatus.username;
           setUsername(authStatus.username);
-        } else {
-          alert('Could not get username. Please try logging out and back in.');
-          return;
+          console.log('[Deploy] Fetched username:', currentUsername);
         }
       } catch (e) {
-        console.error('[Deploy] Error getting username:', e);
-        alert('Could not get username. Please try logging out and back in.');
-        return;
+        console.error('[Deploy] Could not get username:', e);
+        // Don't fail - let backend handle auth
       }
     }
 
