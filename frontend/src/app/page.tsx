@@ -159,56 +159,55 @@ export default function Home() {
 
   const handleDeploy = async () => {
     if (!generatedCode) {
-      alert('No code to deploy! Generate some code first.');
+      alert('No code to publish! Generate some code first.');
       return;
     }
 
     // Determine if we're updating an existing space or creating a new one
     let existingRepoId = currentRepoId;
-    let actionMessage = 'Deploy';
     
     // If we have a current repo, check if user owns it
     if (currentRepoId && username) {
       const ownsSpace = currentRepoId.startsWith(`${username}/`);
       if (ownsSpace) {
-        actionMessage = 'Update';
-        const confirmUpdate = confirm(`Update existing space: ${currentRepoId}?`);
-        if (!confirmUpdate) {
-          existingRepoId = null;  // Create new space instead
-          actionMessage = 'Deploy';
-        }
+        // Update existing space without asking
+        console.log('[Deploy] Updating existing space:', currentRepoId);
       } else {
         // User doesn't own the imported space, create a new one
         existingRepoId = null;
-        actionMessage = 'Deploy';
+        console.log('[Deploy] Creating new space (user does not own imported space)');
       }
+    } else {
+      console.log('[Deploy] Creating new space (no current repo)');
     }
 
-    // Only prompt for space name if creating new space
-    let spaceName = undefined;
-    if (!existingRepoId) {
-      const input = prompt('Enter HuggingFace Space name (or leave empty for auto-generated):');
-      if (input === null) return; // User cancelled
-      spaceName = input || undefined;
-    }
+    // Auto-generate space name (never prompt user)
+    let spaceName = undefined;  // undefined = backend will auto-generate
 
     try {
-      console.log('[Deploy] Deploying with params:', {
-        language: selectedLanguage,
-        space_name: spaceName,
-        existing_repo_id: existingRepoId,
-        currentRepoId: currentRepoId,
-        username: username,
-        code_length: generatedCode.length
-      });
+      console.log('[Deploy] ========== DEPLOY START ==========');
+      console.log('[Deploy] Current username:', username);
+      console.log('[Deploy] Current repo ID (state):', currentRepoId);
+      console.log('[Deploy] Existing repo ID (var):', existingRepoId);
+      console.log('[Deploy] Space name:', spaceName);
+      console.log('[Deploy] Language:', selectedLanguage);
+      console.log('[Deploy] Code length:', generatedCode.length);
+      console.log('[Deploy] ========================================');
       
-      const response = await apiClient.deploy({
+      const deployRequest = {
         code: generatedCode,
         space_name: spaceName,
         language: selectedLanguage,
         existing_repo_id: existingRepoId || undefined,
         commit_message: existingRepoId ? 'Update via AnyCoder' : undefined,
-      });
+      };
+      
+      console.log('[Deploy] 🚀 Sending request to backend:', JSON.stringify({
+        ...deployRequest,
+        code: `${deployRequest.code.substring(0, 100)}... (${deployRequest.code.length} chars)`
+      }, null, 2));
+      
+      const response = await apiClient.deploy(deployRequest);
 
       if (response.success) {
         // Update current repo ID if we got one back
@@ -229,7 +228,7 @@ export default function Home() {
           role: 'assistant',
           content: existingRepoId 
             ? `✅ Updated space: ${response.space_url}` 
-            : `✅ Deployed to: ${response.space_url}`,
+            : `✅ Published to: ${response.space_url}`,
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, deployMessage]);
@@ -243,7 +242,7 @@ export default function Home() {
           ? '🚀 Opening HuggingFace Spaces creation page...\nPlease complete the space setup in the new tab.'
           : existingRepoId
             ? `✅ Updated successfully!\n\nOpening: ${response.space_url}`
-            : `✅ Deployed successfully!\n\nOpening: ${response.space_url}`;
+            : `✅ Published successfully!\n\nOpening: ${response.space_url}`;
         alert(message);
       } else {
         alert(`Deployment failed: ${response.message}`);
@@ -261,7 +260,12 @@ export default function Home() {
   };
 
   const handleImport = (code: string, language: Language, importUrl?: string) => {
-    console.log('[Import] Importing project:', { language, importUrl, username });
+    console.log('[Import] ========== IMPORT START ==========');
+    console.log('[Import] Language:', language);
+    console.log('[Import] Import URL:', importUrl);
+    console.log('[Import] Current username:', username);
+    console.log('[Import] Current repo before import:', currentRepoId);
+    
     setGeneratedCode(code);
     setSelectedLanguage(language);
     
@@ -269,17 +273,30 @@ export default function Home() {
     if (importUrl) {
       const spaceMatch = importUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
       console.log('[Import] Regex match result:', spaceMatch);
+      
       if (spaceMatch) {
         const importedRepoId = spaceMatch[1];
-        console.log('[Import] Extracted repo_id:', importedRepoId, 'Username:', username);
+        const importedUsername = importedRepoId.split('/')[0];
+        
+        console.log('[Import] ========================================');
+        console.log('[Import] Extracted repo_id:', importedRepoId);
+        console.log('[Import] Imported username:', importedUsername);
+        console.log('[Import] Logged-in username:', username);
+        console.log('[Import] Ownership check:', importedUsername === username);
+        console.log('[Import] ========================================');
+        
         // Only set as current repo if user owns it
         if (username && importedRepoId.startsWith(`${username}/`)) {
           setCurrentRepoId(importedRepoId);
-          console.log('[Import] ✅ Set current repo to:', importedRepoId);
+          console.log('[Import] ✅✅✅ SETTING currentRepoId to:', importedRepoId);
         } else {
           // User doesn't own the imported space, clear current repo
           setCurrentRepoId(null);
-          console.log('[Import] ⚠️ User does not own imported space:', importedRepoId, '(username:', username, ')');
+          if (!username) {
+            console.log('[Import] ⚠️⚠️⚠️ USERNAME IS NULL - Cannot set repo ownership!');
+          } else {
+            console.log('[Import] ⚠️ User does not own imported space:', importedRepoId, '(username:', username, ')');
+          }
         }
       } else {
         console.log('[Import] ⚠️ Could not extract repo_id from URL:', importUrl);
@@ -287,6 +304,8 @@ export default function Home() {
     } else {
       console.log('[Import] No import URL provided');
     }
+    
+    console.log('[Import] ========== IMPORT END ==========');
     
     // Add messages that include the imported code so LLM can see it
     const userMessage: Message = {
@@ -299,7 +318,7 @@ export default function Home() {
     
     const assistantMessage: Message = {
       role: 'assistant',
-      content: `✅ I've loaded your ${language} project. The code is now in the editor. You can ask me to:\n\n• Modify existing features\n• Add new functionality\n• Fix bugs or improve code\n• Explain how it works\n• Deploy it to HuggingFace Spaces\n\nWhat would you like me to help you with?`,
+      content: `✅ I've loaded your ${language} project. The code is now in the editor. You can ask me to:\n\n• Modify existing features\n• Add new functionality\n• Fix bugs or improve code\n• Explain how it works\n• Publish it to HuggingFace Spaces\n\nWhat would you like me to help you with?`,
       timestamp: new Date().toISOString(),
     };
     

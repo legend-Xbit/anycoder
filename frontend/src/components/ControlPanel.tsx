@@ -176,7 +176,7 @@ export default function ControlPanel({
           className="w-full px-4 py-3.5 bg-[#007aff] text-white text-sm rounded-xl hover:bg-[#0051d5] disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center space-x-2 shadow-md active:scale-95"
         >
           <span>🚀</span>
-          <span>Deploy</span>
+          <span>Publish</span>
         </button>
         <button
           onClick={onClear}
@@ -195,7 +195,7 @@ export default function ControlPanel({
           <li>• Import projects from HF/GitHub</li>
           <li>• Be specific in your requirements</li>
           <li>• Try different AI models</li>
-          <li>• Deploy to HF Spaces</li>
+          <li>• Publish to HF Spaces</li>
         </ul>
       </div>
 
