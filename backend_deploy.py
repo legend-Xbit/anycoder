@@ -513,26 +513,33 @@ def deploy_to_huggingface_space(
                         print(f"[Deploy] Template duplication result: {duplicated_repo} (type: {type(duplicated_repo)})")
                     except Exception as e:
                         print(f"[Deploy] Exception during duplicate_space: {type(e).__name__}: {str(e)}")
-                        import traceback
-                        traceback.print_exc()
                         
-                        # Handle potential RepoUrl object errors
+                        # Check if space actually exists (success despite error)
+                        space_exists = False
+                        try:
+                            if api.space_info(repo_id):
+                                space_exists = True
+                        except:
+                            pass
+
+                        # Handle RepoUrl object "errors"
                         error_msg = str(e)
-                        if "'url'" in error_msg or "RepoUrl" in error_msg:
-                            # For RepoUrl object issues, check if the space was actually created successfully
-                            print(f"[Deploy] RepoUrl error detected, checking if space was created: {error_msg}")
-                            try:
-                                # Check if space exists by trying to access it
-                                space_info = api.space_info(repo_id)
-                                if space_info:
-                                    print(f"[Deploy] Space exists despite RepoUrl error, continuing with deployment")
-                                else:
-                                    return False, f"Failed to create transformers.js space: {str(e)}", None
-                            except Exception as check_error:
-                                return False, f"Failed to create transformers.js space: {str(e)}", None
+                        if ("'url'" in error_msg or "RepoUrl" in error_msg) and space_exists:
+                            print(f"[Deploy] Space exists despite RepoUrl error, continuing with deployment")
                         else:
-                            # Other errors - report them
-                            return False, f"Failed to create transformers.js space: {str(e)}", None
+                            # Fallback to regular create_repo
+                            print(f"[Deploy] Template duplication failed, attempting fallback to create_repo: {e}")
+                            try:
+                                api.create_repo(
+                                    repo_id=repo_id,
+                                    repo_type="space",
+                                    space_sdk="static",
+                                    private=private,
+                                    exist_ok=True
+                                )
+                                print(f"[Deploy] Fallback create_repo successful")
+                            except Exception as e2:
+                                return False, f"Failed to create transformers.js space (both duplication and fallback failed): {str(e2)}", None
                 else:
                     # For updates, verify we can access the existing space
                     try:
