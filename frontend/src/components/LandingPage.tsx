@@ -2,20 +2,32 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
+import { 
+  initializeOAuth, 
+  loginWithHuggingFace, 
+  loginDevMode,
+  logout, 
+  getStoredUserInfo, 
+  isAuthenticated as checkIsAuthenticated,
+  isDevelopmentMode 
+} from '@/lib/auth';
 import type { Model, Language } from '@/types';
+import type { OAuthUserInfo } from '@/lib/auth';
 
 interface LandingPageProps {
   onStart: (prompt: string, language: Language, modelId: string) => void;
   isAuthenticated: boolean;
   initialLanguage?: Language;
   initialModel?: string;
+  onAuthChange?: () => void;
 }
 
 export default function LandingPage({ 
   onStart, 
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'gemini-3.0-pro'
+  initialModel = 'gemini-3.0-pro',
+  onAuthChange
 }: LandingPageProps) {
   const [prompt, setPrompt] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(initialLanguage);
@@ -23,6 +35,13 @@ export default function LandingPage({
   const [models, setModels] = useState<Model[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Auth states
+  const [userInfo, setUserInfo] = useState<OAuthUserInfo | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [showDevLogin, setShowDevLogin] = useState(false);
+  const [devUsername, setDevUsername] = useState('');
+  const isDevMode = isDevelopmentMode();
   
   // Dropdown states
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
@@ -32,7 +51,74 @@ export default function LandingPage({
 
   useEffect(() => {
     loadData();
+    handleOAuthInit();
+    // Check auth status periodically to catch OAuth redirects
+    const interval = setInterval(() => {
+      const authenticated = checkIsAuthenticated();
+      if (authenticated && !userInfo) {
+        handleOAuthInit();
+      }
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
+
+  const handleOAuthInit = async () => {
+    setIsAuthLoading(true);
+    try {
+      const oauthResult = await initializeOAuth();
+      
+      if (oauthResult) {
+        setUserInfo(oauthResult.userInfo);
+        apiClient.setToken(oauthResult.accessToken);
+        if (onAuthChange) onAuthChange();
+      } else {
+        const storedUserInfo = getStoredUserInfo();
+        if (storedUserInfo) {
+          setUserInfo(storedUserInfo);
+        }
+      }
+    } catch (error) {
+      console.error('OAuth initialization error:', error);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    try {
+      await loginWithHuggingFace();
+    } catch (error) {
+      console.error('Login failed:', error);
+      alert('Failed to start login process. Please try again.');
+    }
+  };
+
+  const handleLogout = () => {
+    logout();
+    apiClient.logout();
+    setUserInfo(null);
+    if (onAuthChange) onAuthChange();
+    window.location.reload();
+  };
+
+  const handleDevLogin = () => {
+    if (!devUsername.trim()) {
+      alert('Please enter a username');
+      return;
+    }
+    
+    try {
+      const result = loginDevMode(devUsername);
+      setUserInfo(result.userInfo);
+      apiClient.setToken(result.accessToken);
+      setShowDevLogin(false);
+      setDevUsername('');
+      if (onAuthChange) onAuthChange();
+    } catch (error) {
+      console.error('Dev login failed:', error);
+      alert('Failed to login in dev mode');
+    }
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -93,10 +179,94 @@ export default function LandingPage({
   return (
     <div className="min-h-screen flex flex-col bg-[#1e1e1e] overflow-y-auto">
       {/* Header - Minimal Apple style */}
-      <header className="flex items-center px-8 py-4 border-b border-[#3e3e42]/30 flex-shrink-0">
+      <header className="flex items-center justify-between px-8 py-4 border-b border-[#3e3e42]/30 flex-shrink-0">
         <h1 className="text-base font-semibold text-[#cccccc] tracking-tight">
           AnyCoder
         </h1>
+        
+        {/* Auth Section */}
+        <div className="flex items-center space-x-3">
+          {isAuthLoading ? (
+            <div className="px-4 py-2">
+              <span className="text-xs text-[#858585] font-medium">Loading...</span>
+            </div>
+          ) : userInfo ? (
+            <div className="flex items-center space-x-3">
+              {userInfo.avatarUrl && (
+                <img 
+                  src={userInfo.avatarUrl} 
+                  alt={userInfo.name}
+                  className="w-7 h-7 rounded-full ring-2 ring-[#3e3e42]"
+                />
+              )}
+              <span className="hidden sm:inline text-sm text-[#cccccc] font-medium truncate max-w-[120px]">
+                {userInfo.preferredUsername || userInfo.name}
+              </span>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-[#2d2d30] text-[#cccccc] text-xs rounded-lg hover:bg-[#3a3a3c] transition-all border border-[#3e3e42] font-semibold active:scale-95"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-3">
+              {/* Dev Mode Login (only on localhost) */}
+              {isDevMode && (
+                <>
+                  {showDevLogin ? (
+                    <div className="flex items-center space-x-2 bg-[#2d2d30] px-3 py-2 rounded-lg border border-[#ff9f0a]">
+                      <span className="hidden sm:inline text-xs text-[#ff9f0a] font-semibold">DEV</span>
+                      <input
+                        type="text"
+                        value={devUsername}
+                        onChange={(e) => setDevUsername(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleDevLogin()}
+                        placeholder="username"
+                        className="px-3 py-1.5 rounded-lg text-xs bg-[#1e1e1e] text-[#cccccc] border border-[#3e3e42] focus:outline-none focus:ring-2 focus:ring-[#ff9f0a] focus:border-transparent w-28 font-medium"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleDevLogin}
+                        className="px-3 py-1.5 bg-[#ff9f0a] text-white rounded-lg hover:bg-[#ff8800] text-xs font-semibold active:scale-95"
+                      >
+                        OK
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowDevLogin(false);
+                          setDevUsername('');
+                        }}
+                        className="text-[#858585] hover:text-[#cccccc] text-sm transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowDevLogin(true)}
+                      className="px-4 py-2 bg-[#ff9f0a] text-white rounded-lg hover:bg-[#ff8800] transition-all text-xs flex items-center space-x-2 font-semibold active:scale-95"
+                      title="Dev Mode (localhost)"
+                    >
+                      <span>🔧</span>
+                      <span>Dev Login</span>
+                    </button>
+                  )}
+                  <span className="text-[#858585] text-xs font-medium">or</span>
+                </>
+              )}
+              
+              {/* OAuth Login */}
+              <button
+                onClick={handleLogin}
+                className="px-4 py-2 bg-[#007acc] text-white rounded-lg hover:bg-[#0066b3] transition-all text-xs flex items-center space-x-2 font-semibold active:scale-95"
+              >
+                <span>🤗</span>
+                <span>Sign in</span>
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* Main Content - Centered with generous Apple spacing */}

@@ -504,6 +504,7 @@ export default function Home() {
           isAuthenticated={isAuthenticated}
           initialLanguage={selectedLanguage}
           initialModel={selectedModel}
+          onAuthChange={checkAuth}
         />
       </div>
     );
