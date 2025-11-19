@@ -167,18 +167,28 @@ export default function Home() {
     let existingSpace: string | null = null;
     
     // Look for previous deployment or imported space in history
+    console.log('[Deploy] ========== DEBUG START ==========');
+    console.log('[Deploy] Total messages in history:', messages.length);
+    console.log('[Deploy] Current username:', username);
+    console.log('[Deploy] Messages:', JSON.stringify(messages, null, 2));
+    
     if (messages.length > 0 && username) {
-      console.log('[Deploy] Scanning message history for existing deployments...');
+      console.log('[Deploy] Scanning message history...');
       
       for (let i = messages.length - 1; i >= 0; i--) {
         const msg = messages[i];
+        console.log(`[Deploy] Checking message ${i}:`, {
+          role: msg.role,
+          contentPreview: msg.content.substring(0, 100),
+          startsWithImported: msg.content.startsWith('Imported Space from')
+        });
         
         // Check for deployment messages
         if (msg.role === 'assistant' && msg.content.includes('✅ Deployed')) {
           const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
           if (match) {
             existingSpace = match[1];
-            console.log('[Deploy] Found previous deployment:', existingSpace);
+            console.log('[Deploy] ✅ Found "✅ Deployed" message:', existingSpace);
             break;
           }
         }
@@ -188,30 +198,42 @@ export default function Home() {
           const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
           if (match) {
             existingSpace = match[1];
-            console.log('[Deploy] Found previous update:', existingSpace);
+            console.log('[Deploy] ✅ Found "✅ Updated" message:', existingSpace);
             break;
           }
         }
         
         // Check for imported space messages - THE KEY PART!
         if (msg.role === 'user' && msg.content.startsWith('Imported Space from')) {
+          console.log('[Deploy] 🎯 Found "Imported Space from" message!');
           const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+          console.log('[Deploy] Regex match result:', match);
           if (match) {
             const importedSpace = match[1];
+            console.log('[Deploy] Extracted space:', importedSpace);
+            console.log('[Deploy] Username to check:', username);
+            console.log('[Deploy] Starts with username?', importedSpace.startsWith(`${username}/`));
+            
             // Only use imported space if user owns it (can update it)
             if (importedSpace.startsWith(`${username}/`)) {
               existingSpace = importedSpace;
-              console.log('[Deploy] Found imported space (user owns it):', existingSpace);
+              console.log('[Deploy] ✅✅✅ USER OWNS THIS SPACE! Will update:', existingSpace);
               break;
             } else {
-              console.log('[Deploy] Found imported space but user does not own it:', importedSpace);
-              // If user doesn't own the imported space, we'll create a new one
-              // (existingSpace remains null, triggering new deployment)
+              console.log('[Deploy] ⚠️ User does not own this space:', importedSpace);
+              console.log('[Deploy] Expected to start with:', `${username}/`);
             }
+          } else {
+            console.log('[Deploy] ❌ Regex did not match URL in message');
           }
         }
       }
+      
+      console.log('[Deploy] Final existingSpace value:', existingSpace);
+    } else {
+      console.log('[Deploy] Skipping scan - no messages or no username');
     }
+    console.log('[Deploy] ========== DEBUG END ==========');
 
     // Auto-generate space name (never prompt user)
     let spaceName = undefined;  // undefined = backend will auto-generate

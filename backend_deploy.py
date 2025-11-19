@@ -461,30 +461,42 @@ def deploy_to_huggingface_space(
             # Don't create README - HuggingFace will auto-generate it
             # We'll add the anycoder tag after deployment
             
-            # ALWAYS create/ensure repo exists (with exist_ok=True)
-            # This works for both new spaces and updates!
-            try:
-                if language == "transformers.js" and not is_update:
-                    # For NEW transformers.js spaces, try to duplicate the template
-                    print(f"[Deploy] Creating new transformers.js space: {repo_id}")
-                    try:
-                        from huggingface_hub import duplicate_space
-                        
-                        # IMPORTANT: duplicate_space expects just the space name, not the full repo_id
-                        # It will automatically prepend the username
-                        print(f"[Deploy] Attempting to duplicate template space to: {space_name}")
-                        result = duplicate_space(
-                            from_id="static-templates/transformers.js",
-                            to_id=space_name,  # Just the space name, not username/space-name
-                            token=token,
-                            exist_ok=True
-                        )
-                        print(f"[Deploy] Template duplication result: {result}")
-                    except Exception as e:
-                        # If template duplication fails, fall back to regular create
-                        print(f"[Deploy] Template duplication failed, creating regular static space: {e}")
-                        import traceback
-                        traceback.print_exc()
+            # ONLY create repo for NEW deployments (not updates!)
+            # This matches the Gradio version logic
+            if not is_update:
+                print(f"[Deploy] Creating NEW space: {repo_id}")
+                try:
+                    if language == "transformers.js":
+                        # For NEW transformers.js spaces, try to duplicate the template
+                        print(f"[Deploy] Creating new transformers.js space: {repo_id}")
+                        try:
+                            from huggingface_hub import duplicate_space
+                            
+                            # IMPORTANT: duplicate_space expects just the space name, not the full repo_id
+                            # It will automatically prepend the username
+                            print(f"[Deploy] Attempting to duplicate template space to: {space_name}")
+                            result = duplicate_space(
+                                from_id="static-templates/transformers.js",
+                                to_id=space_name,  # Just the space name, not username/space-name
+                                token=token,
+                                exist_ok=True
+                            )
+                            print(f"[Deploy] Template duplication result: {result}")
+                        except Exception as e:
+                            # If template duplication fails, fall back to regular create
+                            print(f"[Deploy] Template duplication failed, creating regular static space: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            api.create_repo(
+                                repo_id=repo_id,
+                                repo_type="space",
+                                space_sdk=sdk,
+                                private=private,
+                                exist_ok=True  # Don't fail if exists
+                            )
+                    elif sdk != "docker":
+                        # For non-Docker SDKs, create the repo normally
+                        print(f"[Deploy] Creating new {sdk} space: {repo_id}")
                         api.create_repo(
                             repo_id=repo_id,
                             repo_type="space",
@@ -492,18 +504,21 @@ def deploy_to_huggingface_space(
                             private=private,
                             exist_ok=True  # Don't fail if exists
                         )
-                else:
-                    # For all other cases (new or update), ensure repo exists
-                    print(f"[Deploy] Ensuring repo exists: {repo_id} (is_update={is_update})")
-                    api.create_repo(
-                        repo_id=repo_id,
-                        repo_type="space",
-                        space_sdk=sdk,
-                        private=private if not is_update else None,  # Only set private for new repos
-                        exist_ok=True  # Don't fail if repo already exists
-                    )
-            except Exception as e:
-                return False, f"Failed to create/access space: {str(e)}", None
+                    else:
+                        # For Docker (React/Streamlit), create_repo is handled differently
+                        print(f"[Deploy] Creating new Docker space: {repo_id}")
+                        from huggingface_hub import create_repo
+                        create_repo(
+                            repo_id=repo_id,
+                            repo_type="space",
+                            space_sdk="docker",
+                            token=token,
+                            exist_ok=True
+                        )
+                except Exception as e:
+                    return False, f"Failed to create space: {str(e)}", None
+            else:
+                print(f"[Deploy] UPDATING existing space: {repo_id} (skipping create_repo)")
             
             # Upload files
             if not commit_message:
