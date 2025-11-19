@@ -294,13 +294,20 @@ export default function Home() {
       console.log('[Deploy] Will create new space?', !existingSpace);
       console.log('[Deploy] =================================================================');
       
-      const deployRequest = {
+      // Build deploy request, omitting undefined fields
+      const deployRequest: any = {
         code: generatedCode,
-        space_name: spaceName,
         language: selectedLanguage,
-        existing_repo_id: existingSpace || undefined,
-        commit_message: existingSpace ? 'Update via AnyCoder' : undefined,
       };
+      
+      // Only include optional fields if they have values
+      if (spaceName) {
+        deployRequest.space_name = spaceName;
+      }
+      if (existingSpace) {
+        deployRequest.existing_repo_id = existingSpace;
+        deployRequest.commit_message = 'Update via AnyCoder';
+      }
       
       console.log('[Deploy] 🚀 Sending to backend:', {
         existing_repo_id: deployRequest.existing_repo_id,
