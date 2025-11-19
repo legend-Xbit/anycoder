@@ -187,23 +187,28 @@ export default function Home() {
       return;
     }
 
-    // CRITICAL: Wait for username to be loaded from auth
-    if (!username) {
-      console.warn('[Deploy] Username not loaded yet, checking auth...');
-      // Try to get username from auth status
+    // Check authentication status
+    if (!isAuthenticated) {
+      alert('Please log in to deploy your app. Click the "Sign in with Hugging Face" button in the header.');
+      return;
+    }
+
+    // Ensure username is loaded
+    let currentUsername = username;
+    if (!currentUsername) {
+      console.warn('[Deploy] Username not loaded yet, fetching...');
       try {
         const authStatus = await apiClient.getAuthStatus();
         if (authStatus.username) {
+          currentUsername = authStatus.username;
           setUsername(authStatus.username);
-          // Retry deployment after setting username
-          setTimeout(() => handleDeploy(), 100);
-          return;
         } else {
-          alert('Please log in to deploy your app');
+          alert('Could not get username. Please try logging out and back in.');
           return;
         }
       } catch (e) {
-        alert('Please log in to deploy your app');
+        console.error('[Deploy] Error getting username:', e);
+        alert('Could not get username. Please try logging out and back in.');
         return;
       }
     }
@@ -214,11 +219,11 @@ export default function Home() {
     // Look for previous deployment or imported space in history
     console.log('[Deploy] ========== DEBUG START ==========');
     console.log('[Deploy] Total messages in history:', messages.length);
-    console.log('[Deploy] Current username:', username);
+    console.log('[Deploy] Current username:', currentUsername);
     console.log('[Deploy] Auth status:', isAuthenticated ? 'authenticated' : 'not authenticated');
     console.log('[Deploy] Messages:', JSON.stringify(messages, null, 2));
     
-    if (messages.length > 0 && username) {
+    if (messages.length > 0 && currentUsername) {
       console.log('[Deploy] Scanning message history FORWARD (oldest first) - MATCHING GRADIO LOGIC...');
       console.log('[Deploy] Total messages to scan:', messages.length);
       
@@ -259,10 +264,10 @@ export default function Home() {
           if (match) {
             const importedSpace = match[1];
             console.log('[Deploy] Extracted imported space:', importedSpace);
-            console.log('[Deploy] Checking ownership - user:', username, 'space:', importedSpace);
+            console.log('[Deploy] Checking ownership - user:', currentUsername, 'space:', importedSpace);
             
             // Only use if user owns it (EXACT GRADIO LOGIC)
-            if (importedSpace.startsWith(`${username}/`)) {
+            if (importedSpace.startsWith(`${currentUsername}/`)) {
               existingSpace = importedSpace;
               console.log('[Deploy] ✅✅✅ USER OWNS - Will update:', existingSpace);
               break;
@@ -278,7 +283,7 @@ export default function Home() {
     } else {
       console.log('[Deploy] Skipping scan - no messages or no username');
       console.log('[Deploy] Messages length:', messages.length);
-      console.log('[Deploy] Username:', username);
+      console.log('[Deploy] Username:', currentUsername);
     }
     console.log('[Deploy] ========== DEBUG END ==========');
 
@@ -286,14 +291,14 @@ export default function Home() {
     console.log('[Deploy] 🚀 ABOUT TO DEPLOY:');
     console.log('[Deploy] - Language:', selectedLanguage);
     console.log('[Deploy] - existing_repo_id:', existingSpace || 'None (new deployment)');
-    console.log('[Deploy] - Username:', username);
+    console.log('[Deploy] - Username:', currentUsername);
 
     // Auto-generate space name (never prompt user)
     let spaceName = undefined;  // undefined = backend will auto-generate
 
     try {
       console.log('[Deploy] ========== DEPLOY START (Gradio-style history parsing) ==========');
-      console.log('[Deploy] Username:', username);
+      console.log('[Deploy] Username:', currentUsername);
       console.log('[Deploy] Existing space from history:', existingSpace);
       console.log('[Deploy] Will create new space?', !existingSpace);
       console.log('[Deploy] =================================================================');
