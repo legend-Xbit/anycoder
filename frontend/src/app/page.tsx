@@ -163,49 +163,80 @@ export default function Home() {
       return;
     }
 
-    // Determine if we're updating an existing space or creating a new one
-    let existingRepoId = currentRepoId;
+    // SAME LOGIC AS GRADIO VERSION: Parse message history to find existing space
+    let existingSpace: string | null = null;
     
-    // If we have a current repo, check if user owns it
-    if (currentRepoId && username) {
-      const ownsSpace = currentRepoId.startsWith(`${username}/`);
-      if (ownsSpace) {
-        // Update existing space without asking
-        console.log('[Deploy] Updating existing space:', currentRepoId);
-      } else {
-        // User doesn't own the imported space, create a new one
-        existingRepoId = null;
-        console.log('[Deploy] Creating new space (user does not own imported space)');
+    // Look for previous deployment or imported space in history
+    if (messages.length > 0 && username) {
+      console.log('[Deploy] Scanning message history for existing deployments...');
+      
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        
+        // Check for deployment messages
+        if (msg.role === 'assistant' && msg.content.includes('✅ Deployed')) {
+          const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+          if (match) {
+            existingSpace = match[1];
+            console.log('[Deploy] Found previous deployment:', existingSpace);
+            break;
+          }
+        }
+        
+        // Check for update messages
+        if (msg.role === 'assistant' && msg.content.includes('✅ Updated')) {
+          const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+          if (match) {
+            existingSpace = match[1];
+            console.log('[Deploy] Found previous update:', existingSpace);
+            break;
+          }
+        }
+        
+        // Check for imported space messages - THE KEY PART!
+        if (msg.role === 'user' && msg.content.startsWith('Imported Space from')) {
+          const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+          if (match) {
+            const importedSpace = match[1];
+            // Only use imported space if user owns it (can update it)
+            if (importedSpace.startsWith(`${username}/`)) {
+              existingSpace = importedSpace;
+              console.log('[Deploy] Found imported space (user owns it):', existingSpace);
+              break;
+            } else {
+              console.log('[Deploy] Found imported space but user does not own it:', importedSpace);
+              // If user doesn't own the imported space, we'll create a new one
+              // (existingSpace remains null, triggering new deployment)
+            }
+          }
+        }
       }
-    } else {
-      console.log('[Deploy] Creating new space (no current repo)');
     }
 
     // Auto-generate space name (never prompt user)
     let spaceName = undefined;  // undefined = backend will auto-generate
 
     try {
-      console.log('[Deploy] ========== DEPLOY START ==========');
-      console.log('[Deploy] Current username:', username);
-      console.log('[Deploy] Current repo ID (state):', currentRepoId);
-      console.log('[Deploy] Existing repo ID (var):', existingRepoId);
-      console.log('[Deploy] Space name:', spaceName);
-      console.log('[Deploy] Language:', selectedLanguage);
-      console.log('[Deploy] Code length:', generatedCode.length);
-      console.log('[Deploy] ========================================');
+      console.log('[Deploy] ========== DEPLOY START (Gradio-style history parsing) ==========');
+      console.log('[Deploy] Username:', username);
+      console.log('[Deploy] Existing space from history:', existingSpace);
+      console.log('[Deploy] Will create new space?', !existingSpace);
+      console.log('[Deploy] =================================================================');
       
       const deployRequest = {
         code: generatedCode,
         space_name: spaceName,
         language: selectedLanguage,
-        existing_repo_id: existingRepoId || undefined,
-        commit_message: existingRepoId ? 'Update via AnyCoder' : undefined,
+        existing_repo_id: existingSpace || undefined,
+        commit_message: existingSpace ? 'Update via AnyCoder' : undefined,
       };
       
-      console.log('[Deploy] 🚀 Sending request to backend:', JSON.stringify({
-        ...deployRequest,
-        code: `${deployRequest.code.substring(0, 100)}... (${deployRequest.code.length} chars)`
-      }, null, 2));
+      console.log('[Deploy] 🚀 Sending to backend:', {
+        existing_repo_id: deployRequest.existing_repo_id,
+        space_name: deployRequest.space_name,
+        language: deployRequest.language,
+        has_code: !!deployRequest.code
+      });
       
       const response = await apiClient.deploy(deployRequest);
 
@@ -223,12 +254,12 @@ export default function Home() {
           }
         }
         
-        // Add deployment message to chat
+        // Add deployment message to chat (matches Gradio format)
         const deployMessage: Message = {
           role: 'assistant',
-          content: existingRepoId 
-            ? `✅ Updated space: ${response.space_url}` 
-            : `✅ Published to: ${response.space_url}`,
+          content: existingSpace 
+            ? `✅ Updated! View at: ${response.space_url}` 
+            : `✅ Deployed! View at: ${response.space_url}`,
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, deployMessage]);
@@ -240,7 +271,7 @@ export default function Home() {
         const isDev = response.dev_mode;
         const message = isDev 
           ? '🚀 Opening HuggingFace Spaces creation page...\nPlease complete the space setup in the new tab.'
-          : existingRepoId
+          : existingSpace
             ? `✅ Updated successfully!\n\nOpening: ${response.space_url}`
             : `✅ Published successfully!\n\nOpening: ${response.space_url}`;
         alert(message);
