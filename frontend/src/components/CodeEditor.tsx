@@ -19,8 +19,8 @@ export default function CodeEditor({ code, language, onChange, readOnly = false 
       'html': 'html',
       'gradio': 'python',
       'streamlit': 'python',
-      'transformers.js': 'javascript',
-      'react': 'typescript',
+      'transformers.js': 'html', // Contains HTML, CSS, and JavaScript - HTML is primary
+      'react': 'javascriptreact', // JSX syntax highlighting
       'comfyui': 'json',
     };
     return languageMap[lang] || 'plaintext';

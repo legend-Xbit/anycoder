@@ -68,7 +68,7 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
                   <div className="text-base flex-shrink-0">
                     {message.role === 'user' ? '👤' : '🤖'}
                   </div>
-                  <div className="flex-1 text-sm leading-relaxed">
+                  <div className="flex-1 text-sm leading-relaxed min-w-0">
                     {message.role === 'assistant' ? (
                       <ReactMarkdown 
                         remarkPlugins={[remarkGfm]}
@@ -77,7 +77,7 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
                         {message.content}
                       </ReactMarkdown>
                     ) : (
-                      <p className="whitespace-pre-wrap font-medium">{message.content}</p>
+                      <p className="whitespace-pre-wrap font-medium break-words">{message.content}</p>
                     )}
                   </div>
                 </div>
