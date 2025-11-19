@@ -596,7 +596,9 @@ def deploy_to_huggingface_space(
                                 # Create a NEW temp file for this upload (key difference from old approach)
                                 with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False, encoding='utf-8') as f:
                                     f.write(file_content)
+                                    f.flush()  # Ensure all content is written to disk before closing
                                     temp_file_path = f.name
+                                # File is now closed and flushed, safe to upload
                                 
                                 # Upload the file without commit_message (HF handles this for spaces)
                                 api.upload_file(
