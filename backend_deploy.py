@@ -37,55 +37,87 @@ def parse_html_code(code: str) -> str:
 
 
 def parse_transformers_js_output(code: str) -> Dict[str, str]:
-    """Parse transformers.js output into separate files"""
-    files = {}
+    """Parse transformers.js output into separate files (index.html, index.js, style.css)
     
-    # First try: Pattern to match === filename === sections
-    pattern = r'===\s*(\S+\.(?:html|js|css))\s*===\s*(.*?)(?====|$)'
-    matches = re.finditer(pattern, code, re.DOTALL | re.IGNORECASE)
+    Uses comprehensive parsing patterns to handle various LLM output formats.
+    """
+    files = {
+        'index.html': '',
+        'index.js': '',
+        'style.css': ''
+    }
     
-    for match in matches:
-        filename = match.group(1).strip()
-        content = match.group(2).strip()
-        
-        # Clean up code blocks if present
-        content = re.sub(r'^```\w*\s*', '', content, flags=re.MULTILINE)
-        content = re.sub(r'```\s*$', '', content, flags=re.MULTILINE)
-        
-        files[filename] = content
+    # Multiple patterns to match the three code blocks with different variations
+    html_patterns = [
+        r'```html\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```htm\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```\s*(?:index\.html|html)\s*\n([\s\S]*?)(?:```|\Z)'
+    ]
     
-    # Fallback: Try to extract from markdown code blocks if === format not found
-    if not files:
-        print("[Deploy] === format not found, trying markdown code blocks fallback")
-        
-        # Try to find ```html, ```javascript, ```css blocks
-        html_match = re.search(r'```html\s*(.*?)```', code, re.DOTALL | re.IGNORECASE)
-        js_match = re.search(r'```javascript\s*(.*?)```', code, re.DOTALL | re.IGNORECASE)
-        css_match = re.search(r'```css\s*(.*?)```', code, re.DOTALL | re.IGNORECASE)
-        
+    js_patterns = [
+        r'```javascript\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```js\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```\s*(?:index\.js|javascript|js)\s*\n([\s\S]*?)(?:```|\Z)'
+    ]
+    
+    css_patterns = [
+        r'```css\s*\n([\s\S]*?)(?:```|\Z)',
+        r'```\s*(?:style\.css|css)\s*\n([\s\S]*?)(?:```|\Z)'
+    ]
+    
+    # Extract HTML content
+    for pattern in html_patterns:
+        html_match = re.search(pattern, code, re.IGNORECASE)
         if html_match:
-            content = html_match.group(1).strip()
-            # Remove comment lines like "<!-- index.html content here -->"
-            content = re.sub(r'<!--\s*index\.html.*?-->\s*', '', content, flags=re.IGNORECASE)
-            files['index.html'] = content
-            
-        if js_match:
-            content = js_match.group(1).strip()
-            # Remove comment lines like "// index.js content here"
-            content = re.sub(r'//\s*index\.js.*?\n', '', content, flags=re.IGNORECASE)
-            files['index.js'] = content
-            
-        if css_match:
-            content = css_match.group(1).strip()
-            # Remove comment lines like "/* style.css content here */"
-            content = re.sub(r'/\*\s*style\.css.*?\*/', '', content, flags=re.IGNORECASE)
-            files['style.css'] = content
+            files['index.html'] = html_match.group(1).strip()
+            break
     
-    # Last resort: try to extract as single HTML file
-    if not files:
-        html_content = parse_html_code(code)
-        if html_content:
-            files['index.html'] = html_content
+    # Extract JavaScript content
+    for pattern in js_patterns:
+        js_match = re.search(pattern, code, re.IGNORECASE)
+        if js_match:
+            files['index.js'] = js_match.group(1).strip()
+            break
+    
+    # Extract CSS content
+    for pattern in css_patterns:
+        css_match = re.search(pattern, code, re.IGNORECASE)
+        if css_match:
+            files['style.css'] = css_match.group(1).strip()
+            break
+    
+    # Fallback: support === index.html === format if any file is missing
+    if not (files['index.html'] and files['index.js'] and files['style.css']):
+        # Use regex to extract sections
+        html_fallback = re.search(r'===\s*index\.html\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        js_fallback = re.search(r'===\s*index\.js\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        css_fallback = re.search(r'===\s*style\.css\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        
+        if html_fallback:
+            files['index.html'] = html_fallback.group(1).strip()
+        if js_fallback:
+            files['index.js'] = js_fallback.group(1).strip()
+        if css_fallback:
+            files['style.css'] = css_fallback.group(1).strip()
+    
+    # Additional fallback: extract from numbered sections or file headers
+    if not (files['index.html'] and files['index.js'] and files['style.css']):
+        # Try patterns like "1. index.html:" or "**index.html**"
+        patterns = [
+            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)index\.html(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'index.html'),
+            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)index\.js(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'index.js'),
+            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)style\.css(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'style.css')
+        ]
+        
+        for pattern, file_key in patterns:
+            if not files[file_key]:
+                match = re.search(pattern, code, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    # Clean up the content by removing any code block markers
+                    content = match.group(1).strip()
+                    content = re.sub(r'^```\w*\s*\n', '', content)
+                    content = re.sub(r'\n```\s*$', '', content)
+                    files[file_key] = content.strip()
     
     return files
 
@@ -362,6 +394,13 @@ def deploy_to_huggingface_space(
                     files = parse_transformers_js_output(code)
                     print(f"[Deploy] Parsed transformers.js files: {list(files.keys())}")
                     
+                    # Log file sizes for debugging
+                    for fname, fcontent in files.items():
+                        if fcontent:
+                            print(f"[Deploy] {fname}: {len(fcontent)} characters")
+                        else:
+                            print(f"[Deploy] {fname}: EMPTY")
+                    
                     # Validate all three files are present
                     missing_files = []
                     if not files.get('index.html'):
@@ -385,10 +424,14 @@ def deploy_to_huggingface_space(
                         print(f"[Deploy] {error_msg}")
                         return False, error_msg, None
                     
-                    # Write transformers.js files
+                    # Write transformers.js files to temp directory
                     for filename, content in files.items():
-                        print(f"[Deploy] Writing {filename} ({len(content)} chars)")
-                        (temp_path / filename).write_text(content, encoding='utf-8')
+                        file_path = temp_path / filename
+                        print(f"[Deploy] Writing {filename} ({len(content)} chars) to {file_path}")
+                        file_path.write_text(content, encoding='utf-8')
+                        # Verify the write was successful
+                        written_size = file_path.stat().st_size
+                        print(f"[Deploy] Verified {filename}: {written_size} bytes on disk")
                     
                     # For transformers.js, we'll upload files individually (not via upload_folder)
                     use_individual_uploads = True
@@ -594,11 +637,17 @@ def deploy_to_huggingface_space(
                             temp_file_path = None
                             try:
                                 # Create a NEW temp file for this upload (key difference from old approach)
+                                print(f"[Deploy] Creating temp file for {file_name} with {len(file_content)} chars")
                                 with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False, encoding='utf-8') as f:
                                     f.write(file_content)
                                     f.flush()  # Ensure all content is written to disk before closing
                                     temp_file_path = f.name
                                 # File is now closed and flushed, safe to upload
+                                
+                                # Verify temp file size before upload
+                                import os as _os
+                                temp_size = _os.path.getsize(temp_file_path)
+                                print(f"[Deploy] Temp file {file_name} size on disk: {temp_size} bytes (expected ~{len(file_content)} chars)")
                                 
                                 # Upload the file without commit_message (HF handles this for spaces)
                                 api.upload_file(
