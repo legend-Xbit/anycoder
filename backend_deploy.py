@@ -486,30 +486,37 @@ def deploy_to_huggingface_space(
                     try:
                         from huggingface_hub import duplicate_space
                         
-                        # duplicate_space expects just the space name, not the full repo_id
-                        print(f"[Deploy] Attempting to duplicate template space to: {space_name}")
-                        result = duplicate_space(
+                        # duplicate_space expects just the space name (not full repo_id)
+                        # Use strip() to clean the space name
+                        print(f"[Deploy] Attempting to duplicate template space to: {space_name.strip()}")
+                        duplicated_repo = duplicate_space(
                             from_id="static-templates/transformers.js",
-                            to_id=space_name,
+                            to_id=space_name.strip(),
                             token=token,
                             exist_ok=True
                         )
-                        print(f"[Deploy] Template duplication result: {result}")
+                        print(f"[Deploy] Template duplication result: {duplicated_repo} (type: {type(duplicated_repo)})")
                     except Exception as e:
-                        # If template duplication fails, fall back to regular create
-                        print(f"[Deploy] Template duplication failed, creating regular static space: {e}")
-                        import traceback
-                        traceback.print_exc()
-                        try:
-                            api.create_repo(
-                                repo_id=repo_id,
-                                repo_type="space",
-                                space_sdk=sdk,
-                                private=private,
-                                exist_ok=True
-                            )
-                        except Exception as e2:
-                            return False, f"Failed to create transformers.js space: {str(e2)}", None
+                        # Handle potential RepoUrl object errors
+                        error_msg = str(e)
+                        if "'url'" in error_msg or "RepoUrl" in error_msg:
+                            # For RepoUrl object issues, check if the space was actually created successfully
+                            print(f"[Deploy] RepoUrl error detected, checking if space was created: {error_msg}")
+                            try:
+                                # Check if space exists by trying to access it
+                                space_info = api.space_info(repo_id)
+                                if space_info:
+                                    print(f"[Deploy] Space exists despite RepoUrl error, continuing with deployment")
+                                else:
+                                    return False, f"Failed to create transformers.js space: {str(e)}", None
+                            except Exception as check_error:
+                                return False, f"Failed to create transformers.js space: {str(e)}", None
+                        else:
+                            # Other errors - report them
+                            print(f"[Deploy] Template duplication failed: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            return False, f"Failed to create transformers.js space: {str(e)}", None
                 else:
                     # For updates, verify we can access the existing space
                     try:
@@ -540,8 +547,65 @@ def deploy_to_huggingface_space(
                 commit_message = "Update from anycoder" if is_update else "Deploy from anycoder"
             
             try:
-                if use_individual_uploads:
-                    # For transformers.js, React, Streamlit: upload each file individually (matches original deploy.py)
+                if language == "transformers.js":
+                    # Special handling for transformers.js - create NEW temp files for each upload
+                    # This matches the working pattern in ui.py
+                    import time
+                    
+                    # Get the parsed files from earlier
+                    files_to_upload = [
+                        ("index.html", files.get('index.html')),
+                        ("index.js", files.get('index.js')),
+                        ("style.css", files.get('style.css'))
+                    ]
+                    
+                    max_attempts = 3
+                    for file_name, file_content in files_to_upload:
+                        if not file_content:
+                            return False, f"Missing content for {file_name}", None
+                        
+                        success = False
+                        last_error = None
+                        
+                        for attempt in range(max_attempts):
+                            temp_file_path = None
+                            try:
+                                # Create a NEW temp file for this upload (key difference from old approach)
+                                with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False, encoding='utf-8') as f:
+                                    f.write(file_content)
+                                    temp_file_path = f.name
+                                
+                                # Upload the file without commit_message (HF handles this for spaces)
+                                api.upload_file(
+                                    path_or_fileobj=temp_file_path,
+                                    path_in_repo=file_name,
+                                    repo_id=repo_id,
+                                    repo_type="space"
+                                )
+                                success = True
+                                print(f"[Deploy] Successfully uploaded {file_name}")
+                                break
+                                
+                            except Exception as e:
+                                last_error = e
+                                error_str = str(e)
+                                print(f"[Deploy] Upload error for {file_name}: {error_str}")
+                                if "403" in error_str or "Forbidden" in error_str:
+                                    return False, f"Permission denied uploading {file_name}. Check your token has write access to {repo_id}.", None
+                                
+                                if attempt < max_attempts - 1:
+                                    time.sleep(2)  # Wait before retry
+                                    print(f"[Deploy] Retry {attempt + 1}/{max_attempts} for {file_name}")
+                            finally:
+                                # Clean up temp file
+                                if temp_file_path and os.path.exists(temp_file_path):
+                                    os.unlink(temp_file_path)
+                        
+                        if not success:
+                            return False, f"Failed to upload {file_name} after {max_attempts} attempts: {last_error}", None
+                
+                elif use_individual_uploads:
+                    # For React, Streamlit: upload each file individually
                     import time
                     
                     # Get list of files to upload from temp directory
@@ -564,19 +628,18 @@ def deploy_to_huggingface_space(
                         if not file_path.exists():
                             return False, f"Failed to upload: {filename} not found", None
                         
-                        # Upload with retry logic (like original)
+                        # Upload with retry logic
                         success = False
                         last_error = None
                         
                         for attempt in range(max_attempts):
                             try:
-                                # MATCH GRADIO: upload_file WITHOUT commit_message for individual files
+                                # Upload without commit_message - HF API handles this for spaces
                                 api.upload_file(
                                     path_or_fileobj=str(file_path),
                                     path_in_repo=filename,
                                     repo_id=repo_id,
                                     repo_type="space"
-                                    # NO commit_message - HF API handles this automatically for spaces
                                 )
                                 success = True
                                 print(f"[Deploy] Successfully uploaded {filename}")
@@ -594,14 +657,12 @@ def deploy_to_huggingface_space(
                         if not success:
                             return False, f"Failed to upload {filename} after {max_attempts} attempts: {last_error}", None
                 else:
-                    # For other languages, use upload_folder (Gradio uses individual files everywhere)
-                    # MATCH GRADIO: No commit_message for spaces
+                    # For other languages, use upload_folder
                     print(f"[Deploy] Uploading folder to {repo_id}")
                     api.upload_folder(
                         folder_path=str(temp_path),
                         repo_id=repo_id,
                         repo_type="space"
-                        # NO commit_message - HF API handles this automatically for spaces
                     )
             except Exception as e:
                 return False, f"Failed to upload files: {str(e)}", None
@@ -617,6 +678,15 @@ def deploy_to_huggingface_space(
             except Exception as e:
                 # Don't fail deployment if README modification fails
                 print(f"Warning: Could not add anycoder tag to README: {e}")
+            
+            # For transformers.js updates, trigger a space restart to ensure changes take effect
+            if is_update and language == "transformers.js":
+                try:
+                    api.restart_space(repo_id=repo_id)
+                    print(f"[Deploy] Restarted space after update: {repo_id}")
+                except Exception as restart_error:
+                    # Don't fail the deployment if restart fails, just log it
+                    print(f"Note: Could not restart space after update: {restart_error}")
             
             space_url = f"https://huggingface.co/spaces/{repo_id}"
             action = "Updated" if is_update else "Deployed"
