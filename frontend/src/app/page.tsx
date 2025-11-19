@@ -254,12 +254,12 @@ export default function Home() {
           }
         }
         
-        // Add deployment message to chat (matches Gradio format)
+        // Add deployment message to chat (EXACT Gradio format with markdown link)
         const deployMessage: Message = {
           role: 'assistant',
           content: existingSpace 
-            ? `✅ Updated! View at: ${response.space_url}` 
-            : `✅ Deployed! View at: ${response.space_url}`,
+            ? `✅ Updated! [Open your Space here](${response.space_url})` 
+            : `✅ Deployed! [Open your Space here](${response.space_url})`,
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, deployMessage]);
