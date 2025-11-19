@@ -570,20 +570,23 @@ def deploy_to_huggingface_space(
                         
                         for attempt in range(max_attempts):
                             try:
+                                # MATCH GRADIO: upload_file WITHOUT commit_message for individual files
                                 api.upload_file(
                                     path_or_fileobj=str(file_path),
                                     path_in_repo=filename,
                                     repo_id=repo_id,
-                                    repo_type="space",
-                                    commit_message=f"{commit_message} - {filename}"
+                                    repo_type="space"
+                                    # NO commit_message - HF API handles this automatically for spaces
                                 )
                                 success = True
                                 print(f"[Deploy] Successfully uploaded {filename}")
                                 break
                             except Exception as e:
                                 last_error = e
-                                if "403" in str(e) or "Forbidden" in str(e):
-                                    return False, f"Permission denied uploading {filename}. Check your token has write access.", None
+                                error_str = str(e)
+                                print(f"[Deploy] Upload error for {filename}: {error_str}")
+                                if "403" in error_str or "Forbidden" in error_str:
+                                    return False, f"Permission denied uploading {filename}. Check your token has write access to {repo_id}.", None
                                 if attempt < max_attempts - 1:
                                     time.sleep(2)  # Wait before retry
                                     print(f"[Deploy] Retry {attempt + 1}/{max_attempts} for {filename}")
@@ -591,12 +594,14 @@ def deploy_to_huggingface_space(
                         if not success:
                             return False, f"Failed to upload {filename} after {max_attempts} attempts: {last_error}", None
                 else:
-                    # For other languages, use upload_folder
+                    # For other languages, use upload_folder (Gradio uses individual files everywhere)
+                    # MATCH GRADIO: No commit_message for spaces
+                    print(f"[Deploy] Uploading folder to {repo_id}")
                     api.upload_folder(
                         folder_path=str(temp_path),
                         repo_id=repo_id,
-                        repo_type="space",
-                        commit_message=commit_message
+                        repo_type="space"
+                        # NO commit_message - HF API handles this automatically for spaces
                     )
             except Exception as e:
                 return False, f"Failed to upload files: {str(e)}", None

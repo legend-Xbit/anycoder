@@ -187,6 +187,27 @@ export default function Home() {
       return;
     }
 
+    // CRITICAL: Wait for username to be loaded from auth
+    if (!username) {
+      console.warn('[Deploy] Username not loaded yet, checking auth...');
+      // Try to get username from auth status
+      try {
+        const authStatus = await apiClient.getAuthStatus();
+        if (authStatus.username) {
+          setUsername(authStatus.username);
+          // Retry deployment after setting username
+          setTimeout(() => handleDeploy(), 100);
+          return;
+        } else {
+          alert('Please log in to deploy your app');
+          return;
+        }
+      } catch (e) {
+        alert('Please log in to deploy your app');
+        return;
+      }
+    }
+
     // SAME LOGIC AS GRADIO VERSION: Parse message history to find existing space
     let existingSpace: string | null = null;
     
@@ -194,61 +215,61 @@ export default function Home() {
     console.log('[Deploy] ========== DEBUG START ==========');
     console.log('[Deploy] Total messages in history:', messages.length);
     console.log('[Deploy] Current username:', username);
+    console.log('[Deploy] Auth status:', isAuthenticated ? 'authenticated' : 'not authenticated');
     console.log('[Deploy] Messages:', JSON.stringify(messages, null, 2));
     
     if (messages.length > 0 && username) {
-      console.log('[Deploy] Scanning message history...');
+      console.log('[Deploy] Scanning message history FORWARD (oldest first) - MATCHING GRADIO LOGIC...');
+      console.log('[Deploy] Total messages to scan:', messages.length);
       
-      for (let i = messages.length - 1; i >= 0; i--) {
+      // EXACT GRADIO LOGIC: Scan forward (oldest first) and stop at first match
+      // Gradio: for user_msg, assistant_msg in history:
+      for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
         console.log(`[Deploy] Checking message ${i}:`, {
           role: msg.role,
-          contentPreview: msg.content.substring(0, 100),
-          startsWithImported: msg.content.startsWith('Imported Space from')
+          contentPreview: msg.content.substring(0, 100)
         });
         
-        // Check for deployment messages
-        if (msg.role === 'assistant' && msg.content.includes('✅ Deployed')) {
-          const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
-          if (match) {
-            existingSpace = match[1];
-            console.log('[Deploy] ✅ Found "✅ Deployed" message:', existingSpace);
-            break;
+        // Check assistant messages for deployment confirmations
+        if (msg.role === 'assistant') {
+          // Check for "✅ Deployed!" message
+          if (msg.content.includes('✅ Deployed!')) {
+            const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+            if (match) {
+              existingSpace = match[1];
+              console.log('[Deploy] ✅ Found "✅ Deployed!" - existing_space:', existingSpace);
+              break;
+            }
+          }
+          // Check for "✅ Updated!" message
+          else if (msg.content.includes('✅ Updated!')) {
+            const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+            if (match) {
+              existingSpace = match[1];
+              console.log('[Deploy] ✅ Found "✅ Updated!" - existing_space:', existingSpace);
+              break;
+            }
           }
         }
-        
-        // Check for update messages
-        if (msg.role === 'assistant' && msg.content.includes('✅ Updated')) {
+        // Check user messages for imports
+        else if (msg.role === 'user' && msg.content.startsWith('Imported Space from')) {
+          console.log('[Deploy] 🎯 Found "Imported Space from" message');
           const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
-          if (match) {
-            existingSpace = match[1];
-            console.log('[Deploy] ✅ Found "✅ Updated" message:', existingSpace);
-            break;
-          }
-        }
-        
-        // Check for imported space messages - THE KEY PART!
-        if (msg.role === 'user' && msg.content.startsWith('Imported Space from')) {
-          console.log('[Deploy] 🎯 Found "Imported Space from" message!');
-          const match = msg.content.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
-          console.log('[Deploy] Regex match result:', match);
           if (match) {
             const importedSpace = match[1];
-            console.log('[Deploy] Extracted space:', importedSpace);
-            console.log('[Deploy] Username to check:', username);
-            console.log('[Deploy] Starts with username?', importedSpace.startsWith(`${username}/`));
+            console.log('[Deploy] Extracted imported space:', importedSpace);
+            console.log('[Deploy] Checking ownership - user:', username, 'space:', importedSpace);
             
-            // Only use imported space if user owns it (can update it)
+            // Only use if user owns it (EXACT GRADIO LOGIC)
             if (importedSpace.startsWith(`${username}/`)) {
               existingSpace = importedSpace;
-              console.log('[Deploy] ✅✅✅ USER OWNS THIS SPACE! Will update:', existingSpace);
+              console.log('[Deploy] ✅✅✅ USER OWNS - Will update:', existingSpace);
               break;
             } else {
-              console.log('[Deploy] ⚠️ User does not own this space:', importedSpace);
-              console.log('[Deploy] Expected to start with:', `${username}/`);
+              console.log('[Deploy] ⚠️ User does NOT own - will create new space');
+              // existing_space remains None (create new deployment)
             }
-          } else {
-            console.log('[Deploy] ❌ Regex did not match URL in message');
           }
         }
       }
@@ -256,8 +277,16 @@ export default function Home() {
       console.log('[Deploy] Final existingSpace value:', existingSpace);
     } else {
       console.log('[Deploy] Skipping scan - no messages or no username');
+      console.log('[Deploy] Messages length:', messages.length);
+      console.log('[Deploy] Username:', username);
     }
     console.log('[Deploy] ========== DEBUG END ==========');
+
+    // TEMPORARY DEBUG: Show what will be sent
+    console.log('[Deploy] 🚀 ABOUT TO DEPLOY:');
+    console.log('[Deploy] - Language:', selectedLanguage);
+    console.log('[Deploy] - existing_repo_id:', existingSpace || 'None (new deployment)');
+    console.log('[Deploy] - Username:', username);
 
     // Auto-generate space name (never prompt user)
     let spaceName = undefined;  // undefined = backend will auto-generate
