@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
 import Header from '@/components/Header';
+import LandingPage from '@/components/LandingPage';
 import ChatInterface from '@/components/ChatInterface';
 import CodeEditor from '@/components/CodeEditor';
 import ControlPanel from '@/components/ControlPanel';
@@ -22,6 +23,9 @@ export default function Home() {
   const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);  // Track imported/deployed space
   const [username, setUsername] = useState<string | null>(null);  // Track current user
   
+  // Landing page state - show landing page if no messages exist
+  const [showLandingPage, setShowLandingPage] = useState(true);
+  
   // Mobile view state: 'chat', 'editor', or 'settings'
   const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('editor');
 
@@ -34,6 +38,10 @@ export default function Home() {
           const parsed = JSON.parse(saved);
           console.log('[localStorage] Loaded messages from localStorage:', parsed.length, 'messages');
           setMessages(parsed);
+          // If there are existing messages, show the full UI
+          if (parsed.length > 0) {
+            setShowLandingPage(false);
+          }
         } catch (e) {
           console.error('[localStorage] Failed to parse saved messages:', e);
         }
@@ -79,10 +87,27 @@ export default function Home() {
     }
   };
 
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async (message: string, overrideLanguage?: Language, overrideModel?: string) => {
     if (!isAuthenticated) {
       alert('Please sign in with HuggingFace first! Click the "Sign in with Hugging Face" button in the header.');
       return;
+    }
+
+    // Hide landing page and show full UI when first message is sent
+    if (showLandingPage) {
+      setShowLandingPage(false);
+    }
+
+    // Use override values if provided, otherwise use state
+    const language = overrideLanguage || selectedLanguage;
+    const model = overrideModel || selectedModel;
+
+    // Update state if override values provided
+    if (overrideLanguage) {
+      setSelectedLanguage(overrideLanguage);
+    }
+    if (overrideModel) {
+      setSelectedModel(overrideModel);
     }
 
     // If there's existing code, include it in the message context for modifications
@@ -92,7 +117,7 @@ export default function Home() {
                         !generatedCode.includes('Your generated code will appear here');
     
     if (hasRealCode) {
-      enhancedMessage = `I have existing code in the editor. Please modify it based on my request.\n\nCurrent code:\n\`\`\`${selectedLanguage}\n${generatedCode}\n\`\`\`\n\nMy request: ${message}`;
+      enhancedMessage = `I have existing code in the editor. Please modify it based on my request.\n\nCurrent code:\n\`\`\`${language}\n${generatedCode}\n\`\`\`\n\nMy request: ${message}`;
     }
 
     // Add user message (show original message to user, but send enhanced to API)
@@ -110,8 +135,8 @@ export default function Home() {
     // Prepare request with enhanced query that includes current code
     const request: CodeGenerationRequest = {
       query: enhancedMessage,
-      language: selectedLanguage,
-      model_id: selectedModel,
+      language: language,
+      model_id: model,
       provider: 'auto',
       history: messages.map((m) => [m.role, m.content]),
       agent_mode: false,
@@ -384,6 +409,7 @@ export default function Home() {
     if (confirm('Clear all messages and code?')) {
       setMessages([]);
       setGeneratedCode('');
+      setShowLandingPage(true);
       // Clear localStorage to remove import history
       if (typeof window !== 'undefined') {
         localStorage.removeItem('anycoder_messages');
@@ -461,8 +487,30 @@ export default function Home() {
     setMobileView('editor');
   };
 
+  // Handle landing page prompt submission
+  const handleLandingPageStart = async (prompt: string, language: Language, modelId: string) => {
+    // Hide landing page immediately for smooth transition
+    setShowLandingPage(false);
+    // Send the message with the selected language and model
+    await handleSendMessage(prompt, language, modelId);
+  };
+
+  // Show landing page if no messages and showLandingPage is true
+  if (showLandingPage && messages.length === 0) {
+    return (
+      <div className="min-h-screen animate-in fade-in duration-300">
+        <LandingPage 
+          onStart={handleLandingPageStart}
+          isAuthenticated={isAuthenticated}
+          initialLanguage={selectedLanguage}
+          initialModel={selectedModel}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="h-screen flex flex-col bg-[#1d1d1f]">
+    <div className="h-screen flex flex-col bg-[#1d1d1f] animate-in fade-in duration-300">
       <Header />
       
       {/* VS Code layout with Apple styling - Responsive */}

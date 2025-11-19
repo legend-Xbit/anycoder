@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { apiClient } from '@/lib/api';
 import type { Model, Language } from '@/types';
 
@@ -32,9 +32,32 @@ export default function ControlPanel({
   const [importUrl, setImportUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  
+  // Dropdown states
+  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const languageDropdownRef = useRef<HTMLDivElement>(null);
+  const modelDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (languageDropdownRef.current && !languageDropdownRef.current.contains(event.target as Node)) {
+        setShowLanguageDropdown(false);
+      }
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
+        setShowModelDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const loadData = async () => {
@@ -101,60 +124,128 @@ export default function ControlPanel({
     }
   };
 
+  const formatLanguageName = (lang: Language) => {
+    if (lang === 'html') return 'HTML';
+    if (lang === 'transformers.js') return 'Transformers.js';
+    return lang.charAt(0).toUpperCase() + lang.slice(1);
+  };
+
   return (
-    <div className="bg-[#28282a] p-5 space-y-6 h-full">
-      <h3 className="text-base font-semibold text-[#e5e5e7] tracking-tight mb-2">Configuration</h3>
+    <div className="bg-[#252526] p-6 space-y-6 h-full">
+      <h3 className="text-2xl font-bold text-[#cccccc] tracking-tight mb-6">Configuration</h3>
       
       {/* Language Selection */}
-      <div>
-        <label className="block text-sm font-semibold text-[#e5e5e7] mb-3 tracking-tight">
+      <div className="relative" ref={languageDropdownRef}>
+        <label className="block text-sm font-semibold text-[#cccccc] mb-3 tracking-tight">
           Language
         </label>
-        <select
-          value={selectedLanguage}
-          onChange={(e) => onLanguageChange(e.target.value as Language)}
+        <button
+          type="button"
+          onClick={() => {
+            setShowLanguageDropdown(!showLanguageDropdown);
+            setShowModelDropdown(false);
+          }}
           disabled={isGenerating || isLoading}
-          className="w-full px-4 py-3 bg-[#3a3a3c] text-[#e5e5e7] text-sm border border-[#48484a] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#007aff] focus:border-transparent disabled:opacity-50 font-medium shadow-sm"
+          className="w-full px-4 py-3 bg-[#3a3a3c] text-[#cccccc] text-sm border border-[#3e3e42] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007acc] focus:border-transparent disabled:opacity-50 font-medium shadow-sm flex items-center justify-between hover:bg-[#404040] transition-colors"
         >
-          {isLoading ? (
-            <option value="">Loading...</option>
-          ) : languages.length === 0 ? (
-            <option value="">No languages available</option>
-          ) : (
-            languages.map((lang) => (
-              <option key={lang} value={lang} className="bg-[#3a3a3c]">
-                {lang === 'html' ? 'HTML' : lang.charAt(0).toUpperCase() + lang.slice(1)}
-              </option>
-            ))
-          )}
-        </select>
+          <span>{isLoading ? 'Loading...' : formatLanguageName(selectedLanguage)}</span>
+          <svg 
+            className={`w-4 h-4 text-[#cccccc] transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`}
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {/* Language Dropdown Tray */}
+        {showLanguageDropdown && !isLoading && languages.length > 0 && (
+          <div className="absolute z-50 w-full mt-2 bg-[#252526] border border-[#3e3e42] rounded-lg shadow-2xl shadow-black/50 overflow-hidden">
+            <div className="max-h-64 overflow-y-auto">
+              {languages.map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => {
+                    onLanguageChange(lang);
+                    setShowLanguageDropdown(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left text-sm text-[#cccccc] hover:bg-[#2a2d2e] transition-colors ${
+                    selectedLanguage === lang ? 'bg-[#264f78] hover:bg-[#264f78]' : ''
+                  }`}
+                >
+                  {formatLanguageName(lang)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Model Selection */}
-      <div>
-        <label className="block text-sm font-semibold text-[#e5e5e7] mb-3 tracking-tight">
+      <div className="relative" ref={modelDropdownRef}>
+        <label className="block text-sm font-semibold text-[#cccccc] mb-3 tracking-tight">
           AI Model
         </label>
-        <select
-          value={selectedModel}
-          onChange={(e) => onModelChange(e.target.value)}
+        <button
+          type="button"
+          onClick={() => {
+            setShowModelDropdown(!showModelDropdown);
+            setShowLanguageDropdown(false);
+          }}
           disabled={isGenerating || isLoading}
-          className="w-full px-4 py-3 bg-[#3a3a3c] text-[#e5e5e7] text-sm border border-[#48484a] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#007aff] focus:border-transparent disabled:opacity-50 font-medium shadow-sm"
+          className="w-full px-4 py-3 bg-[#3a3a3c] text-[#cccccc] text-sm border border-[#3e3e42] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007acc] focus:border-transparent disabled:opacity-50 font-medium shadow-sm flex items-center justify-between hover:bg-[#404040] transition-colors"
         >
-          {isLoading ? (
-            <option value="">Loading...</option>
-          ) : models.length === 0 ? (
-            <option value="">No models available</option>
-          ) : (
-            models.map((model) => (
-              <option key={model.id} value={model.id} className="bg-[#3a3a3c]">
-                {model.name}
-              </option>
-            ))
-          )}
-        </select>
+          <span>
+            {isLoading 
+              ? 'Loading...' 
+              : models.find(m => m.id === selectedModel)?.name || 'Select model'
+            }
+          </span>
+          <svg 
+            className={`w-4 h-4 text-[#cccccc] transition-transform ${showModelDropdown ? 'rotate-180' : ''}`}
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {/* Model Dropdown Tray */}
+        {showModelDropdown && !isLoading && models.length > 0 && (
+          <div className="absolute z-50 w-full mt-2 bg-[#252526] border border-[#3e3e42] rounded-lg shadow-2xl shadow-black/50 overflow-hidden">
+            <div className="max-h-80 overflow-y-auto">
+              {models.map((model) => (
+                <button
+                  key={model.id}
+                  type="button"
+                  onClick={() => {
+                    onModelChange(model.id);
+                    setShowModelDropdown(false);
+                  }}
+                  className={`w-full px-4 py-3 text-left transition-colors ${
+                    selectedModel === model.id 
+                      ? 'bg-[#264f78] hover:bg-[#264f78]' 
+                      : 'hover:bg-[#2a2d2e]'
+                  }`}
+                >
+                  <div className="text-sm font-medium text-[#cccccc]">{model.name}</div>
+                  {model.description && (
+                    <div className="text-xs text-[#858585] mt-1 leading-relaxed">
+                      {model.description}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Model Description */}
         {!isLoading && models.find(m => m.id === selectedModel) && (
-          <p className="text-xs text-[#86868b] mt-3 leading-relaxed">
+          <p className="text-xs text-[#858585] mt-3 leading-relaxed">
             {models.find(m => m.id === selectedModel)?.description}
           </p>
         )}
@@ -257,4 +348,3 @@ export default function ControlPanel({
     </div>
   );
 }
-
