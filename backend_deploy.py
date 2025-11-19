@@ -329,15 +329,22 @@ def deploy_to_huggingface_space(
                 except Exception as e:
                     return False, f"Failed to get user info: {str(e)}", None
             
-            # Generate space name if not provided
-            if not space_name:
+            # Generate space name if not provided or empty
+            if not space_name or space_name.strip() == "":
                 space_name = f"anycoder-{uuid.uuid4().hex[:8]}"
+                print(f"[Deploy] Auto-generated space name: {space_name}")
             
             # Clean space name (no spaces, lowercase, alphanumeric + hyphens)
             space_name = re.sub(r'[^a-z0-9-]', '-', space_name.lower())
             space_name = re.sub(r'-+', '-', space_name).strip('-')
             
+            # Ensure space_name is not empty after cleaning
+            if not space_name:
+                space_name = f"anycoder-{uuid.uuid4().hex[:8]}"
+                print(f"[Deploy] Space name was empty after cleaning, regenerated: {space_name}")
+            
             repo_id = f"{username}/{space_name}"
+            print(f"[Deploy] Using repo_id: {repo_id}")
         
         # Detect SDK
         sdk = detect_sdk_from_code(code, language)
@@ -483,20 +490,32 @@ def deploy_to_huggingface_space(
             if language == "transformers.js":
                 if not is_update:
                     print(f"[Deploy] Creating NEW transformers.js space via template duplication")
+                    print(f"[Deploy] space_name value: '{space_name}' (type: {type(space_name)})")
+                    
+                    # Safety check for space_name
+                    if not space_name:
+                        return False, "Internal error: space_name is None after generation", None
+                    
                     try:
                         from huggingface_hub import duplicate_space
                         
                         # duplicate_space expects just the space name (not full repo_id)
                         # Use strip() to clean the space name
-                        print(f"[Deploy] Attempting to duplicate template space to: {space_name.strip()}")
+                        clean_space_name = space_name.strip()
+                        print(f"[Deploy] Attempting to duplicate template space to: {clean_space_name}")
+                        
                         duplicated_repo = duplicate_space(
                             from_id="static-templates/transformers.js",
-                            to_id=space_name.strip(),
+                            to_id=clean_space_name,
                             token=token,
                             exist_ok=True
                         )
                         print(f"[Deploy] Template duplication result: {duplicated_repo} (type: {type(duplicated_repo)})")
                     except Exception as e:
+                        print(f"[Deploy] Exception during duplicate_space: {type(e).__name__}: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
+                        
                         # Handle potential RepoUrl object errors
                         error_msg = str(e)
                         if "'url'" in error_msg or "RepoUrl" in error_msg:
@@ -513,9 +532,6 @@ def deploy_to_huggingface_space(
                                 return False, f"Failed to create transformers.js space: {str(e)}", None
                         else:
                             # Other errors - report them
-                            print(f"[Deploy] Template duplication failed: {e}")
-                            import traceback
-                            traceback.print_exc()
                             return False, f"Failed to create transformers.js space: {str(e)}", None
                 else:
                     # For updates, verify we can access the existing space
@@ -693,6 +709,9 @@ def deploy_to_huggingface_space(
             return True, f"✅ {action} successfully to {repo_id}!", space_url
             
     except Exception as e:
+        print(f"[Deploy] Top-level exception caught: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False, f"Deployment error: {str(e)}", None
 
 
