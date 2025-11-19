@@ -247,8 +247,30 @@ class ApiClient {
   }
 
   async deploy(request: DeploymentRequest): Promise<DeploymentResponse> {
-    const response = await this.client.post<DeploymentResponse>('/api/deploy', request);
-    return response.data;
+    console.log('[API Client] Deploy request:', {
+      endpoint: '/api/deploy',
+      method: 'POST',
+      baseURL: API_URL,
+      hasToken: !!this.token,
+      language: request.language,
+      code_length: request.code?.length,
+      space_name: request.space_name,
+      existing_repo_id: request.existing_repo_id,
+    });
+    
+    try {
+      const response = await this.client.post<DeploymentResponse>('/api/deploy', request);
+      console.log('[API Client] Deploy response:', response.status, response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('[API Client] Deploy error:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+      });
+      throw error;
+    }
   }
 
   async importProject(url: string, preferLocal: boolean = false): Promise<any> {

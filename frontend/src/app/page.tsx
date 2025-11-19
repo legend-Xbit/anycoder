@@ -11,22 +11,8 @@ import { isAuthenticated as checkIsAuthenticated, getStoredToken } from '@/lib/a
 import type { Message, Language, CodeGenerationRequest } from '@/types';
 
 export default function Home() {
-  // Load messages from localStorage on mount (CRITICAL FOR IMPORT/DEPLOY TRACKING!)
-  const [messages, setMessages] = useState<Message[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('anycoder_messages');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          console.log('[localStorage] Loaded messages from localStorage:', parsed.length, 'messages');
-          return parsed;
-        } catch (e) {
-          console.error('[localStorage] Failed to parse saved messages:', e);
-        }
-      }
-    }
-    return [];
-  });
+  // Initialize messages as empty array (will load from localStorage in useEffect)
+  const [messages, setMessages] = useState<Message[]>([]);
   
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
@@ -39,9 +25,25 @@ export default function Home() {
   // Mobile view state: 'chat', 'editor', or 'settings'
   const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('editor');
 
-  // Save messages to localStorage whenever they change (CRITICAL FOR PERSISTENCE!)
+  // Load messages from localStorage on mount (client-side only to avoid hydration issues)
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('anycoder_messages');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          console.log('[localStorage] Loaded messages from localStorage:', parsed.length, 'messages');
+          setMessages(parsed);
+        } catch (e) {
+          console.error('[localStorage] Failed to parse saved messages:', e);
+        }
+      }
+    }
+  }, []); // Empty deps = run once on mount
+
+  // Save messages to localStorage whenever they change (CRITICAL FOR PERSISTENCE!)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && messages.length > 0) {
       localStorage.setItem('anycoder_messages', JSON.stringify(messages));
       console.log('[localStorage] Saved', messages.length, 'messages to localStorage');
     }
@@ -182,6 +184,11 @@ export default function Home() {
   };
 
   const handleDeploy = async () => {
+    console.log('[Deploy] 🎬 handleDeploy called');
+    console.log('[Deploy] generatedCode exists?', !!generatedCode);
+    console.log('[Deploy] generatedCode length:', generatedCode?.length);
+    console.log('[Deploy] generatedCode preview:', generatedCode?.substring(0, 200));
+    
     if (!generatedCode) {
       alert('No code to publish! Generate some code first.');
       return;
@@ -313,10 +320,13 @@ export default function Home() {
         existing_repo_id: deployRequest.existing_repo_id,
         space_name: deployRequest.space_name,
         language: deployRequest.language,
-        has_code: !!deployRequest.code
+        has_code: !!deployRequest.code,
+        code_length: deployRequest.code?.length
       });
+      console.log('[Deploy] Full request object:', JSON.stringify(deployRequest, null, 2).substring(0, 500));
       
       const response = await apiClient.deploy(deployRequest);
+      console.log('[Deploy] ✅ Response received:', response);
 
       if (response.success) {
         // Update current repo ID if we got one back
@@ -356,8 +366,17 @@ export default function Home() {
       } else {
         alert(`Deployment failed: ${response.message}`);
       }
-    } catch (error) {
-      alert(`Deployment error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } catch (error: any) {
+      console.error('[Deploy] Full error object:', error);
+      console.error('[Deploy] Error response:', error.response);
+      console.error('[Deploy] Error data:', error.response?.data);
+      
+      const errorMessage = error.response?.data?.detail 
+        || error.response?.data?.message 
+        || error.message 
+        || 'Unknown error';
+      
+      alert(`Deployment error: ${errorMessage}\n\nCheck console for details.`);
     }
   };
 
