@@ -11,7 +11,23 @@ import { isAuthenticated as checkIsAuthenticated, getStoredToken } from '@/lib/a
 import type { Message, Language, CodeGenerationRequest } from '@/types';
 
 export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Load messages from localStorage on mount (CRITICAL FOR IMPORT/DEPLOY TRACKING!)
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('anycoder_messages');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          console.log('[localStorage] Loaded messages from localStorage:', parsed.length, 'messages');
+          return parsed;
+        } catch (e) {
+          console.error('[localStorage] Failed to parse saved messages:', e);
+        }
+      }
+    }
+    return [];
+  });
+  
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
   const [selectedModel, setSelectedModel] = useState('gemini-3.0-pro');
@@ -22,6 +38,14 @@ export default function Home() {
   
   // Mobile view state: 'chat', 'editor', or 'settings'
   const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('editor');
+
+  // Save messages to localStorage whenever they change (CRITICAL FOR PERSISTENCE!)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('anycoder_messages', JSON.stringify(messages));
+      console.log('[localStorage] Saved', messages.length, 'messages to localStorage');
+    }
+  }, [messages]);
 
   useEffect(() => {
     checkAuth();
@@ -309,6 +333,11 @@ export default function Home() {
     if (confirm('Clear all messages and code?')) {
       setMessages([]);
       setGeneratedCode('');
+      // Clear localStorage to remove import history
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('anycoder_messages');
+        console.log('[localStorage] Cleared messages from localStorage');
+      }
     }
   };
 
