@@ -8,10 +8,12 @@ import json
 import uuid
 import tempfile
 import shutil
+import ast
 from typing import Dict, List, Optional, Tuple
 from pathlib import Path
 
 from huggingface_hub import HfApi
+from backend_models import get_inference_client, get_real_model_id
 
 
 def parse_html_code(code: str) -> str:
@@ -136,6 +138,233 @@ def parse_python_requirements(code: str) -> Optional[str]:
         return requirements
     
     return None
+
+
+def strip_tool_call_markers(text):
+    """Remove TOOL_CALL markers and thinking tags that some LLMs add to their output."""
+    if not text:
+        return text
+    # Remove [TOOL_CALL] and [/TOOL_CALL] markers
+    text = re.sub(r'\[/?TOOL_CALL\]', '', text, flags=re.IGNORECASE)
+    # Remove <think> and </think> tags and their content
+    text = re.sub(r'<think>[\s\S]*?</think>', '', text, flags=re.IGNORECASE)
+    # Remove any remaining unclosed <think> tags at the start
+    text = re.sub(r'^<think>[\s\S]*?(?=\n|$)', '', text, flags=re.IGNORECASE | re.MULTILINE)
+    # Remove any remaining </think> tags
+    text = re.sub(r'</think>', '', text, flags=re.IGNORECASE)
+    # Remove standalone }} that appears with tool calls
+    # Only remove if it's on its own line or at the end
+    text = re.sub(r'^\s*\}\}\s*$', '', text, flags=re.MULTILINE)
+    return text.strip()
+
+
+def remove_code_block(text):
+    """Remove code block markers from text."""
+    # First strip any tool call markers
+    text = strip_tool_call_markers(text)
+    
+    # Try to match code blocks with language markers
+    patterns = [
+        r'```(?:html|HTML)\n([\s\S]+?)\n```',  # Match ```html or ```HTML
+        r'```\n([\s\S]+?)\n```',               # Match code blocks without language markers
+        r'```([\s\S]+?)```'                      # Match code blocks without line breaks
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.DOTALL)
+        if match:
+            extracted = match.group(1).strip()
+            # Remove a leading language marker line (e.g., 'python') if present
+            if extracted.split('\n', 1)[0].strip().lower() in ['python', 'html', 'css', 'javascript', 'json', 'c', 'cpp', 'markdown', 'latex', 'jinja2', 'typescript', 'yaml', 'dockerfile', 'shell', 'r', 'sql']:
+                return extracted.split('\n', 1)[1] if '\n' in extracted else ''
+            return extracted
+    # If no code block is found, return as-is
+    return text.strip()
+
+
+def extract_import_statements(code):
+    """Extract import statements from generated code."""
+    import_statements = []
+    
+    # Built-in Python modules to exclude
+    builtin_modules = {
+        'os', 'sys', 'json', 'time', 'datetime', 'random', 'math', 're', 'collections',
+        'itertools', 'functools', 'pathlib', 'urllib', 'http', 'email', 'html', 'xml',
+        'csv', 'tempfile', 'shutil', 'subprocess', 'threading', 'multiprocessing',
+        'asyncio', 'logging', 'typing', 'base64', 'hashlib', 'secrets', 'uuid',
+        'copy', 'pickle', 'io', 'contextlib', 'warnings', 'sqlite3', 'gzip', 'zipfile',
+        'tarfile', 'socket', 'ssl', 'platform', 'getpass', 'pwd', 'grp', 'stat',
+        'glob', 'fnmatch', 'linecache', 'traceback', 'inspect', 'keyword', 'token',
+        'tokenize', 'ast', 'code', 'codeop', 'dis', 'py_compile', 'compileall',
+        'importlib', 'pkgutil', 'modulefinder', 'runpy', 'site', 'sysconfig'
+    }
+    
+    try:
+        # Try to parse as Python AST
+        tree = ast.parse(code)
+        
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    module_name = alias.name.split('.')[0]
+                    if module_name not in builtin_modules and not module_name.startswith('_'):
+                        import_statements.append(f"import {alias.name}")
+            
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    module_name = node.module.split('.')[0]
+                    if module_name not in builtin_modules and not module_name.startswith('_'):
+                        names = [alias.name for alias in node.names]
+                        import_statements.append(f"from {node.module} import {', '.join(names)}")
+    
+    except SyntaxError:
+        # Fallback: use regex to find import statements
+        for line in code.split('\n'):
+            line = line.strip()
+            if line.startswith('import ') or line.startswith('from '):
+                # Check if it's not a builtin module
+                if line.startswith('import '):
+                    module_name = line.split()[1].split('.')[0]
+                elif line.startswith('from '):
+                    module_name = line.split()[1].split('.')[0]
+                
+                if module_name not in builtin_modules and not module_name.startswith('_'):
+                    import_statements.append(line)
+    
+    return list(set(import_statements))  # Remove duplicates
+
+
+def generate_requirements_txt_with_llm(import_statements):
+    """Generate requirements.txt content using LLM based on import statements."""
+    if not import_statements:
+        return "# No additional dependencies required\n"
+    
+    # Use a lightweight model for this task
+    try:
+        client = get_inference_client("zai-org/GLM-4.6", "auto")
+        actual_model_id = get_real_model_id("zai-org/GLM-4.6")
+        
+        imports_text = '\n'.join(import_statements)
+        
+        prompt = f"""Based on the following Python import statements, generate a comprehensive requirements.txt file with all necessary and commonly used related packages:
+
+{imports_text}
+
+Instructions:
+- Include the direct packages needed for the imports
+- Include commonly used companion packages and dependencies for better functionality
+- Use correct PyPI package names (e.g., PIL -> Pillow, sklearn -> scikit-learn)
+- IMPORTANT: For diffusers, ALWAYS use: git+https://github.com/huggingface/diffusers
+- IMPORTANT: For transformers, ALWAYS use: git+https://github.com/huggingface/transformers
+- IMPORTANT: If diffusers is installed, also include transformers and sentencepiece as they usually go together
+- Examples of comprehensive dependencies:
+  * diffusers often needs: git+https://github.com/huggingface/transformers, sentencepiece, accelerate, torch, tokenizers
+  * transformers often needs: accelerate, torch, tokenizers, datasets
+  * gradio often needs: requests, Pillow for image handling
+  * pandas often needs: numpy, openpyxl for Excel files
+  * matplotlib often needs: numpy, pillow for image saving
+  * sklearn often needs: numpy, scipy, joblib
+  * streamlit often needs: pandas, numpy, requests
+  * opencv-python often needs: numpy, pillow
+  * fastapi often needs: uvicorn, pydantic
+  * torch often needs: torchvision, torchaudio (if doing computer vision/audio)
+- Include packages for common file formats if relevant (openpyxl, python-docx, PyPDF2)
+- Do not include Python built-in modules
+- Do not specify versions unless there are known compatibility issues
+- One package per line
+- If no external packages are needed, return "# No additional dependencies required"
+
+🚨 CRITICAL OUTPUT FORMAT:
+- Output ONLY the package names, one per line (plain text format)
+- Do NOT use markdown formatting (no ```, no bold, no headings, no lists)
+- Do NOT add any explanatory text before or after the package list
+- Do NOT wrap the output in code blocks
+- Just output raw package names as they would appear in requirements.txt
+
+Generate a comprehensive requirements.txt that ensures the application will work smoothly:"""
+
+        messages = [
+            {"role": "system", "content": "You are a Python packaging expert specializing in creating comprehensive, production-ready requirements.txt files. Output ONLY plain text package names without any markdown formatting, code blocks, or explanatory text. Your goal is to ensure applications work smoothly by including not just direct dependencies but also commonly needed companion packages, popular extensions, and supporting libraries that developers typically need together."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        response = client.chat.completions.create(
+            model=actual_model_id,
+            messages=messages,
+            max_tokens=1024,
+            temperature=0.1
+        )
+        
+        requirements_content = response.choices[0].message.content.strip()
+        
+        # Clean up the response in case it includes extra formatting
+        if '```' in requirements_content:
+            requirements_content = remove_code_block(requirements_content)
+        
+        # Enhanced cleanup for markdown and formatting
+        lines = requirements_content.split('\n')
+        clean_lines = []
+        for line in lines:
+            stripped_line = line.strip()
+            
+            # Skip lines that are markdown formatting
+            if (stripped_line == '```' or 
+                stripped_line.startswith('```') or
+                stripped_line.startswith('#') and not stripped_line.startswith('# ') or  # Skip markdown headers but keep comments
+                stripped_line.startswith('**') or  # Skip bold text
+                stripped_line.startswith('*') and not stripped_line[1:2].isalnum() or  # Skip markdown lists but keep package names starting with *
+                stripped_line.startswith('-') and not stripped_line[1:2].isalnum() or  # Skip markdown lists but keep package names starting with -
+                stripped_line.startswith('===') or  # Skip section dividers
+                stripped_line.startswith('---') or  # Skip horizontal rules
+                stripped_line.lower().startswith('here') or  # Skip explanatory text
+                stripped_line.lower().startswith('this') or  # Skip explanatory text
+                stripped_line.lower().startswith('the') or  # Skip explanatory text
+                stripped_line.lower().startswith('based on') or  # Skip explanatory text
+                stripped_line == ''):  # Skip empty lines unless they're at natural boundaries
+                continue
+            
+            # Keep lines that look like valid package specifications
+            # Valid lines: package names, git+https://, comments starting with "# "
+            if (stripped_line.startswith('# ') or  # Valid comments
+                stripped_line.startswith('git+') or  # Git dependencies
+                stripped_line[0].isalnum() or  # Package names start with alphanumeric
+                '==' in stripped_line or  # Version specifications
+                '>=' in stripped_line or  # Version specifications
+                '<=' in stripped_line):  # Version specifications
+                clean_lines.append(line)
+        
+        requirements_content = '\n'.join(clean_lines).strip()
+        
+        # Ensure it ends with a newline
+        if requirements_content and not requirements_content.endswith('\n'):
+            requirements_content += '\n'
+            
+        return requirements_content if requirements_content else "# No additional dependencies required\n"
+        
+    except Exception as e:
+        # Fallback: simple extraction with basic mapping
+        print(f"[Deploy] Warning: LLM requirements generation failed: {e}, using fallback")
+        dependencies = set()
+        special_cases = {
+            'PIL': 'Pillow', 
+            'sklearn': 'scikit-learn',
+            'skimage': 'scikit-image',
+            'bs4': 'beautifulsoup4'
+        }
+        
+        for stmt in import_statements:
+            if stmt.startswith('import '):
+                module_name = stmt.split()[1].split('.')[0]
+                package_name = special_cases.get(module_name, module_name)
+                dependencies.add(package_name)
+            elif stmt.startswith('from '):
+                module_name = stmt.split()[1].split('.')[0]
+                package_name = special_cases.get(module_name, module_name)
+                dependencies.add(package_name)
+        
+        if dependencies:
+            return '\n'.join(sorted(dependencies)) + '\n'
+        else:
+            return "# No additional dependencies required\n"
 
 
 def parse_multi_file_python_output(code: str) -> Dict[str, str]:
@@ -459,12 +688,22 @@ def deploy_to_huggingface_space(
                     file_path.parent.mkdir(parents=True, exist_ok=True)
                     file_path.write_text(content, encoding='utf-8')
                 
-                # Ensure requirements.txt exists
+                # Ensure requirements.txt exists - generate from imports if missing
                 if "requirements.txt" not in files:
-                    if language == "gradio":
-                        (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
-                    elif language == "streamlit":
-                        (temp_path / "requirements.txt").write_text("streamlit>=1.30.0\n", encoding='utf-8')
+                    # Get the main app file (app.py for gradio, streamlit_app.py or app.py for streamlit)
+                    main_app = files.get('streamlit_app.py') or files.get('app.py', '')
+                    if main_app:
+                        print(f"[Deploy] Generating requirements.txt from imports in {language} app")
+                        import_statements = extract_import_statements(main_app)
+                        requirements_content = generate_requirements_txt_with_llm(import_statements)
+                        (temp_path / "requirements.txt").write_text(requirements_content, encoding='utf-8')
+                        print(f"[Deploy] Generated requirements.txt with {len(requirements_content.splitlines())} lines")
+                    else:
+                        # Fallback to minimal requirements if no app file found
+                        if language == "gradio":
+                            (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
+                        elif language == "streamlit":
+                            (temp_path / "requirements.txt").write_text("streamlit>=1.30.0\n", encoding='utf-8')
                 
                 # Create Dockerfile if needed
                 if sdk == "docker":
@@ -505,8 +744,18 @@ def deploy_to_huggingface_space(
                     file_path.parent.mkdir(parents=True, exist_ok=True)
                     file_path.write_text(content, encoding='utf-8')
                 
+                # Generate requirements.txt from imports if missing
                 if "requirements.txt" not in files:
-                    (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
+                    main_app = files.get('app.py', '')
+                    if main_app:
+                        print(f"[Deploy] Generating requirements.txt from imports in default app")
+                        import_statements = extract_import_statements(main_app)
+                        requirements_content = generate_requirements_txt_with_llm(import_statements)
+                        (temp_path / "requirements.txt").write_text(requirements_content, encoding='utf-8')
+                        print(f"[Deploy] Generated requirements.txt with {len(requirements_content.splitlines())} lines")
+                    else:
+                        # Fallback to minimal requirements if no app file found
+                        (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
             
             # Don't create README - HuggingFace will auto-generate it
             # We'll add the anycoder tag after deployment
