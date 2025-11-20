@@ -26,7 +26,7 @@ export default function LandingPage({
   onStart, 
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'x-ai/grok-4.1-fast',
+  initialModel = 'MiniMaxAI/MiniMax-M2',
   onAuthChange
 }: LandingPageProps) {
   const [prompt, setPrompt] = useState('');

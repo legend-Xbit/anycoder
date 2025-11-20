@@ -143,7 +143,7 @@ user_sessions = {}
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "x-ai/grok-4.1-fast"
+    model_id: str = "MiniMaxAI/MiniMax-M2"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False
@@ -826,7 +826,7 @@ async def websocket_generate(websocket: WebSocket):
             
             query = data.get("query")
             language = data.get("language", "html")
-            model_id = data.get("model_id", "x-ai/grok-4.1-fast")
+            model_id = data.get("model_id", "MiniMaxAI/MiniMax-M2")
             
             # Send acknowledgment
             await websocket.send_json({
