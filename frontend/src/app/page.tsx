@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import Header from '@/components/Header';
 import LandingPage from '@/components/LandingPage';
@@ -57,11 +57,39 @@ export default function Home() {
     }
   }, [messages]);
 
+  // Check auth on mount and handle OAuth callback
   useEffect(() => {
     checkAuth();
-    // Check auth status every second to catch OAuth redirects
-    const interval = setInterval(checkAuth, 1000);
-    return () => clearInterval(interval);
+    
+    // Check for OAuth callback in URL (handles ?session=token)
+    // initializeOAuth already handles this, but we call checkAuth to sync state
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('session')) {
+      // OAuth callback - check auth after a brief delay to let initializeOAuth complete
+      setTimeout(() => checkAuth(), 100);
+    }
+  }, []); // Only run once on mount
+
+  // Listen for storage changes (e.g., logout from another tab)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'hf_oauth_token' || e.key === 'hf_user_info') {
+        checkAuth();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Listen for window focus (user returns to tab after OAuth redirect)
+  useEffect(() => {
+    const handleFocus = () => {
+      checkAuth();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const checkAuth = async () => {
@@ -74,15 +102,30 @@ export default function Home() {
       if (token) {
         apiClient.setToken(token);
         
-        // Get username from auth status
-        try {
-          const authStatus = await apiClient.getAuthStatus();
-          if (authStatus.username) {
-            setUsername(authStatus.username);
+        // Get username from auth status (only if we don't have it yet)
+        // This is a one-time fetch, not polling
+        if (!username) {
+          try {
+            const authStatus = await apiClient.getAuthStatus();
+            if (authStatus.username) {
+              setUsername(authStatus.username);
+            }
+          } catch (error: any) {
+            // Silently handle connection errors - don't spam console
+            // Only log non-connection errors
+            if (error.code !== 'ECONNABORTED' && 
+                error.code !== 'ECONNRESET' && 
+                !error.message?.includes('socket hang up') &&
+                !error.message?.includes('timeout')) {
+              console.error('Failed to get username:', error);
+            }
           }
-        } catch (error) {
-          console.error('Failed to get username:', error);
         }
+      }
+    } else {
+      // Not authenticated - clear username
+      if (username) {
+        setUsername(null);
       }
     }
   };

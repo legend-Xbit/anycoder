@@ -49,6 +49,7 @@ class ApiClient {
       headers: {
         'Content-Type': 'application/json',
       },
+      timeout: 10000, // 10 second timeout to prevent hanging connections
     });
 
     // Add auth token to requests if available
@@ -89,9 +90,20 @@ class ApiClient {
     try {
       const response = await this.client.get<AuthStatus>('/api/auth/status');
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      // Silently handle connection errors - don't spam console
+      if (error.code === 'ECONNABORTED' || error.code === 'ECONNRESET' || error.message?.includes('socket hang up')) {
+        // Connection error - backend may not be ready
+        return {
+          authenticated: false,
+          username: null,
+          message: 'Connection error',
+        };
+      }
+      // For other errors, return not authenticated
       return {
         authenticated: false,
+        username: null,
         message: 'Not authenticated',
       };
     }
