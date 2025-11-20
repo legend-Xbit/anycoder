@@ -96,14 +96,14 @@ class ApiClient {
         // Connection error - backend may not be ready
         return {
           authenticated: false,
-          username: null,
+          username: undefined,
           message: 'Connection error',
         };
       }
       // For other errors, return not authenticated
       return {
         authenticated: false,
-        username: null,
+        username: undefined,
         message: 'Not authenticated',
       };
     }
