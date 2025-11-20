@@ -77,13 +77,55 @@ class ApiClient {
   }
 
   async getModels(): Promise<Model[]> {
-    const response = await this.client.get<Model[]>('/api/models');
-    return response.data;
+    try {
+      const response = await this.client.get<Model[]>('/api/models');
+      return response.data;
+    } catch (error: any) {
+      // Handle connection errors gracefully
+      const isConnectionError = 
+        error.code === 'ECONNABORTED' || 
+        error.code === 'ECONNRESET' || 
+        error.code === 'ECONNREFUSED' ||
+        error.message?.includes('socket hang up') ||
+        error.message?.includes('timeout') ||
+        error.message?.includes('Network Error') ||
+        error.response?.status === 503 ||
+        error.response?.status === 502;
+      
+      if (isConnectionError) {
+        // Backend is not available - return empty array instead of throwing
+        console.warn('Backend not available, cannot load models');
+        return [];
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   async getLanguages(): Promise<{ languages: Language[] }> {
-    const response = await this.client.get<{ languages: Language[] }>('/api/languages');
-    return response.data;
+    try {
+      const response = await this.client.get<{ languages: Language[] }>('/api/languages');
+      return response.data;
+    } catch (error: any) {
+      // Handle connection errors gracefully
+      const isConnectionError = 
+        error.code === 'ECONNABORTED' || 
+        error.code === 'ECONNRESET' || 
+        error.code === 'ECONNREFUSED' ||
+        error.message?.includes('socket hang up') ||
+        error.message?.includes('timeout') ||
+        error.message?.includes('Network Error') ||
+        error.response?.status === 503 ||
+        error.response?.status === 502;
+      
+      if (isConnectionError) {
+        // Backend is not available - return default languages instead of throwing
+        console.warn('Backend not available, using default languages');
+        return { languages: ['html', 'gradio', 'transformers.js', 'streamlit', 'comfyui', 'react'] };
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 
   async getAuthStatus(): Promise<AuthStatus> {

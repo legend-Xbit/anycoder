@@ -57,6 +57,9 @@ export default function Home() {
     }
   }, [messages]);
 
+  // Track if we've attempted to fetch username to avoid repeated failures
+  const usernameFetchAttemptedRef = useRef(false);
+
   // Check auth on mount and handle OAuth callback
   useEffect(() => {
     checkAuth();
@@ -65,15 +68,19 @@ export default function Home() {
     // initializeOAuth already handles this, but we call checkAuth to sync state
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('session')) {
-      // OAuth callback - check auth after a brief delay to let initializeOAuth complete
-      setTimeout(() => checkAuth(), 100);
+      // OAuth callback - reset username fetch attempt and check auth after a brief delay
+      usernameFetchAttemptedRef.current = false;
+      setTimeout(() => checkAuth(), 200);
     }
   }, []); // Only run once on mount
 
   // Listen for storage changes (e.g., logout from another tab)
+  // Note: storage events only fire in OTHER tabs, not the current one
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'hf_oauth_token' || e.key === 'hf_user_info') {
+        // Reset username fetch attempt when storage changes
+        usernameFetchAttemptedRef.current = false;
         checkAuth();
       }
     };
@@ -85,6 +92,8 @@ export default function Home() {
   // Listen for window focus (user returns to tab after OAuth redirect)
   useEffect(() => {
     const handleFocus = () => {
+      // Reset username fetch attempt on focus (user might have logged in elsewhere)
+      usernameFetchAttemptedRef.current = false;
       checkAuth();
     };
 
@@ -96,15 +105,16 @@ export default function Home() {
     const authenticated = checkIsAuthenticated();
     setIsAuthenticated(authenticated);
     
-    // Make sure API client has the token
+    // Make sure API client has the token or clears it
     if (authenticated) {
       const token = getStoredToken();
       if (token) {
         apiClient.setToken(token);
         
-        // Get username from auth status (only if we don't have it yet)
-        // This is a one-time fetch, not polling
-        if (!username) {
+        // Get username from auth status (only if we don't have it yet and haven't failed)
+        // This is a one-time fetch per session, not polling
+        if (!username && !usernameFetchAttemptedRef.current) {
+          usernameFetchAttemptedRef.current = true;
           try {
             const authStatus = await apiClient.getAuthStatus();
             if (authStatus.username) {
@@ -112,21 +122,40 @@ export default function Home() {
             }
           } catch (error: any) {
             // Silently handle connection errors - don't spam console
-            // Only log non-connection errors
-            if (error.code !== 'ECONNABORTED' && 
-                error.code !== 'ECONNRESET' && 
-                !error.message?.includes('socket hang up') &&
-                !error.message?.includes('timeout')) {
+            // Connection errors mean backend isn't available, which is OK for client-side auth
+            const isConnectionError = 
+              error.code === 'ECONNABORTED' || 
+              error.code === 'ECONNRESET' || 
+              error.code === 'ECONNREFUSED' ||
+              error.message?.includes('socket hang up') ||
+              error.message?.includes('timeout') ||
+              error.message?.includes('Network Error') ||
+              error.response?.status === 503 ||
+              error.response?.status === 502;
+            
+            if (!isConnectionError) {
+              // Only log non-connection errors
               console.error('Failed to get username:', error);
             }
+            // Reset attempt flag so we can try again later (e.g., when backend comes up)
+            usernameFetchAttemptedRef.current = false;
           }
         }
+      } else {
+        // Token missing but authenticated flag is true - clear state
+        setIsAuthenticated(false);
+        if (username) {
+          setUsername(null);
+        }
+        usernameFetchAttemptedRef.current = false;
       }
     } else {
-      // Not authenticated - clear username
+      // Not authenticated - clear username and reset fetch attempt
+      apiClient.setToken(null);
       if (username) {
         setUsername(null);
       }
+      usernameFetchAttemptedRef.current = false;
     }
   };
 
@@ -729,4 +758,5 @@ export default function Home() {
     </div>
   );
 }
+
 
