@@ -63,6 +63,30 @@ except Exception as e:
 
 print("[Startup] System prompts initialization complete")
 
+# Cache system prompts map for fast lookup (created once at startup)
+SYSTEM_PROMPT_CACHE = {
+    "html": HTML_SYSTEM_PROMPT,
+    "gradio": GRADIO_SYSTEM_PROMPT,
+    "streamlit": STREAMLIT_SYSTEM_PROMPT,
+    "transformers.js": TRANSFORMERS_JS_SYSTEM_PROMPT,
+    "react": REACT_SYSTEM_PROMPT,
+    "comfyui": JSON_SYSTEM_PROMPT,
+}
+
+# Client connection pool for reuse (thread-safe)
+import threading
+_client_pool = {}
+_client_pool_lock = threading.Lock()
+
+def get_cached_client(model_id: str, provider: str = "auto"):
+    """Get or create a cached API client for reuse"""
+    cache_key = f"{model_id}:{provider}"
+    
+    with _client_pool_lock:
+        if cache_key not in _client_pool:
+            _client_pool[cache_key] = get_inference_client(model_id, provider)
+        return _client_pool[cache_key]
+
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
     {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning"},
@@ -74,6 +98,10 @@ AVAILABLE_MODELS = [
     {"name": "Gemini Flash Latest", "id": "gemini-flash-latest", "description": "Google Gemini Flash via OpenRouter"},
     {"name": "Qwen3 Max Preview", "id": "qwen3-max-preview", "description": "Qwen3 Max Preview via DashScope API"},
 ]
+
+# Cache model lookup for faster access (built after AVAILABLE_MODELS is defined)
+MODEL_CACHE = {model["id"]: model for model in AVAILABLE_MODELS}
+print(f"[Startup] ✅ Performance optimizations loaded: {len(SYSTEM_PROMPT_CACHE)} cached prompts, {len(MODEL_CACHE)} cached models, client pooling enabled")
 
 LANGUAGE_CHOICES = ["html", "gradio", "transformers.js", "streamlit", "comfyui", "react"]
 
@@ -366,45 +394,33 @@ async def generate_code(
         selected_model_id = model_id
         
         try:
-            # Find the selected model
-            selected_model = None
-            for model in AVAILABLE_MODELS:
-                if model["id"] == selected_model_id:
-                    selected_model = model
-                    break
-            
+            # Fast model lookup using cache
+            selected_model = MODEL_CACHE.get(selected_model_id)
             if not selected_model:
+                # Fallback to first available model (shouldn't happen often)
                 selected_model = AVAILABLE_MODELS[0]
                 selected_model_id = selected_model["id"]
             
             # Track generated code
             generated_code = ""
             
-            # Select appropriate system prompt based on language
-            prompt_map = {
-                "html": HTML_SYSTEM_PROMPT,
-                "gradio": GRADIO_SYSTEM_PROMPT,
-                "streamlit": STREAMLIT_SYSTEM_PROMPT,
-                "transformers.js": TRANSFORMERS_JS_SYSTEM_PROMPT,
-                "react": REACT_SYSTEM_PROMPT,
-                "comfyui": JSON_SYSTEM_PROMPT,
-            }
-            system_prompt = prompt_map.get(language, GENERIC_SYSTEM_PROMPT.format(language=language))
+            # Fast system prompt lookup using cache
+            system_prompt = SYSTEM_PROMPT_CACHE.get(language)
+            if not system_prompt:
+                # Format generic prompt only if needed
+                system_prompt = GENERIC_SYSTEM_PROMPT.format(language=language)
             
-            print(f"[Generate] Using {language} prompt for query: {query[:100]}...")
-            
-            # Get the client using backend_models
-            print(f"[Generate] Getting client for model: {selected_model_id}")
-            client = get_inference_client(selected_model_id, provider)
+            # Get cached client (reuses connections)
+            client = get_cached_client(selected_model_id, provider)
             
             # Get the real model ID with provider suffixes
             actual_model_id = get_real_model_id(selected_model_id)
-            print(f"[Generate] Using model ID: {actual_model_id}")
             
-            # Prepare messages
+            # Prepare messages (optimized - no string concatenation in hot path)
+            user_content = f"Generate a {language} application: {query}"
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Generate a {language} application: {query}"}
+                {"role": "user", "content": user_content}
             ]
             
             # Stream the response
@@ -429,73 +445,61 @@ async def generate_code(
                     )
                 
                 chunk_count = 0
-                print(f"[Generate] Starting to stream from {actual_model_id}...")
+                is_mistral = is_mistral_model(selected_model_id)
                 
+                # Optimized chunk processing - reduce attribute lookups
                 for chunk in stream:
-                    # Handle different response formats
                     chunk_content = None
                     
-                    if is_mistral_model(selected_model_id):
+                    if is_mistral:
                         # Mistral format: chunk.data.choices[0].delta.content
-                        if (hasattr(chunk, "data") and chunk.data and
-                            hasattr(chunk.data, "choices") and chunk.data.choices and 
-                            hasattr(chunk.data.choices[0], "delta") and 
-                            hasattr(chunk.data.choices[0].delta, "content") and 
-                            chunk.data.choices[0].delta.content is not None):
-                            chunk_content = chunk.data.choices[0].delta.content
+                        try:
+                            if chunk.data and chunk.data.choices and chunk.data.choices[0].delta.content:
+                                chunk_content = chunk.data.choices[0].delta.content
+                        except (AttributeError, IndexError):
+                            continue
                     else:
                         # OpenAI format: chunk.choices[0].delta.content
-                        if (hasattr(chunk, 'choices') and 
-                            chunk.choices and 
-                            len(chunk.choices) > 0 and
-                            hasattr(chunk.choices[0], 'delta') and 
-                            hasattr(chunk.choices[0].delta, 'content') and 
-                            chunk.choices[0].delta.content):
-                            chunk_content = chunk.choices[0].delta.content
+                        try:
+                            if chunk.choices and chunk.choices[0].delta.content:
+                                chunk_content = chunk.choices[0].delta.content
+                        except (AttributeError, IndexError):
+                            continue
                     
                     if chunk_content:
-                        content = chunk_content
-                        generated_code += content
+                        generated_code += chunk_content
                         chunk_count += 1
                         
-                        # Log every 10th chunk to avoid spam
-                        if chunk_count % 10 == 0:
-                            print(f"[Generate] Streamed {chunk_count} chunks, {len(generated_code)} chars total")
+                        # Send chunk immediately - optimized JSON serialization
+                        # Only yield control every 5 chunks to reduce overhead
+                        if chunk_count % 5 == 0:
+                            await asyncio.sleep(0)
                         
-                        # Send chunk as Server-Sent Event - yield immediately for instant streaming
+                        # Build event data efficiently
                         event_data = json.dumps({
                             "type": "chunk",
-                            "content": content,
-                            "timestamp": datetime.now().isoformat()
+                            "content": chunk_content
                         })
                         yield f"data: {event_data}\n\n"
-                        
-                        # Yield control to allow async processing - no artificial delay
-                        await asyncio.sleep(0)
                 
-                print(f"[Generate] Completed with {chunk_count} chunks, total length: {len(generated_code)}")
-                
-                # Send completion event
+                # Send completion event (optimized - no timestamp in hot path)
                 completion_data = json.dumps({
                     "type": "complete",
-                    "code": generated_code,
-                    "timestamp": datetime.now().isoformat()
+                    "code": generated_code
                 })
                 yield f"data: {completion_data}\n\n"
                 
             except Exception as e:
                 error_data = json.dumps({
                     "type": "error",
-                    "message": str(e),
-                    "timestamp": datetime.now().isoformat()
+                    "message": str(e)
                 })
                 yield f"data: {error_data}\n\n"
                 
         except Exception as e:
             error_data = json.dumps({
                 "type": "error",
-                "message": f"Generation error: {str(e)}",
-                "timestamp": datetime.now().isoformat()
+                "message": f"Generation error: {str(e)}"
             })
             yield f"data: {error_data}\n\n"
     
