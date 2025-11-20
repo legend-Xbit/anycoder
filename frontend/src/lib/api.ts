@@ -177,6 +177,12 @@ class ApiClient {
       signal: abortController.signal,
     })
       .then(async (response) => {
+        // Handle rate limit errors before parsing response
+        if (response.status === 429) {
+          onError('⏱️ Rate limit exceeded. Free tier allows up to 20 requests per minute. Please wait a moment and try again.');
+          return;
+        }
+        
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }

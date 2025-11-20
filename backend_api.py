@@ -90,7 +90,7 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
     {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning"},
-    {"name": "Grok 4.1 Fast", "id": "x-ai/grok-4.1-fast", "description": "Grok 4.1 Fast model via OpenRouter"},
+    {"name": "Grok 4.1 Fast", "id": "x-ai/grok-4.1-fast", "description": "Grok 4.1 Fast model via OpenRouter (20 req/min on free tier)"},
     {"name": "MiniMax M2", "id": "MiniMaxAI/MiniMax-M2", "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider"},
     {"name": "DeepSeek V3.2-Exp", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental via HuggingFace"},
     {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation"},
@@ -490,16 +490,69 @@ async def generate_code(
                 yield f"data: {completion_data}\n\n"
                 
             except Exception as e:
+                # Handle rate limiting and other API errors
+                error_message = str(e)
+                is_rate_limit = False
+                error_type = type(e).__name__
+                
+                # Check for OpenAI SDK rate limit errors
+                if error_type == "RateLimitError" or "rate_limit" in error_type.lower():
+                    is_rate_limit = True
+                # Check if this is a rate limit error (429 status code)
+                elif hasattr(e, 'status_code') and e.status_code == 429:
+                    is_rate_limit = True
+                # Check error message for rate limit indicators
+                elif "429" in error_message or "rate limit" in error_message.lower() or "too many requests" in error_message.lower():
+                    is_rate_limit = True
+                
+                if is_rate_limit:
+                    # Try to extract retry-after header or message
+                    retry_after = None
+                    if hasattr(e, 'response') and e.response:
+                        retry_after = e.response.headers.get('Retry-After') or e.response.headers.get('retry-after')
+                    # Also check if the error object has retry_after
+                    elif hasattr(e, 'retry_after'):
+                        retry_after = str(e.retry_after)
+                    
+                    if selected_model_id == "x-ai/grok-4.1-fast" or selected_model_id.startswith("openrouter/"):
+                        error_message = "⏱️ Rate limit exceeded for OpenRouter model"
+                        if retry_after:
+                            error_message += f". Please wait {retry_after} seconds before trying again."
+                        else:
+                            error_message += ". Free tier allows up to 20 requests per minute. Please wait a moment and try again."
+                    else:
+                        error_message = f"⏱️ Rate limit exceeded. Please wait before trying again."
+                        if retry_after:
+                            error_message += f" Retry after {retry_after} seconds."
+                
+                # Check for other common API errors
+                elif hasattr(e, 'status_code'):
+                    if e.status_code == 401:
+                        error_message = "❌ Authentication failed. Please check your API key."
+                    elif e.status_code == 403:
+                        error_message = "❌ Access forbidden. Please check your API key permissions."
+                    elif e.status_code == 500 or e.status_code == 502 or e.status_code == 503:
+                        error_message = "❌ Service temporarily unavailable. Please try again later."
+                
                 error_data = json.dumps({
                     "type": "error",
-                    "message": str(e)
+                    "message": error_message
                 })
                 yield f"data: {error_data}\n\n"
                 
         except Exception as e:
+            # Fallback error handling
+            error_message = str(e)
+            # Check if it's a rate limit error in the exception message
+            if "429" in error_message or "rate limit" in error_message.lower() or "too many requests" in error_message.lower():
+                if selected_model_id == "x-ai/grok-4.1-fast" or selected_model_id.startswith("openrouter/"):
+                    error_message = "⏱️ Rate limit exceeded for OpenRouter model. Free tier allows up to 20 requests per minute. Please wait a moment and try again."
+                else:
+                    error_message = "⏱️ Rate limit exceeded. Please wait before trying again."
+            
             error_data = json.dumps({
                 "type": "error",
-                "message": f"Generation error: {str(e)}"
+                "message": f"Generation error: {error_message}"
             })
             yield f"data: {error_data}\n\n"
     

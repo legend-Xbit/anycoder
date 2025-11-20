@@ -59,6 +59,8 @@ export default function Home() {
 
   // Track if we've attempted to fetch username to avoid repeated failures
   const usernameFetchAttemptedRef = useRef(false);
+  // Track if backend appears to be unavailable (to avoid repeated failed requests)
+  const backendUnavailableRef = useRef(false);
 
   // Check auth on mount and handle OAuth callback
   useEffect(() => {
@@ -68,8 +70,9 @@ export default function Home() {
     // initializeOAuth already handles this, but we call checkAuth to sync state
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('session')) {
-      // OAuth callback - reset username fetch attempt and check auth after a brief delay
+      // OAuth callback - reset both flags and check auth after a brief delay
       usernameFetchAttemptedRef.current = false;
+      backendUnavailableRef.current = false; // Reset backend status on OAuth callback
       setTimeout(() => checkAuth(), 200);
     }
   }, []); // Only run once on mount
@@ -79,8 +82,11 @@ export default function Home() {
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'hf_oauth_token' || e.key === 'hf_user_info') {
-        // Reset username fetch attempt when storage changes
-        usernameFetchAttemptedRef.current = false;
+        // Only reset username fetch if we have a token (might be logging in)
+        if (e.newValue) {
+          usernameFetchAttemptedRef.current = false;
+          backendUnavailableRef.current = false; // Reset backend status on login
+        }
         checkAuth();
       }
     };
@@ -90,10 +96,16 @@ export default function Home() {
   }, []);
 
   // Listen for window focus (user returns to tab after OAuth redirect)
+  // Only check if backend was available before or if we're authenticated with token
   useEffect(() => {
     const handleFocus = () => {
-      // Reset username fetch attempt on focus (user might have logged in elsewhere)
-      usernameFetchAttemptedRef.current = false;
+      // Only reset and check if we're authenticated (might have logged in elsewhere)
+      // Don't reset if backend is known to be unavailable and we're not authenticated
+      const authenticated = checkIsAuthenticated();
+      if (authenticated) {
+        usernameFetchAttemptedRef.current = false;
+        backendUnavailableRef.current = false; // Reset backend status - might be back up
+      }
       checkAuth();
     };
 
@@ -111,18 +123,18 @@ export default function Home() {
       if (token) {
         apiClient.setToken(token);
         
-        // Get username from auth status (only if we don't have it yet and haven't failed)
-        // This is a one-time fetch per session, not polling
-        if (!username && !usernameFetchAttemptedRef.current) {
+        // Get username from auth status (only if we don't have it yet and backend is available)
+        // Skip if backend is known to be unavailable to avoid repeated failed requests
+        if (!username && !usernameFetchAttemptedRef.current && !backendUnavailableRef.current) {
           usernameFetchAttemptedRef.current = true;
           try {
             const authStatus = await apiClient.getAuthStatus();
             if (authStatus.username) {
               setUsername(authStatus.username);
+              backendUnavailableRef.current = false; // Backend is working
             }
           } catch (error: any) {
-            // Silently handle connection errors - don't spam console
-            // Connection errors mean backend isn't available, which is OK for client-side auth
+            // Check if this is a connection error
             const isConnectionError = 
               error.code === 'ECONNABORTED' || 
               error.code === 'ECONNRESET' || 
@@ -133,12 +145,16 @@ export default function Home() {
               error.response?.status === 503 ||
               error.response?.status === 502;
             
-            if (!isConnectionError) {
-              // Only log non-connection errors
+            if (isConnectionError) {
+              // Mark backend as unavailable to avoid repeated requests
+              backendUnavailableRef.current = true;
+              // Don't reset attempt flag - keep it true so we don't retry until explicitly reset
+              // This prevents repeated failed requests when backend is down
+            } else {
+              // Non-connection error - log it and reset attempt flag
               console.error('Failed to get username:', error);
+              usernameFetchAttemptedRef.current = false;
             }
-            // Reset attempt flag so we can try again later (e.g., when backend comes up)
-            usernameFetchAttemptedRef.current = false;
           }
         }
       } else {
@@ -148,14 +164,16 @@ export default function Home() {
           setUsername(null);
         }
         usernameFetchAttemptedRef.current = false;
+        backendUnavailableRef.current = false;
       }
     } else {
-      // Not authenticated - clear username and reset fetch attempt
+      // Not authenticated - clear username and reset flags
       apiClient.setToken(null);
       if (username) {
         setUsername(null);
       }
       usernameFetchAttemptedRef.current = false;
+      // Keep backendUnavailableRef as is - it's useful information even when not authenticated
     }
   };
 
