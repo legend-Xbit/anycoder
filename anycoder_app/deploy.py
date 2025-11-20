@@ -2318,7 +2318,7 @@ def _fetch_inference_provider_code(model_id: str) -> Optional[str]:
         "codestral-2508", "mistral-medium-2508",
         "stealth-model-1",
         "openrouter/sonoma-dusk-alpha", "openrouter/sonoma-sky-alpha",
-        "openrouter/sherlock-dash-alpha", "openrouter/sherlock-think-alpha"
+        "x-ai/grok-4.1-fast", "openrouter/sherlock-think-alpha"
     ]
     
     if model_id in non_hf_models:
@@ -2422,7 +2422,7 @@ def import_model_from_hf(model_id: str, prefer_local: bool = False) -> Tuple[str
         "codestral-2508", "mistral-medium-2508",
         "stealth-model-1",
         "openrouter/sonoma-dusk-alpha", "openrouter/sonoma-sky-alpha",
-        "openrouter/sherlock-dash-alpha", "openrouter/sherlock-think-alpha"
+        "x-ai/grok-4.1-fast", "openrouter/sherlock-think-alpha"
     ]
     
     if model_id in non_hf_models:

@@ -26,7 +26,7 @@ export default function LandingPage({
   onStart, 
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'gemini-3.0-pro',
+  initialModel = 'x-ai/grok-4.1-fast',
   onAuthChange
 }: LandingPageProps) {
   const [prompt, setPrompt] = useState('');

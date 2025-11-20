@@ -66,7 +66,7 @@ print("[Startup] System prompts initialization complete")
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
     {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning"},
-    {"name": "Sherlock Dash Alpha", "id": "openrouter/sherlock-dash-alpha", "description": "Sherlock Dash Alpha model via OpenRouter"},
+    {"name": "Grok 4.1 Fast", "id": "x-ai/grok-4.1-fast", "description": "Grok 4.1 Fast model via OpenRouter"},
     {"name": "MiniMax M2", "id": "MiniMaxAI/MiniMax-M2", "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider"},
     {"name": "DeepSeek V3.2-Exp", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental via HuggingFace"},
     {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation"},
@@ -115,7 +115,7 @@ user_sessions = {}
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "gemini-3.0-pro"
+    model_id: str = "x-ai/grok-4.1-fast"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False
@@ -769,7 +769,7 @@ async def websocket_generate(websocket: WebSocket):
             
             query = data.get("query")
             language = data.get("language", "html")
-            model_id = data.get("model_id", "openrouter/sherlock-dash-alpha")
+            model_id = data.get("model_id", "x-ai/grok-4.1-fast")
             
             # Send acknowledgment
             await websocket.send_json({

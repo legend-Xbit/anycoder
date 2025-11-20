@@ -17,7 +17,7 @@ export default function Home() {
   
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('gemini-3.0-pro');
+  const [selectedModel, setSelectedModel] = useState('x-ai/grok-4.1-fast');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);  // Track imported/deployed space

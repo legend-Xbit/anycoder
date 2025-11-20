@@ -124,8 +124,8 @@ def get_inference_client(model_id, provider="auto"):
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
         )
-    elif model_id == "openrouter/sherlock-dash-alpha":
-        # Use OpenRouter client for Sherlock Dash Alpha model
+    elif model_id == "x-ai/grok-4.1-fast":
+        # Use OpenRouter client for Grok 4.1 Fast model
         return OpenAI(
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url="https://openrouter.ai/api/v1",
