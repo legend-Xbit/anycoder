@@ -127,6 +127,13 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
     
+    elif model_id == "x-ai/grok-4.1-fast":
+        # Use OpenRouter client for Grok 4.1 Fast model
+        return OpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+        )
+    
     elif model_id.startswith("openrouter/"):
         # OpenRouter models
         return OpenAI(
