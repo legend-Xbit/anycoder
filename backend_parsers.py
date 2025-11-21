@@ -15,8 +15,15 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     Uses comprehensive parsing patterns to handle various LLM output formats.
     Updated to use transformers.js v3.8.0 CDN.
     """
+    # Auto-fix: If code doesn't start with === index.html ===, add it
+    code_stripped = code.strip()
+    if not code_stripped.startswith('==='):
+        print("[Parser] Auto-fixing: Adding missing === index.html === marker")
+        code = '=== index.html ===\n' + code
+        code_stripped = code.strip()
+    
     # Check if code starts with HTML instead of markers (common LLM mistake)
-    if code.strip().startswith('<!DOCTYPE') or code.strip().startswith('<html'):
+    if code_stripped.startswith('<!DOCTYPE') or code_stripped.startswith('<html'):
         print("[Parser] WARNING: Code starts with HTML instead of === index.html === marker")
         print("[Parser] Attempting to extract files from malformed output...")
         
