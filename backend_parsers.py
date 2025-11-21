@@ -15,12 +15,17 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     Uses comprehensive parsing patterns to handle various LLM output formats.
     Updated to use transformers.js v3.8.0 CDN.
     """
+    print(f"[Parser] Received code length: {len(code)} characters")
+    print(f"[Parser] First 200 chars: {code[:200]}")
+    
     # Auto-fix: If code doesn't start with === index.html ===, add it
     code_stripped = code.strip()
     if not code_stripped.startswith('==='):
         print("[Parser] Auto-fixing: Adding missing === index.html === marker")
         code = '=== index.html ===\n' + code
         code_stripped = code.strip()
+    else:
+        print("[Parser] Code starts with === marker, proceeding normally")
     
     # Check if code starts with HTML instead of markers (common LLM mistake)
     if code_stripped.startswith('<!DOCTYPE') or code_stripped.startswith('<html'):
@@ -125,9 +130,12 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     # Fallback: support === index.html === format if any file is missing
     if not (files['index.html'] and files['index.js'] and files['style.css']):
         # Use regex to extract sections - match === markers with optional whitespace and newlines
-        html_fallback = re.search(r'===\s*index\.html\s*===\s*[\r\n]+([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
-        js_fallback = re.search(r'===\s*index\.js\s*===\s*[\r\n]+([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
-        css_fallback = re.search(r'===\s*style\.css\s*===\s*[\r\n]+([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        # Made [\r\n]+ optional with * instead of + to handle cases where content follows immediately
+        html_fallback = re.search(r'===\s*index\.html\s*===\s*[\r\n]*([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        js_fallback = re.search(r'===\s*index\.js\s*===\s*[\r\n]*([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        css_fallback = re.search(r'===\s*style\.css\s*===\s*[\r\n]*([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        
+        print(f"[Parser] Fallback extraction - HTML found: {bool(html_fallback)}, JS found: {bool(js_fallback)}, CSS found: {bool(css_fallback)}")
         
         if html_fallback:
             content = html_fallback.group(1).strip()

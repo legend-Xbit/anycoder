@@ -288,29 +288,46 @@ def prettify_comfyui_json_for_html(json_content: str) -> str:
         return json_content
 
 
-def parse_transformers_js_output(code: str) -> Dict[str, str]:
-    """Parse transformers.js output into separate files (index.html, index.js, style.css)
-    
-    Uses comprehensive parsing patterns to handle various LLM output formats.
+# Note: parse_transformers_js_output, parse_python_requirements, strip_tool_call_markers,
+# remove_code_block, extract_import_statements, generate_requirements_txt_with_llm,
+# and parse_multi_file_python_output are now imported from backend_parsers.py
+
+
+def is_streamlit_code(code: str) -> bool:
+    """Check if code is Streamlit"""
+    return 'import streamlit' in code or 'streamlit.run' in code
+
+
+def is_gradio_code(code: str) -> bool:
+    """Check if code is Gradio"""
+    return 'import gradio' in code or 'gr.' in code
+
+
+def detect_sdk_from_code(code: str, language: str) -> str:
+    """Detect the appropriate SDK from code and language"""
+    if language == "html":
+        return "static"
+    elif language == "transformers.js":
+        return "static"
+    elif language == "comfyui":
+        return "static"
+    elif language == "react":
+        return "docker"
+    elif language == "streamlit" or is_streamlit_code(code):
+        return "docker"
+    elif language == "gradio" or is_gradio_code(code):
+        return "gradio"
+    else:
+        return "gradio"  # Default
+
+
+def add_anycoder_tag_to_readme(api, repo_id: str, app_port: Optional[int] = None) -> None:
     """
-    files = {
-        'index.html': '',
-        'index.js': '',
-        'style.css': ''
-    }
+    Download existing README, add anycoder tag and app_port if needed, and upload back.
+    Preserves all existing README content and frontmatter.
     
-    # Multiple patterns to match the three code blocks with different variations
-    html_patterns = [
-        r'```html\s*\n([\s\S]*?)(?:```|\Z)',
-        r'```htm\s*\n([\s\S]*?)(?:```|\Z)',
-        r'```\s*(?:index\.html|html)\s*\n([\s\S]*?)(?:```|\Z)'
-    ]
-    
-    js_patterns = [
-        r'```javascript\s*\n([\s\S]*?)(?:```|\Z)',
-        r'```js\s*\n([\s\S]*?)(?:```|\Z)',
-        r'```\s*(?:index\.js|javascript|js)\s*\n([\s\S]*?)(?:```|\Z)'
-    ]
+    Args:
+        api: HuggingFace API client
     
     css_patterns = [
         r'```css\s*\n([\s\S]*?)(?:```|\Z)',
