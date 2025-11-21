@@ -380,6 +380,26 @@ class ApiClient {
   logout() {
     this.token = null;
   }
+
+  async getTrendingAnycoderApps(): Promise<any[]> {
+    try {
+      // Fetch from HuggingFace API directly
+      const response = await axios.get('https://huggingface.co/api/spaces', {
+        timeout: 5000,
+      });
+      
+      // Filter for apps with 'anycoder' tag and sort by trendingScore
+      const anycoderApps = response.data
+        .filter((space: any) => space.tags && space.tags.includes('anycoder'))
+        .sort((a: any, b: any) => (b.trendingScore || 0) - (a.trendingScore || 0))
+        .slice(0, 6);
+      
+      return anycoderApps;
+    } catch (error) {
+      console.error('Failed to fetch trending anycoder apps:', error);
+      return [];
+    }
+  }
 }
 
 // Export singleton instance

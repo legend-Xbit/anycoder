@@ -48,10 +48,14 @@ export default function LandingPage({
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const languageDropdownRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Trending apps state
+  const [trendingApps, setTrendingApps] = useState<any[]>([]);
 
   useEffect(() => {
     loadData();
     handleOAuthInit();
+    loadTrendingApps();
     // Check auth status periodically to catch OAuth redirects
     const interval = setInterval(() => {
       const authenticated = checkIsAuthenticated();
@@ -161,6 +165,15 @@ export default function LandingPage({
     }
   };
 
+  const loadTrendingApps = async () => {
+    try {
+      const apps = await apiClient.getTrendingAnycoderApps();
+      setTrendingApps(apps);
+    } catch (error) {
+      console.error('Failed to load trending apps:', error);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (prompt.trim() && isAuthenticated) {
@@ -181,9 +194,14 @@ export default function LandingPage({
     <div className="min-h-screen flex flex-col bg-[#000000] overflow-y-auto">
       {/* Header - Apple style */}
       <header className="flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-[#000000]/80 border-b border-[#424245]/30 flex-shrink-0">
-        <h1 className="text-sm font-medium text-[#f5f5f7]">
+        <a 
+          href="https://huggingface.co/spaces/akhaliq/anycoder" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-[#f5f5f7] hover:text-white transition-colors"
+        >
           AnyCoder
-        </h1>
+        </a>
         
         {/* Auth Section */}
         <div className="flex items-center space-x-3">
@@ -428,6 +446,63 @@ export default function LandingPage({
               </div>
             )}
           </form>
+
+          {/* Trending Apps Section */}
+          {trendingApps.length > 0 && (
+            <div className="mt-16">
+              <h3 className="text-2xl font-semibold text-white mb-6 text-center">
+                Top 6 Trending Apps Built with AnyCoder
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {trendingApps.map((app) => (
+                  <a
+                    key={app.id}
+                    href={`https://huggingface.co/spaces/${app.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group bg-[#1d1d1f] border border-[#424245] rounded-xl p-5 hover:border-white/30 transition-all hover:shadow-xl hover:scale-[1.02]"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium text-[#f5f5f7] truncate group-hover:text-white transition-colors">
+                          {app.id.split('/')[1]}
+                        </h4>
+                        <p className="text-xs text-[#86868b] mt-1">
+                          by {app.id.split('/')[0]}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                        <div className="flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5 text-[#86868b]" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          <span className="text-xs text-[#86868b] font-medium">{app.likes}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5 text-[#86868b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                          </svg>
+                          <span className="text-xs text-[#86868b] font-medium">{app.trendingScore}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="px-2 py-0.5 bg-[#2d2d30] text-[#86868b] text-[10px] rounded-full font-medium">
+                        {app.sdk}
+                      </span>
+                      {app.tags?.slice(0, 2).map((tag: string) => 
+                        tag !== 'anycoder' && tag !== app.sdk && tag !== 'region:us' && (
+                          <span key={tag} className="px-2 py-0.5 bg-[#2d2d30] text-[#86868b] text-[10px] rounded-full font-medium">
+                            {tag}
+                          </span>
+                        )
+                      )}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
