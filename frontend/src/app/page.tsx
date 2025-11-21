@@ -601,22 +601,22 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-[#1d1d1f] animate-in fade-in duration-300">
+    <div className="h-screen flex flex-col bg-[#000000] animate-in fade-in duration-300">
       <Header />
       
-      {/* VS Code layout with Apple styling - Responsive */}
+      {/* Apple-style layout - Responsive */}
       <main className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar - Chat Panel (Hidden on mobile, shown when mobileView='chat') */}
         <div className={`
           ${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex
           w-full md:w-80 
-          bg-[#28282a] border-r border-[#48484a] 
-          flex-col shadow-xl
+          bg-[#000000] border-r border-[#424245]/30 
+          flex-col
           absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
         `}>
           {/* Panel Header */}
-          <div className="flex items-center px-5 py-4 bg-[#28282a] border-b border-[#48484a]">
-            <span className="text-sm font-semibold text-[#e5e5e7] tracking-tight">Chat</span>
+          <div className="flex items-center px-4 py-3 bg-[#000000] border-b border-[#424245]/30">
+            <span className="text-sm font-medium text-[#f5f5f7]">Chat</span>
           </div>
           
           {/* Chat Panel */}
@@ -633,13 +633,13 @@ export default function Home() {
         {/* Center - Editor Group (Always visible on mobile when mobileView='editor', always visible on desktop) */}
         <div className={`
           ${mobileView === 'editor' ? 'flex' : 'hidden'} md:flex
-          flex-1 flex-col bg-[#1d1d1f]
+          flex-1 flex-col bg-[#000000]
           absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
         `}>
           {/* Tab Bar */}
-          <div className="flex items-center px-5 h-11 bg-[#28282a] border-b border-[#48484a]">
+          <div className="flex items-center px-4 h-10 bg-[#1d1d1f] border-b border-[#424245]/30">
             <div className="flex items-center space-x-2">
-              <div className="px-4 py-1.5 bg-[#1d1d1f] border-t-2 border-[#007aff] text-sm text-[#e5e5e7] rounded-t-lg shadow-sm font-medium">
+              <div className="px-3 py-1 bg-[#2d2d2f] text-sm text-[#f5f5f7] rounded-t-lg font-normal border-t border-x border-[#424245]/50">
                 {selectedLanguage === 'html' ? 'app.html' :
                  selectedLanguage === 'gradio' || selectedLanguage === 'streamlit' ? 'app.py' : 
                  selectedLanguage === 'transformers.js' ? 'app.js' :
@@ -648,14 +648,14 @@ export default function Home() {
                  `${selectedLanguage}.txt`}
               </div>
             </div>
-            <div className="ml-auto flex items-center space-x-3 text-xs text-[#a1a1a6]">
+            <div className="ml-auto flex items-center space-x-3 text-xs text-[#86868b]">
               {isGenerating && (
-                <span className="flex items-center space-x-1.5 animate-pulse">
-                  <div className="w-2 h-2 bg-[#007aff] rounded-full shadow-lg"></div>
-                  <span className="font-medium">Generating...</span>
+                <span className="flex items-center space-x-1.5">
+                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                  <span>Generating...</span>
                 </span>
               )}
-              <span className="font-semibold tracking-wide">{selectedLanguage.toUpperCase()}</span>
+              <span className="font-medium">{selectedLanguage.toUpperCase()}</span>
             </div>
           </div>
           
@@ -674,8 +674,8 @@ export default function Home() {
         <div className={`
           ${mobileView === 'settings' ? 'flex' : 'hidden'} md:flex
           w-full md:w-72
-          bg-[#28282a] border-l border-[#48484a] 
-          overflow-y-auto shadow-xl
+          bg-[#000000] border-l border-[#424245]/30 
+          overflow-y-auto
           absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
           flex-col
         `}>
@@ -693,61 +693,56 @@ export default function Home() {
       </main>
 
       {/* Mobile Bottom Navigation (visible only on mobile) */}
-      <nav className="md:hidden bg-[#28282a] border-t border-[#48484a] flex items-center justify-around h-16 px-2 safe-area-bottom">
+      <nav className="md:hidden bg-[#000000]/95 backdrop-blur-xl border-t border-[#424245]/20 flex items-center justify-around h-14 px-2 safe-area-bottom">
         <button
           onClick={() => setMobileView('chat')}
-          className={`flex flex-col items-center justify-center flex-1 py-2 rounded-lg transition-all ${
+          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${
             mobileView === 'chat' 
-              ? 'text-[#007aff] bg-[#1d1d1f]' 
-              : 'text-[#a1a1a6] hover:text-[#e5e5e7]'
+              ? 'text-white' 
+              : 'text-[#86868b]'
           }`}
         >
-          <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
-          <span className="text-xs font-medium">Chat</span>
+          <span className="text-[10px]">Chat</span>
         </button>
         
         <button
           onClick={() => setMobileView('editor')}
-          className={`flex flex-col items-center justify-center flex-1 py-2 rounded-lg transition-all ${
+          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${
             mobileView === 'editor' 
-              ? 'text-[#007aff] bg-[#1d1d1f]' 
-              : 'text-[#a1a1a6] hover:text-[#e5e5e7]'
+              ? 'text-white' 
+              : 'text-[#86868b]'
           }`}
         >
-          <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+          <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
           </svg>
-          <span className="text-xs font-medium">Code</span>
+          <span className="text-[10px]">Code</span>
         </button>
         
         <button
           onClick={() => setMobileView('settings')}
-          className={`flex flex-col items-center justify-center flex-1 py-2 rounded-lg transition-all ${
+          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${
             mobileView === 'settings' 
-              ? 'text-[#007aff] bg-[#1d1d1f]' 
-              : 'text-[#a1a1a6] hover:text-[#e5e5e7]'
+              ? 'text-white' 
+              : 'text-[#86868b]'
           }`}
         >
-          <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <span className="text-xs font-medium">Settings</span>
+          <span className="text-[10px]">Settings</span>
         </button>
       </nav>
 
       {/* Status Bar - Apple style (hidden on mobile) */}
-      <footer className="hidden md:flex h-7 bg-[#28282a] border-t border-[#48484a] text-[#a1a1a6] text-xs items-center px-5 justify-between font-medium">
-        <div className="flex items-center space-x-5">
-          <span className="flex items-center space-x-1.5">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 16 16">
-              <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0z"/>
-            </svg>
-            <span>AnyCoder</span>
-          </span>
-          <span className="flex items-center space-x-1.5">
+      <footer className="hidden md:flex h-6 bg-[#000000] border-t border-[#424245]/20 text-[#86868b] text-[11px] items-center px-4 justify-between">
+        <div className="flex items-center space-x-4">
+          <span>AnyCoder</span>
+          <span className="flex items-center gap-1.5">
             {isAuthenticated ? (
               <>
                 <span className="w-1.5 h-1.5 bg-[#30d158] rounded-full"></span>
@@ -761,16 +756,8 @@ export default function Home() {
             )}
           </span>
         </div>
-        <div className="flex items-center space-x-5">
+        <div className="flex items-center space-x-4">
           <span>{messages.length} messages</span>
-          <a
-            href="https://huggingface.co/spaces/akhaliq/anycoder"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-[#e5e5e7] transition-colors"
-          >
-            Built with anycoder
-          </a>
         </div>
       </footer>
     </div>

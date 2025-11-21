@@ -83,32 +83,30 @@ export default function Header() {
   };
 
   return (
-    <header className="bg-[#28282a] text-white border-b border-[#48484a]">
-      <div className="flex items-center justify-between px-3 md:px-5 h-12 md:h-14">
+    <header className="bg-[#000000]/80 backdrop-blur-xl text-white border-b border-[#424245]/30">
+      <div className="flex items-center justify-between px-3 md:px-6 h-12 md:h-14">
           <div className="flex items-center space-x-2 md:space-x-3">
-            <h1 className="text-sm md:text-base font-semibold text-[#e5e5e7] tracking-tight">AnyCoder</h1>
+            <h1 className="text-sm md:text-base font-medium text-[#f5f5f7]">AnyCoder</h1>
           </div>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             {isLoading ? (
-              <div className="px-4 py-2">
-                <span className="text-xs text-[#86868b] font-medium">Loading...</span>
-              </div>
+              <span className="text-xs text-[#86868b]">Loading...</span>
             ) : userInfo ? (
               <div className="flex items-center space-x-2 md:space-x-3">
                 {userInfo.avatarUrl && (
                   <img 
                     src={userInfo.avatarUrl} 
                     alt={userInfo.name}
-                    className="w-6 h-6 md:w-7 md:h-7 rounded-full ring-2 ring-[#48484a]"
+                    className="w-6 h-6 md:w-7 md:h-7 rounded-full"
                   />
                 )}
-                <span className="hidden sm:inline text-xs md:text-sm text-[#e5e5e7] font-medium truncate max-w-[100px] md:max-w-none">
+                <span className="hidden sm:inline text-xs md:text-sm text-[#f5f5f7] font-medium truncate max-w-[100px] md:max-w-none">
                   {userInfo.preferredUsername || userInfo.name}
                 </span>
                 <button
                   onClick={handleLogout}
-                  className="px-3 md:px-4 py-1.5 md:py-2 bg-[#3a3a3c] text-[#e5e5e7] text-xs rounded-lg hover:bg-[#48484a] transition-all border border-[#48484a] font-semibold shadow-sm active:scale-95"
+                  className="px-3 md:px-3 py-1.5 md:py-1.5 text-[#f5f5f7] text-sm hover:text-white transition-colors"
                 >
                   Logout
                 </button>
@@ -119,20 +117,19 @@ export default function Header() {
                 {isDevMode && (
                   <>
                     {showDevLogin ? (
-                      <div className="flex items-center space-x-2 bg-[#3a3a3c] px-2 md:px-3 py-1.5 md:py-2 rounded-lg border border-[#ff9f0a] shadow-lg">
-                        <span className="hidden sm:inline text-xs text-[#ff9f0a] font-semibold">DEV</span>
+                      <div className="flex items-center space-x-2">
                         <input
                           type="text"
                           value={devUsername}
                           onChange={(e) => setDevUsername(e.target.value)}
                           onKeyPress={(e) => e.key === 'Enter' && handleDevLogin()}
                           placeholder="username"
-                          className="px-3 py-1.5 rounded-lg text-xs bg-[#2c2c2e] text-[#e5e5e7] border border-[#48484a] focus:outline-none focus:ring-2 focus:ring-[#ff9f0a] focus:border-transparent w-28 font-medium"
+                          className="px-3 py-1.5 rounded-lg text-sm bg-[#1d1d1f] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 w-32 font-medium"
                           autoFocus
                         />
                         <button
                           onClick={handleDevLogin}
-                          className="px-3 py-1.5 bg-[#ff9f0a] text-white rounded-lg hover:bg-[#ff8800] text-xs font-semibold shadow-sm active:scale-95"
+                          className="px-3 py-1.5 bg-white text-black rounded-lg text-sm hover:bg-[#f5f5f7] font-medium"
                         >
                           OK
                         </button>
@@ -141,33 +138,30 @@ export default function Header() {
                             setShowDevLogin(false);
                             setDevUsername('');
                           }}
-                          className="text-[#86868b] hover:text-[#e5e5e7] text-sm transition-colors"
+                          className="text-[#86868b] hover:text-[#f5f5f7] text-sm"
                         >
                           ✕
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => setShowDevLogin(true)}
-                        className="px-4 py-2 bg-[#ff9f0a] text-white rounded-lg hover:bg-[#ff8800] transition-all text-xs flex items-center space-x-2 font-semibold shadow-sm active:scale-95"
-                        title="Dev Mode (localhost)"
-                      >
-                        <span>🔧</span>
-                        <span>Dev Login</span>
-                      </button>
+                    <button
+                      onClick={() => setShowDevLogin(true)}
+                      className="px-3 py-1.5 text-sm text-[#f5f5f7] hover:text-white transition-colors"
+                      title="Dev Mode"
+                    >
+                      Dev
+                    </button>
                     )}
-                    <span className="text-[#86868b] text-xs font-medium">or</span>
+                    <span className="text-[#86868b] text-sm">or</span>
                   </>
                 )}
                 
                 {/* OAuth Login */}
                 <button
                   onClick={handleLogin}
-                  className="px-3 md:px-4 py-1.5 md:py-2 bg-[#007aff] text-white rounded-lg hover:bg-[#0051d5] transition-all text-xs flex items-center space-x-1.5 md:space-x-2 font-semibold shadow-md active:scale-95"
+                  className="px-3 md:px-4 py-1.5 md:py-2 bg-white text-black rounded-full text-sm hover:bg-[#f5f5f7] transition-all font-medium"
                 >
-                  <span>🤗</span>
-                  <span className="hidden xs:inline">Sign in</span>
-                  <span className="xs:hidden">Login</span>
+                  Sign in
                 </button>
               </div>
             )}

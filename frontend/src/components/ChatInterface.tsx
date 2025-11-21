@@ -33,21 +33,20 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#1d1d1f]">
+    <div className="flex flex-col h-full bg-[#000000]">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 ? (
-          <div className="text-center text-[#a1a1a6] mt-12">
-            <div className="text-5xl mb-5">💬</div>
+          <div className="text-center text-[#86868b] mt-12">
             {isAuthenticated ? (
               <>
-                <p className="text-lg font-semibold text-[#e5e5e7] tracking-tight">Start a conversation</p>
-                <p className="text-sm mt-3 text-[#86868b] leading-relaxed">Describe what you want to build and I'll generate the code</p>
+                <p className="text-lg font-medium text-[#f5f5f7]">Start a conversation</p>
+                <p className="text-sm mt-2 text-[#86868b]">Describe what you want to build</p>
               </>
             ) : (
               <>
-                <p className="text-lg font-semibold text-[#ff9f0a]">🔒 Sign in to get started</p>
-                <p className="text-sm mt-3 text-[#86868b] leading-relaxed">Use Dev Login or sign in with Hugging Face</p>
+                <p className="text-lg font-medium text-[#f5f5f7]">Sign in to get started</p>
+                <p className="text-sm mt-2 text-[#86868b]">Use Dev Login or sign in with Hugging Face</p>
               </>
             )}
           </div>
@@ -58,31 +57,26 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[85%] rounded-2xl p-4 shadow-sm ${
+                className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                   message.role === 'user'
-                    ? 'bg-[#007aff] text-white'
-                    : 'bg-[#2c2c2e] text-[#e5e5e7] border border-[#48484a]'
+                    ? 'bg-white text-black'
+                    : 'bg-[#2d2d2f] text-[#f5f5f7]'
                 }`}
               >
-                <div className="flex items-start space-x-3">
-                  <div className="text-base flex-shrink-0">
-                    {message.role === 'user' ? '👤' : '🤖'}
-                  </div>
-                  <div className="flex-1 text-sm leading-relaxed min-w-0">
-                    {message.role === 'assistant' ? (
-                      <ReactMarkdown 
-                        remarkPlugins={[remarkGfm]}
-                        className="prose prose-invert prose-sm max-w-none"
-                      >
-                        {message.content}
-                      </ReactMarkdown>
-                    ) : (
-                      <p className="whitespace-pre-wrap font-medium break-words">{message.content}</p>
-                    )}
-                  </div>
+                <div className="text-sm leading-relaxed">
+                  {message.role === 'assistant' ? (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      className="prose prose-invert prose-sm max-w-none [&>p]:my-0 [&>ul]:my-1 [&>ol]:my-1"
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  ) : (
+                    <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                  )}
                 </div>
                 {message.timestamp && (
-                  <div className="text-xs opacity-50 mt-2 text-right font-medium">
+                  <div className="text-[10px] opacity-40 mt-2 text-right">
                     {new Date(message.timestamp).toLocaleTimeString()}
                   </div>
                 )}
@@ -94,22 +88,30 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
       </div>
 
       {/* Input */}
-      <div className="border-t border-[#48484a] p-4 bg-[#28282a]">
-        <form onSubmit={handleSubmit} className="flex space-x-3">
+      <div className="border-t border-[#424245]/30 p-3 bg-[#000000]">
+        <form onSubmit={handleSubmit} className="flex items-center gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isAuthenticated ? "Message AnyCoder..." : "🔒 Please sign in first..."}
+            placeholder={isAuthenticated ? "Message AnyCoder..." : "Sign in first..."}
             disabled={isGenerating || !isAuthenticated}
-            className="flex-1 px-4 py-3 bg-[#3a3a3c] text-[#e5e5e7] text-sm border border-[#48484a] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#007aff] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed placeholder-[#86868b] font-medium shadow-sm"
+            className="flex-1 px-4 py-2.5 bg-[#2d2d2f] text-[#f5f5f7] text-sm border border-[#424245]/50 rounded-full focus:outline-none focus:border-[#424245] disabled:opacity-40 disabled:cursor-not-allowed placeholder-[#86868b]"
           />
           <button
             type="submit"
             disabled={isGenerating || !input.trim() || !isAuthenticated}
-            className="px-5 py-3 bg-[#007aff] text-white text-sm rounded-xl hover:bg-[#0051d5] disabled:bg-[#48484a] disabled:cursor-not-allowed transition-all font-semibold shadow-md disabled:shadow-none active:scale-95"
+            className="p-2.5 bg-white text-black rounded-full hover:bg-[#f5f5f7] disabled:bg-[#2d2d2f] disabled:text-[#86868b] disabled:cursor-not-allowed transition-all active:scale-95 flex-shrink-0"
           >
-            {isGenerating ? '⏳' : '↑'}
+            {isGenerating ? (
+              <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            )}
           </button>
         </form>
       </div>

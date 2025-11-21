@@ -245,7 +245,7 @@ export default function LandingPage({
                       className="px-3 py-1.5 text-sm text-[#f5f5f7] hover:text-white transition-colors"
                       title="Dev Mode"
                     >
-                      🔧 Dev
+                      Dev
                     </button>
                   )}
                   <span className="text-[#86868b] text-sm">or</span>
