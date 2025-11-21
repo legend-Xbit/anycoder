@@ -177,34 +177,32 @@ export default function LandingPage({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#1e1e1e] overflow-y-auto">
-      {/* Header - Minimal Apple style */}
-      <header className="flex items-center justify-between px-8 py-4 border-b border-[#3e3e42]/30 flex-shrink-0">
-        <h1 className="text-base font-semibold text-[#cccccc] tracking-tight">
+    <div className="min-h-screen flex flex-col bg-[#000000] overflow-y-auto">
+      {/* Header - Apple style */}
+      <header className="flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-[#000000]/80 border-b border-[#424245]/30 flex-shrink-0">
+        <h1 className="text-sm font-medium text-[#f5f5f7]">
           AnyCoder
         </h1>
         
         {/* Auth Section */}
         <div className="flex items-center space-x-3">
           {isAuthLoading ? (
-            <div className="px-4 py-2">
-              <span className="text-xs text-[#858585] font-medium">Loading...</span>
-            </div>
+            <span className="text-xs text-[#86868b]">Loading...</span>
           ) : userInfo ? (
             <div className="flex items-center space-x-3">
               {userInfo.avatarUrl && (
                 <img 
                   src={userInfo.avatarUrl} 
                   alt={userInfo.name}
-                  className="w-7 h-7 rounded-full ring-2 ring-[#3e3e42]"
+                  className="w-7 h-7 rounded-full"
                 />
               )}
-              <span className="hidden sm:inline text-sm text-[#cccccc] font-medium truncate max-w-[120px]">
+              <span className="hidden sm:inline text-sm text-[#f5f5f7] truncate max-w-[120px] font-medium">
                 {userInfo.preferredUsername || userInfo.name}
               </span>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-[#2d2d30] text-[#cccccc] text-xs rounded-lg hover:bg-[#3a3a3c] transition-all border border-[#3e3e42] font-semibold active:scale-95"
+                className="px-3 py-1.5 text-sm text-[#f5f5f7] hover:text-white transition-colors"
               >
                 Logout
               </button>
@@ -215,20 +213,19 @@ export default function LandingPage({
               {isDevMode && (
                 <>
                   {showDevLogin ? (
-                    <div className="flex items-center space-x-2 bg-[#2d2d30] px-3 py-2 rounded-lg border border-[#ff9f0a]">
-                      <span className="hidden sm:inline text-xs text-[#ff9f0a] font-semibold">DEV</span>
+                    <div className="flex items-center space-x-2">
                       <input
                         type="text"
                         value={devUsername}
                         onChange={(e) => setDevUsername(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleDevLogin()}
                         placeholder="username"
-                        className="px-3 py-1.5 rounded-lg text-xs bg-[#1e1e1e] text-[#cccccc] border border-[#3e3e42] focus:outline-none focus:ring-2 focus:ring-[#ff9f0a] focus:border-transparent w-28 font-medium"
+                        className="px-3 py-1.5 rounded-lg text-sm bg-[#1d1d1f] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 w-32 font-medium"
                         autoFocus
                       />
                       <button
                         onClick={handleDevLogin}
-                        className="px-3 py-1.5 bg-[#ff9f0a] text-white rounded-lg hover:bg-[#ff8800] text-xs font-semibold active:scale-95"
+                        className="px-3 py-1.5 bg-white text-black rounded-lg text-sm hover:bg-[#f5f5f7] font-medium"
                       >
                         OK
                       </button>
@@ -237,7 +234,7 @@ export default function LandingPage({
                           setShowDevLogin(false);
                           setDevUsername('');
                         }}
-                        className="text-[#858585] hover:text-[#cccccc] text-sm transition-colors"
+                        className="text-[#86868b] hover:text-[#f5f5f7] text-sm"
                       >
                         ✕
                       </button>
@@ -245,178 +242,179 @@ export default function LandingPage({
                   ) : (
                     <button
                       onClick={() => setShowDevLogin(true)}
-                      className="px-4 py-2 bg-[#ff9f0a] text-white rounded-lg hover:bg-[#ff8800] transition-all text-xs flex items-center space-x-2 font-semibold active:scale-95"
-                      title="Dev Mode (localhost)"
+                      className="px-3 py-1.5 text-sm text-[#f5f5f7] hover:text-white transition-colors"
+                      title="Dev Mode"
                     >
-                      <span>🔧</span>
-                      <span>Dev Login</span>
+                      🔧 Dev
                     </button>
                   )}
-                  <span className="text-[#858585] text-xs font-medium">or</span>
+                  <span className="text-[#86868b] text-sm">or</span>
                 </>
               )}
               
               {/* OAuth Login */}
               <button
                 onClick={handleLogin}
-                className="px-4 py-2 bg-[#007acc] text-white rounded-lg hover:bg-[#0066b3] transition-all text-xs flex items-center space-x-2 font-semibold active:scale-95"
+                className="px-4 py-2 bg-white text-black rounded-full text-sm hover:bg-[#f5f5f7] transition-all font-medium"
               >
-                <span>🤗</span>
-                <span>Sign in</span>
+                Sign in
               </button>
             </div>
           )}
         </div>
       </header>
 
-      {/* Main Content - Centered with generous Apple spacing */}
-      <main className="flex-1 flex items-center justify-center px-6 md:px-8 py-8 md:py-12 min-h-0">
-        <div className="w-full max-w-4xl">
-          {/* Headline - Apple typography with VS Code colors */}
-          <div className="text-center mb-8 md:mb-10">
-            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#cccccc] mb-4 tracking-[-0.02em] leading-[1.1]">
+      {/* Main Content - Apple-style centered layout */}
+      <main className="flex-1 flex items-center justify-center px-4 py-12 min-h-0">
+        <div className="w-full max-w-3xl">
+          {/* Apple-style Headline */}
+          <div className="text-center mb-12">
+            <h2 className="text-5xl md:text-6xl lg:text-7xl font-semibold text-white mb-3 tracking-tight leading-[1.05]">
               Build with AnyCoder
             </h2>
-            <p className="text-base md:text-lg text-[#858585] font-light tracking-tight">
+            <p className="text-lg md:text-xl text-[#86868b] font-normal">
               Create apps and websites by chatting with AI
             </p>
           </div>
 
-          {/* Prompt Input - VS Code style with Apple polish */}
+          {/* Simple prompt form */}
           <form onSubmit={handleSubmit} className="relative">
-            <div className="relative bg-[#252526] rounded-2xl border border-[#3e3e42] overflow-hidden shadow-2xl shadow-black/60">
-              {/* Options Row - Language and Model dropdowns */}
-              <div className="flex items-center gap-3 px-6 pt-5 pb-4 border-b border-[#3e3e42]/40">
-                {/* Language Dropdown */}
-                <div className="relative flex-1" ref={languageDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowLanguageDropdown(!showLanguageDropdown);
-                      setShowModelDropdown(false);
-                    }}
-                    disabled={isLoading}
-                    className="w-full px-4 py-2.5 bg-[#2d2d30] text-[#cccccc] text-sm border border-[#3e3e42] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007acc]/50 focus:border-[#007acc] disabled:opacity-50 font-medium flex items-center justify-between hover:bg-[#323233] transition-all duration-150"
-                  >
-                    <span className="text-[#cccccc]">{isLoading ? 'Loading...' : formatLanguageName(selectedLanguage)}</span>
-                    <svg 
-                      className={`w-4 h-4 text-[#858585] transition-transform duration-200 ${showLanguageDropdown ? 'rotate-180' : ''}`}
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  
-                  {/* Language Dropdown Tray */}
-                  {showLanguageDropdown && !isLoading && languages.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1.5 bg-[#252526] border border-[#3e3e42] rounded-lg shadow-2xl shadow-black/70 overflow-hidden">
-                      <div className="max-h-64 overflow-y-auto">
-                        {languages.map((lang) => (
-                          <button
-                            key={lang}
-                            type="button"
-                            onClick={() => {
-                              setSelectedLanguage(lang);
-                              setShowLanguageDropdown(false);
-                            }}
-                            className={`w-full px-4 py-2.5 text-left text-sm text-[#cccccc] hover:bg-[#2a2d2e] transition-colors duration-150 ${
-                              selectedLanguage === lang ? 'bg-[#264f78] hover:bg-[#264f78] text-[#ffffff]' : ''
-                            }`}
-                          >
-                            {formatLanguageName(lang)}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Model Dropdown */}
-                <div className="relative flex-1" ref={modelDropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowModelDropdown(!showModelDropdown);
-                      setShowLanguageDropdown(false);
-                    }}
-                    disabled={isLoading}
-                    className="w-full px-4 py-2.5 bg-[#2d2d30] text-[#cccccc] text-sm border border-[#3e3e42] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#007acc]/50 focus:border-[#007acc] disabled:opacity-50 font-medium flex items-center justify-between hover:bg-[#323233] transition-all duration-150"
-                  >
-                    <span className="truncate text-[#cccccc]">
-                      {isLoading 
-                        ? 'Loading...' 
-                        : models.find(m => m.id === selectedModel)?.name || 'Select model'
-                      }
-                    </span>
-                    <svg 
-                      className={`w-4 h-4 text-[#858585] transition-transform duration-200 flex-shrink-0 ml-2 ${showModelDropdown ? 'rotate-180' : ''}`}
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  
-                  {/* Model Dropdown Tray */}
-                  {showModelDropdown && !isLoading && models.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1.5 bg-[#252526] border border-[#3e3e42] rounded-lg shadow-2xl shadow-black/70 overflow-hidden">
-                      <div className="max-h-80 overflow-y-auto">
-                        {models.map((model) => (
-                          <button
-                            key={model.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedModel(model.id);
-                              setShowModelDropdown(false);
-                            }}
-                            className={`w-full px-4 py-3 text-left transition-colors duration-150 ${
-                              selectedModel === model.id 
-                                ? 'bg-[#264f78] hover:bg-[#264f78]' 
-                                : 'hover:bg-[#2a2d2e]'
-                            }`}
-                          >
-                            <div className="text-sm font-medium text-[#cccccc]">{model.name}</div>
-                            {model.description && (
-                              <div className="text-xs text-[#858585] mt-1 leading-relaxed">
-                                {model.description}
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
+            <div className="relative bg-[#2d2d30] rounded-2xl border border-[#424245] shadow-2xl">
               {/* Textarea */}
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Ask AnyCoder to create a landing page for my..."
-                className="w-full px-6 py-5 text-base md:text-lg text-[#cccccc] bg-transparent placeholder:text-[#858585] resize-none focus:outline-none min-h-[120px] md:min-h-[140px] font-normal leading-relaxed"
-                rows={3}
+                placeholder="Message AnyCoder"
+                className="w-full px-5 py-4 text-base text-[#f5f5f7] bg-transparent placeholder:text-[#86868b] resize-none focus:outline-none min-h-[56px] font-normal"
+                rows={1}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
                     handleSubmit(e);
                   }
                 }}
               />
               
-              {/* Input Controls - Apple style button */}
-              <div className="flex items-center justify-end px-6 pb-5 pt-4 border-t border-[#3e3e42]/40">
+              {/* Bottom controls - Apple style */}
+              <div className="flex items-center justify-between px-4 pb-4 gap-3">
+                {/* Compact dropdowns on the left */}
+                <div className="flex items-center gap-2">
+                  {/* Language Dropdown */}
+                  <div className="relative" ref={languageDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLanguageDropdown(!showLanguageDropdown);
+                        setShowModelDropdown(false);
+                      }}
+                      disabled={isLoading}
+                      className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all disabled:opacity-50 flex items-center gap-1.5 font-medium"
+                    >
+                      <span>{isLoading ? '...' : formatLanguageName(selectedLanguage)}</span>
+                      <svg 
+                        className={`w-3 h-3 text-[#86868b] transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                        strokeWidth={2.5}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {/* Language Dropdown Menu */}
+                    {showLanguageDropdown && !isLoading && languages.length > 0 && (
+                      <div className="absolute bottom-full left-0 mb-2 w-48 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl">
+                        <div className="max-h-64 overflow-y-auto py-1">
+                          {languages.map((lang) => (
+                            <button
+                              key={lang}
+                              type="button"
+                              onClick={() => {
+                                setSelectedLanguage(lang);
+                                setShowLanguageDropdown(false);
+                              }}
+                              className={`w-full px-4 py-2.5 text-left text-xs text-[#f5f5f7] hover:bg-[#2d2d2f] transition-colors font-medium ${
+                                selectedLanguage === lang ? 'bg-[#2d2d2f]' : ''
+                              }`}
+                            >
+                              {formatLanguageName(lang)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Model Dropdown */}
+                  <div className="relative" ref={modelDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowModelDropdown(!showModelDropdown);
+                        setShowLanguageDropdown(false);
+                      }}
+                      disabled={isLoading}
+                      className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all disabled:opacity-50 flex items-center gap-1.5 max-w-[200px] font-medium"
+                    >
+                      <span className="truncate">
+                        {isLoading 
+                          ? '...' 
+                          : models.find(m => m.id === selectedModel)?.name || 'Model'
+                        }
+                      </span>
+                      <svg 
+                        className={`w-3 h-3 text-[#86868b] flex-shrink-0 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                        strokeWidth={2.5}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {/* Model Dropdown Menu */}
+                    {showModelDropdown && !isLoading && models.length > 0 && (
+                      <div className="absolute bottom-full left-0 mb-2 w-80 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl">
+                        <div className="max-h-96 overflow-y-auto py-1">
+                          {models.map((model) => (
+                            <button
+                              key={model.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedModel(model.id);
+                                setShowModelDropdown(false);
+                              }}
+                              className={`w-full px-4 py-2.5 text-left transition-colors ${
+                                selectedModel === model.id 
+                                  ? 'bg-[#2d2d2f]' 
+                                  : 'hover:bg-[#2d2d2f]'
+                              }`}
+                            >
+                              <div className="text-xs font-medium text-[#f5f5f7]">{model.name}</div>
+                              {model.description && (
+                                <div className="text-[10px] text-[#86868b] mt-1 leading-relaxed">
+                                  {model.description}
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Send button on the right - Apple style */}
                 <button
                   type="submit"
                   disabled={!prompt.trim() || !isAuthenticated}
-                  className="px-8 py-3 bg-[#007acc] text-white text-sm font-semibold rounded-lg hover:bg-[#0066b3] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-[#007acc]/20 hover:shadow-[#007acc]/30 active:scale-[0.97] flex items-center space-x-2 tracking-tight"
-                  title="Send (⌘+Enter)"
+                  className="p-2 bg-white text-[#1d1d1f] rounded-full hover:bg-[#f5f5f7] disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg"
+                  title="Send"
                 >
-                  <span>Send</span>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </button>
               </div>
@@ -424,8 +422,8 @@ export default function LandingPage({
             
             {!isAuthenticated && (
               <div className="mt-6 text-center">
-                <p className="text-sm text-[#858585] font-medium">
-                  Please sign in to get started
+                <p className="text-sm text-[#86868b]">
+                  Sign in to get started
                 </p>
               </div>
             )}
