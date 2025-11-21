@@ -61,16 +61,55 @@ Requirements:
 6. Include proper error handling and loading states
 7. Follow accessibility best practices
 
-Library import (required): Add the following snippet to index.html to import transformers.js:
+**Transformers.js Library Usage:**
+
+Import via CDN (use in index.html or index.js):
+```javascript
 <script type="module">
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.3';
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0';
 </script>
+```
 
-Device Options: By default, transformers.js runs on CPU (via WASM). For better performance, you can run models on GPU using WebGPU:
-- CPU (default): const pipe = await pipeline('task', 'model-name');
-- GPU (WebGPU): const pipe = await pipeline('task', 'model-name', { device: 'webgpu' });
+**Pipeline API - Quick Tour:**
+Pipelines group together a pretrained model with preprocessing and postprocessing. Example:
 
-Consider providing users with a toggle option to choose between CPU and GPU execution based on their browser's WebGPU support.
+```javascript
+import { pipeline } from '@huggingface/transformers';
+
+// Allocate a pipeline for sentiment-analysis
+const pipe = await pipeline('sentiment-analysis');
+
+const out = await pipe('I love transformers!');
+// [{'label': 'POSITIVE', 'score': 0.999817686}]
+
+// Use a different model by specifying model id
+const pipe = await pipeline('sentiment-analysis', 'Xenova/bert-base-multilingual-uncased-sentiment');
+```
+
+**Device Options:**
+By default, models run on CPU (via WASM). For better performance, use WebGPU:
+```javascript
+// Run on WebGPU (GPU)
+const pipe = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english', {
+  device: 'webgpu',
+});
+```
+
+**Quantization Options:**
+In resource-constrained environments (browsers), use quantized models:
+- "fp32" (default for WebGPU)
+- "fp16" 
+- "q8" (default for WASM)
+- "q4" (4-bit quantization for smaller size)
+
+```javascript
+// Run at 4-bit quantization for better performance
+const pipe = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english', {
+  dtype: 'q4',
+});
+```
+
+Consider providing users with options to choose device (CPU/GPU) and quantization level based on their needs.
 
 The index.html should contain the basic HTML structure and link to the CSS and JS files.
 The index.js should contain all the JavaScript logic including transformers.js integration.

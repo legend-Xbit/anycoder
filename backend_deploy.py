@@ -14,6 +14,16 @@ from pathlib import Path
 
 from huggingface_hub import HfApi
 from backend_models import get_inference_client, get_real_model_id
+from backend_parsers import (
+    parse_transformers_js_output,
+    parse_html_code,
+    parse_python_requirements,
+    parse_multi_file_python_output,
+    strip_tool_call_markers,
+    remove_code_block,
+    extract_import_statements,
+    generate_requirements_txt_with_llm
+)
 
 
 def parse_html_code(code: str) -> str:
@@ -870,26 +880,22 @@ def deploy_to_huggingface_space(
                         else:
                             print(f"[Deploy] {fname}: EMPTY")
                     
-                    # Validate all three files are present
-                    missing_files = []
-                    if not files.get('index.html'):
-                        missing_files.append('index.html')
-                    if not files.get('index.js'):
-                        missing_files.append('index.js')
-                    if not files.get('style.css'):
-                        missing_files.append('style.css')
+                    # Validate all three files are present in the dict
+                    required_files = {'index.html', 'index.js', 'style.css'}
+                    missing_from_dict = required_files - set(files.keys())
                     
-                    if missing_files:
-                        error_msg = f"Missing required files: {', '.join(missing_files)}. "
-                        error_msg += f"Found only: {', '.join(files.keys()) if files else 'no files'}. "
-                        error_msg += "Transformers.js apps require all three files with === filename === markers. Please regenerate the code."
+                    if missing_from_dict:
+                        error_msg = f"Failed to parse required files: {', '.join(sorted(missing_from_dict))}. "
+                        error_msg += f"Parsed files: {', '.join(files.keys()) if files else 'none'}. "
+                        error_msg += "Transformers.js apps require all three files (index.html, index.js, style.css). Please regenerate using the correct format."
                         print(f"[Deploy] {error_msg}")
                         return False, error_msg, None
                     
-                    # Validate files have content
-                    empty_files = [name for name, content in files.items() if not content or not content.strip()]
+                    # Validate files have actual content (not empty or whitespace-only)
+                    empty_files = [name for name in required_files if not files.get(name, '').strip()]
                     if empty_files:
-                        error_msg = f"Empty files detected: {', '.join(empty_files)}. Please regenerate the code with actual content."
+                        error_msg = f"Empty file content detected: {', '.join(sorted(empty_files))}. "
+                        error_msg += "All three files must contain actual code. Please regenerate with complete content."
                         print(f"[Deploy] {error_msg}")
                         return False, error_msg, None
                     
