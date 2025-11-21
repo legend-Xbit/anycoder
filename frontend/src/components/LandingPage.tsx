@@ -422,9 +422,6 @@ export default function LandingPage({
                       </svg>
                     </button>
                     
-                    {/* Debug info */}
-                    {console.log('Dropdown render check - showModelDropdown:', showModelDropdown, 'models.length:', models.length)}
-                    
                     {/* Model Dropdown Menu */}
                     {showModelDropdown && models.length > 0 && (
                       <div 
