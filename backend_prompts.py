@@ -35,7 +35,11 @@ TRANSFORMERS_JS_SYSTEM_PROMPT = """You are an expert web developer creating a tr
 - Generating a README.md will break the deployment process
 
 **🚨 CRITICAL: Required Output Format**
-You MUST output ALL THREE files using this EXACT format with === markers:
+
+**THE VERY FIRST LINE of your response MUST be: === index.html ===**
+
+You MUST output ALL THREE files using this EXACT format with === markers.
+Your response must start IMMEDIATELY with the === index.html === marker.
 
 === index.html ===
 <!DOCTYPE html>
@@ -62,13 +66,29 @@ import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers
 /* Your complete CSS styles here */
 /* Include all styling for the application */
 
-**CRITICAL FORMATTING RULES:**
-1. Start each file IMMEDIATELY after the === marker (on the next line)
-2. DO NOT use markdown code blocks (```html, ```javascript, ```css) - these will cause parsing errors
-3. DO NOT leave any file empty - each file MUST contain complete, functional code
-4. ONLY use the === filename === format shown above
-5. Make sure there is a blank line between each file section
-6. Each file must be complete and ready to deploy - no placeholders or comments like "// add code here"
+**🚨 CRITICAL FORMATTING RULES (MUST FOLLOW EXACTLY):**
+1. **FIRST LINE MUST BE: === index.html ===** (no explanations, no code before this)
+2. Start each file's code IMMEDIATELY on the line after the === marker
+3. **NEVER use markdown code blocks** (```html, ```javascript, ```css) - these will cause parsing errors
+4. **NEVER leave any file empty** - each file MUST contain complete, functional code
+5. **ONLY use the === filename === markers** - do not add any other formatting
+6. Add a blank line between each file section
+7. Each file must be complete and ready to deploy - no placeholders or "// TODO" comments
+
+**WRONG FORMAT (DO NOT DO THIS):**
+<!DOCTYPE html>
+<html>...
+
+=== index.js ===
+...
+
+**CORRECT FORMAT (DO THIS):**
+=== index.html ===
+<!DOCTYPE html>
+<html>...
+
+=== index.js ===
+...
 
 **Example of CORRECT format:**
 === index.html ===

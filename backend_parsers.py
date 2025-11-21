@@ -15,11 +15,66 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     Uses comprehensive parsing patterns to handle various LLM output formats.
     Updated to use transformers.js v3.8.0 CDN.
     """
-    files = {
-        'index.html': '',
-        'index.js': '',
-        'style.css': ''
-    }
+    # Check if code starts with HTML instead of markers (common LLM mistake)
+    if code.strip().startswith('<!DOCTYPE') or code.strip().startswith('<html'):
+        print("[Parser] WARNING: Code starts with HTML instead of === index.html === marker")
+        print("[Parser] Attempting to extract files from malformed output...")
+        
+        # Try to split by === markers that do exist
+        if '=== index.js ===' in code and '=== style.css ===' in code:
+            # Extract HTML as everything before === index.js ===
+            html_end = code.find('=== index.js ===')
+            html_content = code[:html_end].strip()
+            
+            # Extract JS between === index.js === and === style.css ===
+            js_start = code.find('=== index.js ===') + len('=== index.js ===')
+            js_end = code.find('=== style.css ===')
+            js_content = code[js_start:js_end].strip()
+            
+            # Extract CSS after === style.css ===
+            css_start = code.find('=== style.css ===') + len('=== style.css ===')
+            css_content = code[css_start:].strip()
+            
+            print(f"[Parser] Recovered HTML: {len(html_content)} chars")
+            print(f"[Parser] Recovered JS: {len(js_content)} chars")
+            print(f"[Parser] Recovered CSS: {len(css_content)} chars")
+            
+            files = {
+                'index.html': html_content,
+                'index.js': js_content,
+                'style.css': css_content
+            }
+            
+            # Normalize imports and return early since we've already parsed everything
+            cdn_url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0"
+            for file_key in ['index.html', 'index.js']:
+                if files[file_key]:
+                    content = files[file_key]
+                    content = re.sub(
+                        r"from\s+['\"]https://cdn.jsdelivr.net/npm/@huggingface/transformers@[^'\"]+['\"]",
+                        f"from '{cdn_url}'",
+                        content
+                    )
+                    content = re.sub(
+                        r"from\s+['\"]https://cdn.jsdelivr.net/npm/@xenova/transformers@[^'\"]+['\"]",
+                        f"from '{cdn_url}'",
+                        content
+                    )
+                    files[file_key] = content
+            
+            return files
+        else:
+            files = {
+                'index.html': '',
+                'index.js': '',
+                'style.css': ''
+            }
+    else:
+        files = {
+            'index.html': '',
+            'index.js': '',
+            'style.css': ''
+        }
     
     # Multiple patterns to match the three code blocks with different variations
     html_patterns = [
