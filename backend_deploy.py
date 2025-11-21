@@ -920,7 +920,13 @@ def deploy_to_huggingface_space(
                     for filename, content in files.items():
                         file_path = temp_path / filename
                         print(f"[Deploy] Writing {filename} ({len(content)} chars) to {file_path}")
-                        file_path.write_text(content, encoding='utf-8')
+                        # Use binary mode with UTF-8 encoding for better emoji/special character handling
+                        try:
+                            file_path.write_bytes(content.encode('utf-8'))
+                        except UnicodeEncodeError as e:
+                            print(f"[Deploy] Encoding error in {filename}: {e}, using fallback encoding")
+                            # Fallback: ignore problematic characters
+                            file_path.write_bytes(content.encode('utf-8', errors='ignore'))
                         # Verify the write was successful
                         written_size = file_path.stat().st_size
                         print(f"[Deploy] Verified {filename}: {written_size} bytes on disk")
@@ -1143,6 +1149,15 @@ def deploy_to_huggingface_space(
                         if not file_content:
                             return False, f"Missing content for {file_name}", None
                         
+                        # Ensure content is properly encoded (handle emojis safely)
+                        try:
+                            # Test encoding - this will catch any encoding issues early
+                            file_content.encode('utf-8', errors='strict')
+                        except UnicodeEncodeError as e:
+                            print(f"[Deploy] Encoding warning for {file_name}: {e}")
+                            # Replace problematic characters with safe equivalents
+                            file_content = file_content.encode('utf-8', errors='ignore').decode('utf-8')
+                        
                         success = False
                         last_error = None
                         
@@ -1151,8 +1166,9 @@ def deploy_to_huggingface_space(
                             try:
                                 # Create a NEW temp file for this upload (key difference from old approach)
                                 print(f"[Deploy] Creating temp file for {file_name} with {len(file_content)} chars")
-                                with tempfile.NamedTemporaryFile("w", suffix=f".{file_name.split('.')[-1]}", delete=False, encoding='utf-8') as f:
-                                    f.write(file_content)
+                                # Use binary mode with explicit UTF-8 encoding for better emoji handling
+                                with tempfile.NamedTemporaryFile("wb", suffix=f".{file_name.split('.')[-1]}", delete=False) as f:
+                                    f.write(file_content.encode('utf-8'))
                                     f.flush()  # Ensure all content is written to disk before closing
                                     temp_file_path = f.name
                                 # File is now closed and flushed, safe to upload

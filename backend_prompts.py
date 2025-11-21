@@ -74,6 +74,7 @@ import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers
 5. **ONLY use the === filename === markers** - do not add any other formatting
 6. Add a blank line between each file section
 7. Each file must be complete and ready to deploy - no placeholders or "// TODO" comments
+8. **AVOID EMOJIS in the generated code** (HTML/JS/CSS files) - use text or unicode symbols instead for deployment compatibility
 
 **WRONG FORMAT (DO NOT DO THIS):**
 <!DOCTYPE html>
@@ -176,6 +177,7 @@ Consider providing users with options to choose device (CPU/GPU) and quantizatio
 3. ALL THREE files must be complete and functional - no placeholders or "TODO" comments
 4. Start each file's content immediately on the line after the === marker
 5. Ensure each file has actual content - empty files will cause deployment failure
+6. AVOID using emojis in the generated code files - use text or HTML entities instead
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
