@@ -42,11 +42,14 @@ try:
         TRANSFORMERS_JS_SYSTEM_PROMPT,
         STREAMLIT_SYSTEM_PROMPT,
         REACT_SYSTEM_PROMPT,
-        GRADIO_SYSTEM_PROMPT,
+        get_gradio_system_prompt,  # Import the function to get dynamic prompt
         JSON_SYSTEM_PROMPT,
         GENERIC_SYSTEM_PROMPT
     )
+    # Get the Gradio system prompt (includes full Gradio 6 documentation)
+    GRADIO_SYSTEM_PROMPT = get_gradio_system_prompt()
     print("[Startup] ✅ All system prompts loaded successfully from backend_prompts.py")
+    print(f"[Startup] 📚 Gradio system prompt loaded with full documentation ({len(GRADIO_SYSTEM_PROMPT)} chars)")
 except Exception as e:
     import traceback
     print(f"[Startup] ❌ ERROR: Could not import from backend_prompts: {e}")

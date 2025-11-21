@@ -3,6 +3,14 @@ Standalone system prompts for AnyCoder backend.
 No dependencies on Gradio or other heavy libraries.
 """
 
+# Import the backend documentation manager for Gradio 6 docs
+try:
+    from backend_docs_manager import build_gradio_system_prompt
+    HAS_BACKEND_DOCS = True
+except ImportError:
+    HAS_BACKEND_DOCS = False
+    print("Warning: backend_docs_manager not available, using fallback Gradio prompt")
+
 HTML_SYSTEM_PROMPT = """ONLY USE HTML, CSS AND JAVASCRIPT. If you want to use ICON make sure to import the library first. Try to create the best UI possible by using only HTML, CSS and JAVASCRIPT. MAKE IT RESPONSIVE USING MODERN CSS. Use as much as you can modern CSS for the styling, if you can't do something with modern CSS, then use custom CSS. Also, try to elaborate as much as you can, to create something unique. ALWAYS GIVE THE RESPONSE INTO A SINGLE HTML FILE
 
 **🚨 CRITICAL: DO NOT Generate README.md Files**
@@ -187,7 +195,14 @@ IMPORTANT: Always include "Built with anycoder" as clickable text in the header/
 """
 
 
-GRADIO_SYSTEM_PROMPT = """You are an expert Gradio developer. Create a complete, working Gradio application based on the user's request. Generate all necessary code to make the application functional and runnable.
+# Gradio system prompt - dynamically loaded with full Gradio 6 documentation
+def get_gradio_system_prompt() -> str:
+    """Get the complete Gradio system prompt with full Gradio 6 documentation"""
+    if HAS_BACKEND_DOCS:
+        return build_gradio_system_prompt()
+    else:
+        # Fallback prompt if documentation manager is not available
+        return """You are an expert Gradio developer. Create a complete, working Gradio application based on the user's request. Generate all necessary code to make the application functional and runnable.
 
 ## Multi-File Application Structure
 
@@ -226,6 +241,9 @@ Requirements:
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder
 """
+
+# Legacy variable for backward compatibility - now dynamically generated
+GRADIO_SYSTEM_PROMPT = get_gradio_system_prompt()
 
 
 JSON_SYSTEM_PROMPT = """You are an expert at generating JSON configurations for ComfyUI workflows. Create valid, well-structured JSON that can be loaded into ComfyUI.

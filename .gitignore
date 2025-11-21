@@ -71,6 +71,16 @@ coverage.xml
 log/
 logs/
 
+# Documentation cache files (backend)
+.backend_gradio_docs_cache.txt
+.backend_gradio_docs_last_update.txt
+.gradio_docs_cache.txt
+.gradio_docs_last_update.txt
+.comfyui_docs_cache.txt
+.comfyui_docs_last_update.txt
+.fastrtc_docs_cache.txt
+.fastrtc_docs_last_update.txt
+
 # System files
 .DS_Store
 Thumbs.db
