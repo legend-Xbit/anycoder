@@ -173,6 +173,7 @@ export default function LandingPage({
   const formatLanguageName = (lang: Language) => {
     if (lang === 'html') return 'HTML';
     if (lang === 'transformers.js') return 'Transformers.js';
+    if (lang === 'comfyui') return 'ComfyUI';
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
@@ -354,13 +355,12 @@ export default function LandingPage({
                         setShowModelDropdown(!showModelDropdown);
                         setShowLanguageDropdown(false);
                       }}
-                      disabled={isLoading}
-                      className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all disabled:opacity-50 flex items-center gap-1.5 max-w-[200px] font-medium"
+                      className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all flex items-center gap-1.5 max-w-[200px] font-medium"
                     >
                       <span className="truncate">
                         {isLoading 
                           ? '...' 
-                          : models.find(m => m.id === selectedModel)?.name || 'Model'
+                          : models.find(m => m.id === selectedModel)?.name || selectedModel || 'Model'
                         }
                       </span>
                       <svg 
@@ -375,7 +375,7 @@ export default function LandingPage({
                     </button>
                     
                     {/* Model Dropdown Menu */}
-                    {showModelDropdown && !isLoading && models.length > 0 && (
+                    {showModelDropdown && models.length > 0 && (
                       <div className="absolute bottom-full left-0 mb-2 w-80 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl">
                         <div className="max-h-96 overflow-y-auto py-1">
                           {models.map((model) => (

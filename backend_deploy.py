@@ -38,6 +38,246 @@ def parse_html_code(code: str) -> str:
     return code
 
 
+def prettify_comfyui_json_for_html(json_content: str) -> str:
+    """Convert ComfyUI JSON to stylized HTML display with download button"""
+    try:
+        # Parse and prettify the JSON
+        parsed_json = json.loads(json_content)
+        prettified_json = json.dumps(parsed_json, indent=2, ensure_ascii=False)
+        
+        # Create Apple-style HTML wrapper
+        html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI Workflow</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+            background-color: #000000;
+            color: #f5f5f7;
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }}
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        .header {{
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 40px 20px;
+        }}
+        .header h1 {{
+            font-size: 48px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
+        }}
+        .header p {{
+            font-size: 18px;
+            color: #86868b;
+            font-weight: 400;
+        }}
+        .controls {{
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            justify-content: center;
+        }}
+        .btn {{
+            padding: 12px 24px;
+            border: none;
+            border-radius: 24px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }}
+        .btn-primary {{
+            background: #ffffff;
+            color: #000000;
+        }}
+        .btn-primary:hover {{
+            background: #f5f5f7;
+            transform: scale(0.98);
+        }}
+        .btn-secondary {{
+            background: #1d1d1f;
+            color: #f5f5f7;
+            border: 1px solid #424245;
+        }}
+        .btn-secondary:hover {{
+            background: #2d2d2f;
+            transform: scale(0.98);
+        }}
+        .json-container {{
+            background-color: #1d1d1f;
+            border-radius: 16px;
+            padding: 32px;
+            overflow-x: auto;
+            border: 1px solid #424245;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }}
+        pre {{
+            margin: 0;
+            font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }}
+        .json-key {{
+            color: #9cdcfe;
+        }}
+        .json-string {{
+            color: #ce9178;
+        }}
+        .json-number {{
+            color: #b5cea8;
+        }}
+        .json-boolean {{
+            color: #569cd6;
+        }}
+        .json-null {{
+            color: #569cd6;
+        }}
+        .success {{
+            color: #30d158;
+        }}
+        @media (max-width: 768px) {{
+            .header h1 {{
+                font-size: 32px;
+            }}
+            .controls {{
+                flex-direction: column;
+            }}
+            .json-container {{
+                padding: 20px;
+            }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ComfyUI Workflow</h1>
+            <p>View and download your workflow JSON</p>
+        </div>
+        
+        <div class="controls">
+            <button class="btn btn-primary" onclick="downloadJSON()">Download JSON</button>
+            <button class="btn btn-secondary" onclick="copyToClipboard()">Copy to Clipboard</button>
+        </div>
+        
+        <div class="json-container">
+            <pre id="json-content">{prettified_json}</pre>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard() {{
+            const jsonContent = document.getElementById('json-content').textContent;
+            navigator.clipboard.writeText(jsonContent).then(() => {{
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.classList.add('success');
+                setTimeout(() => {{
+                    btn.textContent = originalText;
+                    btn.classList.remove('success');
+                }}, 2000);
+            }}).catch(err => {{
+                alert('Failed to copy to clipboard');
+            }});
+        }}
+
+        function downloadJSON() {{
+            const jsonContent = document.getElementById('json-content').textContent;
+            const blob = new Blob([jsonContent], {{ type: 'application/json' }});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'comfyui_workflow.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = 'Downloaded!';
+            btn.classList.add('success');
+            setTimeout(() => {{
+                btn.textContent = originalText;
+                btn.classList.remove('success');
+            }}, 2000);
+        }}
+
+        // Add syntax highlighting
+        function highlightJSON() {{
+            const content = document.getElementById('json-content');
+            let html = content.innerHTML;
+            
+            // Highlight different JSON elements
+            html = html.replace(/"([^"]+)":/g, '<span class="json-key">"$1":</span>');
+            html = html.replace(/: "([^"]*)"/g, ': <span class="json-string">"$1"</span>');
+            html = html.replace(/: (-?\\d+\\.?\\d*)/g, ': <span class="json-number">$1</span>');
+            html = html.replace(/: (true|false)/g, ': <span class="json-boolean">$1</span>');
+            html = html.replace(/: null/g, ': <span class="json-null">null</span>');
+            
+            content.innerHTML = html;
+        }}
+
+        // Apply syntax highlighting after page load
+        window.addEventListener('load', highlightJSON);
+    </script>
+</body>
+</html>"""
+        return html_content
+    except json.JSONDecodeError:
+        # If it's not valid JSON, return as-is wrapped in basic HTML
+        return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ComfyUI Workflow</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+            background-color: #000000;
+            color: #f5f5f7;
+            padding: 40px;
+        }}
+        pre {{
+            background: #1d1d1f;
+            padding: 24px;
+            border-radius: 12px;
+            overflow-x: auto;
+        }}
+    </style>
+</head>
+<body>
+    <h1>ComfyUI Workflow</h1>
+    <p>Error: Invalid JSON format</p>
+    <pre>{json_content}</pre>
+</body>
+</html>"""
+    except Exception as e:
+        print(f"Error prettifying ComfyUI JSON: {e}")
+        return json_content
+
+
 def parse_transformers_js_output(code: str) -> Dict[str, str]:
     """Parse transformers.js output into separate files (index.html, index.js, style.css)
     
@@ -676,8 +916,9 @@ def deploy_to_huggingface_space(
                 (temp_path / "index.html").write_text(html_code, encoding='utf-8')
                 
             elif language == "comfyui":
-                # ComfyUI is JSON, wrap in HTML viewer
-                (temp_path / "index.html").write_text(code, encoding='utf-8')
+                # ComfyUI is JSON, wrap in stylized HTML viewer with download button
+                html_code = prettify_comfyui_json_for_html(code)
+                (temp_path / "index.html").write_text(html_code, encoding='utf-8')
                 
             elif language in ["gradio", "streamlit"]:
                 files = parse_multi_file_python_output(code)

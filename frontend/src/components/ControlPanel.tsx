@@ -127,6 +127,7 @@ export default function ControlPanel({
   const formatLanguageName = (lang: Language) => {
     if (lang === 'html') return 'HTML';
     if (lang === 'transformers.js') return 'Transformers.js';
+    if (lang === 'comfyui') return 'ComfyUI';
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
@@ -201,13 +202,13 @@ export default function ControlPanel({
             setShowModelDropdown(!showModelDropdown);
             setShowLanguageDropdown(false);
           }}
-          disabled={isGenerating || isLoading}
+          disabled={isGenerating}
           className="w-full px-3 py-2 bg-[#1d1d1f] text-[#f5f5f7] text-sm border border-[#424245]/50 rounded-lg focus:outline-none focus:border-[#424245] disabled:opacity-40 flex items-center justify-between hover:bg-[#2d2d2f] transition-colors"
         >
           <span className="truncate">
             {isLoading 
               ? 'Loading...' 
-              : models.find(m => m.id === selectedModel)?.name || 'Select model'
+              : models.find(m => m.id === selectedModel)?.name || selectedModel || 'Select model'
             }
           </span>
           <svg 
@@ -222,7 +223,7 @@ export default function ControlPanel({
         </button>
         
         {/* Model Dropdown Tray */}
-        {showModelDropdown && !isLoading && models.length > 0 && (
+        {showModelDropdown && models.length > 0 && (
           <div className="absolute z-50 w-full mt-1 bg-[#1d1d1f] border border-[#424245] rounded-lg shadow-xl overflow-hidden">
             <div className="max-h-96 overflow-y-auto py-1">
               {models.map((model) => (
