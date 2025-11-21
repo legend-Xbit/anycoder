@@ -17,7 +17,7 @@ export default function Home() {
   
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('MiniMaxAI/MiniMax-M2');
+  const [selectedModel, setSelectedModel] = useState('zai-org/GLM-4.6');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);  // Track imported/deployed space

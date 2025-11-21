@@ -179,8 +179,8 @@ def get_inference_client(model_id, provider="auto"):
             base_url="https://api.moonshot.ai/v1",
         )
     elif model_id == "moonshotai/Kimi-K2-Thinking":
-        # Use HuggingFace InferenceClient with Novita provider for Kimi K2 Thinking
-        provider = "novita"
+        # Use HuggingFace InferenceClient with Together AI provider for Kimi K2 Thinking
+        provider = "together"
     elif model_id == "stealth-model-1":
         # Use stealth model with generic configuration
         api_key = os.getenv("STEALTH_MODEL_1_API_KEY")
@@ -206,8 +206,8 @@ def get_inference_client(model_id, provider="auto"):
     elif model_id == "zai-org/GLM-4.5":
         provider = "fireworks-ai"
     elif model_id == "zai-org/GLM-4.6":
-        # Use auto provider for GLM-4.6, HuggingFace will select best available
-        provider = "auto"
+        # Use Cerebras provider for GLM-4.6 via HuggingFace
+        provider = "cerebras"
     return InferenceClient(
         provider=provider,
         api_key=HF_TOKEN,
@@ -225,8 +225,11 @@ def get_real_model_id(model_id: str) -> str:
         
         return real_model_id
     elif model_id == "zai-org/GLM-4.6":
-        # GLM-4.6 requires provider suffix in model string for API calls
-        return "zai-org/GLM-4.6:zai-org"
+        # GLM-4.6 requires Cerebras provider suffix in model string for API calls
+        return "zai-org/GLM-4.6:cerebras"
+    elif model_id == "moonshotai/Kimi-K2-Thinking":
+        # Kimi K2 Thinking needs Together AI provider
+        return "moonshotai/Kimi-K2-Thinking:together"
     return model_id
 
 # Type definitions

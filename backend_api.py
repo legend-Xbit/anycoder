@@ -99,6 +99,13 @@ AVAILABLE_MODELS = [
     {"name": "DeepSeek V3.2-Exp", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental via HuggingFace"},
     {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation"},
     {"name": "GPT-5", "id": "gpt-5", "description": "OpenAI GPT-5 via OpenRouter"},
+    {"name": "GPT-5.1", "id": "gpt-5.1", "description": "OpenAI GPT-5.1 model via Poe for advanced code generation and general tasks"},
+    {"name": "GPT-5.1 Instant", "id": "gpt-5.1-instant", "description": "OpenAI GPT-5.1 Instant model via Poe for fast responses"},
+    {"name": "GPT-5.1 Codex", "id": "gpt-5.1-codex", "description": "OpenAI GPT-5.1 Codex model via Poe optimized for code generation"},
+    {"name": "Claude-Sonnet-4.5", "id": "claude-sonnet-4.5", "description": "Anthropic Claude Sonnet 4.5 via Poe (OpenAI-compatible)"},
+    {"name": "Claude-Haiku-4.5", "id": "claude-haiku-4.5", "description": "Anthropic Claude Haiku 4.5 via Poe (OpenAI-compatible)"},
+    {"name": "Kimi K2 Thinking", "id": "moonshotai/Kimi-K2-Thinking", "description": "Moonshot Kimi K2 Thinking model via HuggingFace with Together AI provider"},
+    {"name": "GLM-4.6", "id": "zai-org/GLM-4.6", "description": "GLM-4.6 model via HuggingFace with Cerebras provider"},
     {"name": "Gemini Flash Latest", "id": "gemini-flash-latest", "description": "Google Gemini Flash via OpenRouter"},
     {"name": "Qwen3 Max Preview", "id": "qwen3-max-preview", "description": "Qwen3 Max Preview via DashScope API"},
 ]

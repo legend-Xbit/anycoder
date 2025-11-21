@@ -26,7 +26,7 @@ export default function LandingPage({
   onStart, 
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'MiniMaxAI/MiniMax-M2',
+  initialModel = 'zai-org/GLM-4.6',
   onAuthChange
 }: LandingPageProps) {
   const [prompt, setPrompt] = useState('');
@@ -52,7 +52,18 @@ export default function LandingPage({
   // Trending apps state
   const [trendingApps, setTrendingApps] = useState<any[]>([]);
 
+  // Debug effect for dropdown state
   useEffect(() => {
+    console.log('showModelDropdown state changed to:', showModelDropdown);
+  }, [showModelDropdown]);
+
+  // Debug effect for models state
+  useEffect(() => {
+    console.log('models state changed, length:', models.length, 'models:', models);
+  }, [models]);
+
+  useEffect(() => {
+    console.log('Component mounted, initial load starting...');
     loadData();
     handleOAuthInit();
     loadTrendingApps();
@@ -142,17 +153,24 @@ export default function LandingPage({
   }, []);
 
   const loadData = async () => {
+    console.log('loadData called');
     setIsLoading(true);
     await Promise.all([loadModels(), loadLanguages()]);
     setIsLoading(false);
+    console.log('loadData completed');
   };
 
   const loadModels = async () => {
     try {
+      console.log('Loading models...');
       const modelsList = await apiClient.getModels();
+      console.log('Models loaded successfully:', modelsList);
+      console.log('Number of models:', modelsList.length);
       setModels(modelsList);
+      console.log('Models state updated');
     } catch (error) {
       console.error('Failed to load models:', error);
+      setModels([]); // Set empty array on error
     }
   };
 
@@ -322,7 +340,9 @@ export default function LandingPage({
                   <div className="relative" ref={languageDropdownRef}>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setShowLanguageDropdown(!showLanguageDropdown);
                         setShowModelDropdown(false);
                       }}
@@ -343,7 +363,10 @@ export default function LandingPage({
                     
                     {/* Language Dropdown Menu */}
                     {showLanguageDropdown && !isLoading && languages.length > 0 && (
-                      <div className="absolute bottom-full left-0 mb-2 w-48 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl">
+                      <div 
+                        className="absolute bottom-full left-0 mb-2 w-48 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="max-h-64 overflow-y-auto py-1">
                           {languages.map((lang) => (
                             <button
@@ -369,7 +392,14 @@ export default function LandingPage({
                   <div className="relative" ref={modelDropdownRef}>
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('Model button clicked!');
+                        console.log('Current showModelDropdown:', showModelDropdown);
+                        console.log('Models array:', models);
+                        console.log('Models length:', models.length);
+                        console.log('Selected model:', selectedModel);
                         setShowModelDropdown(!showModelDropdown);
                         setShowLanguageDropdown(false);
                       }}
@@ -392,9 +422,15 @@ export default function LandingPage({
                       </svg>
                     </button>
                     
+                    {/* Debug info */}
+                    {console.log('Dropdown render check - showModelDropdown:', showModelDropdown, 'models.length:', models.length)}
+                    
                     {/* Model Dropdown Menu */}
                     {showModelDropdown && models.length > 0 && (
-                      <div className="absolute bottom-full left-0 mb-2 w-80 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl">
+                      <div 
+                        className="absolute top-full left-0 mt-2 w-56 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-50"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="max-h-96 overflow-y-auto py-1">
                           {models.map((model) => (
                             <button
@@ -404,18 +440,13 @@ export default function LandingPage({
                                 setSelectedModel(model.id);
                                 setShowModelDropdown(false);
                               }}
-                              className={`w-full px-4 py-2.5 text-left transition-colors ${
+                              className={`w-full px-4 py-2 text-left transition-colors ${
                                 selectedModel === model.id 
                                   ? 'bg-[#2d2d2f]' 
                                   : 'hover:bg-[#2d2d2f]'
                               }`}
                             >
                               <div className="text-xs font-medium text-[#f5f5f7]">{model.name}</div>
-                              {model.description && (
-                                <div className="text-[10px] text-[#86868b] mt-1 leading-relaxed">
-                                  {model.description}
-                                </div>
-                              )}
                             </button>
                           ))}
                         </div>

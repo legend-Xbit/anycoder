@@ -227,6 +227,14 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             default_headers={"X-HF-Bill-To": "huggingface"}
         )
     
+    elif model_id.startswith("moonshotai/Kimi-K2"):
+        # Kimi K2 models via HuggingFace Router
+        return OpenAI(
+            base_url="https://router.huggingface.co/v1",
+            api_key=os.getenv("HF_TOKEN"),
+            default_headers={"X-HF-Bill-To": "huggingface"}
+        )
+    
     elif model_id == "stealth-model-1":
         # Use stealth model with generic configuration
         api_key = os.getenv("STEALTH_MODEL_1_API_KEY")
@@ -260,16 +268,16 @@ def get_real_model_id(model_id: str) -> str:
         return real_model_id
     
     elif model_id == "zai-org/GLM-4.6":
-        # GLM-4.6 requires provider suffix in model string for API calls
-        return "zai-org/GLM-4.6:zai-org"
+        # GLM-4.6 requires Cerebras provider suffix in model string for API calls
+        return "zai-org/GLM-4.6:cerebras"
     
     elif model_id == "MiniMaxAI/MiniMax-M2":
         # MiniMax M2 needs Novita provider suffix
         return "MiniMaxAI/MiniMax-M2:novita"
     
     elif model_id == "moonshotai/Kimi-K2-Thinking":
-        # Kimi K2 Thinking needs Novita provider
-        return "moonshotai/Kimi-K2-Thinking:novita"
+        # Kimi K2 Thinking needs Together AI provider
+        return "moonshotai/Kimi-K2-Thinking:together"
     
     elif model_id == "moonshotai/Kimi-K2-Instruct":
         # Kimi K2 Instruct needs Groq provider
