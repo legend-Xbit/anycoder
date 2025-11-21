@@ -1659,7 +1659,7 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
                         )
                     space_url = f"https://huggingface.co/spaces/{repo_id}"
                     action_text = "Updated" if is_update else "Deployed"
-                    return gr.update(value=f"✅ {action_text}! [Open your Space here]({space_url})", visible=True)
+                    return gr.update(value=f"{action_text}! [Open your app here]({space_url})", visible=True)
                 except Exception as e:
                     error_msg = str(e)
                     if "403 Forbidden" in error_msg and "write token" in error_msg:
@@ -1690,7 +1690,7 @@ CMD ["streamlit", "run", "streamlit_app.py", "--server.port=7860", "--server.add
                     )
                     space_url = f"https://huggingface.co/spaces/{repo_id}"
                     action_text = "Updated" if is_update else "Deployed"
-                    return gr.update(value=f"✅ {action_text}! [Open your Space here]({space_url})", visible=True)
+                    return gr.update(value=f"{action_text}! [Open your app here]({space_url})", visible=True)
                 except Exception as e:
                     error_msg = str(e)
                     if "403 Forbidden" in error_msg and "write token" in error_msg:

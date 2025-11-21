@@ -68,6 +68,9 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
                     <ReactMarkdown 
                       remarkPlugins={[remarkGfm]}
                       className="prose prose-invert prose-sm max-w-none [&>p]:my-0 [&>ul]:my-1 [&>ol]:my-1"
+                      components={{
+                        a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />
+                      }}
                     >
                       {message.content}
                     </ReactMarkdown>

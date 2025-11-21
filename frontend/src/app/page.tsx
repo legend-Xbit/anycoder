@@ -26,8 +26,8 @@ export default function Home() {
   // Landing page state - show landing page if no messages exist
   const [showLandingPage, setShowLandingPage] = useState(true);
   
-  // Mobile view state: 'chat', 'editor', or 'settings'
-  const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('editor');
+  // Mobile view state: 'chat', 'editor', or 'settings' - start on chat for mobile
+  const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('chat');
 
   // Load messages from localStorage on mount (client-side only to avoid hydration issues)
   useEffect(() => {
@@ -480,8 +480,8 @@ export default function Home() {
         const deployMessage: Message = {
           role: 'assistant',
           content: existingSpace 
-            ? `✅ Updated! [Open your Space here](${response.space_url})` 
-            : `✅ Deployed! [Open your Space here](${response.space_url})`,
+            ? `Updated! [Open your app here](${response.space_url})` 
+            : `Deployed! [Open your app here](${response.space_url})`,
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, deployMessage]);
