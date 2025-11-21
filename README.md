@@ -8,6 +8,7 @@ app_port: 7860
 pinned: false
 disable_embedding: false
 hf_oauth: true
+hf_oauth_expiration_minutes: 43200
 hf_oauth_scopes:
   - manage-repos
 ---

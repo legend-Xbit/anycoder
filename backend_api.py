@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, List, Dict, AsyncGenerator
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 import secrets
 import base64
 import urllib.parse
@@ -138,6 +138,46 @@ oauth_states = {}
 
 # In-memory store for user sessions
 user_sessions = {}
+
+
+def is_session_expired(session_data: dict) -> bool:
+    """Check if session has expired"""
+    expires_at = session_data.get("expires_at")
+    if not expires_at:
+        # If no expiration info, check if session is older than 8 hours
+        timestamp = session_data.get("timestamp", datetime.now())
+        return (datetime.now() - timestamp) > timedelta(hours=8)
+    
+    return datetime.now() >= expires_at
+
+
+# Background task for cleaning up expired sessions
+async def cleanup_expired_sessions():
+    """Periodically clean up expired sessions"""
+    while True:
+        try:
+            await asyncio.sleep(3600)  # Run every hour
+            
+            expired_sessions = []
+            for session_token, session_data in user_sessions.items():
+                if is_session_expired(session_data):
+                    expired_sessions.append(session_token)
+            
+            for session_token in expired_sessions:
+                user_sessions.pop(session_token, None)
+                print(f"[Auth] Cleaned up expired session: {session_token[:10]}...")
+            
+            if expired_sessions:
+                print(f"[Auth] Cleaned up {len(expired_sessions)} expired session(s)")
+        except Exception as e:
+            print(f"[Auth] Cleanup error: {e}")
+
+# Start cleanup task on app startup
+@app.on_event("startup")
+async def startup_event():
+    """Run startup tasks"""
+    asyncio.create_task(cleanup_expired_sessions())
+    print("[Startup] ✅ Session cleanup task started")
 
 
 # Pydantic models for request/response
@@ -325,12 +365,18 @@ async def oauth_callback(code: str, state: str, request: Request):
             userinfo_response.raise_for_status()
             user_info = userinfo_response.json()
             
+            # Calculate token expiration
+            # OAuth tokens typically have expires_in in seconds
+            expires_in = token_data.get("expires_in", 28800)  # Default 8 hours
+            expires_at = datetime.now() + timedelta(seconds=expires_in)
+            
             # Create session
             session_token = secrets.token_urlsafe(32)
             user_sessions[session_token] = {
                 "access_token": access_token,
                 "user_info": user_info,
                 "timestamp": datetime.now(),
+                "expires_at": expires_at,
                 "username": user_info.get("name") or user_info.get("preferred_username") or "user",
                 "deployed_spaces": []  # Track deployed spaces for follow-up updates
             }
@@ -344,6 +390,21 @@ async def oauth_callback(code: str, state: str, request: Request):
             raise HTTPException(status_code=500, detail=f"OAuth failed: {str(e)}")
 
 
+async def validate_token_with_hf(access_token: str) -> bool:
+    """Validate token with HuggingFace API"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{OPENID_PROVIDER_URL}/oauth/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=5.0
+            )
+            return response.status_code == 200
+    except Exception as e:
+        print(f"[Auth] Token validation error: {e}")
+        return False
+
+
 @app.get("/api/auth/session")
 async def get_session(session: str):
     """Get user info from session token"""
@@ -351,6 +412,19 @@ async def get_session(session: str):
         raise HTTPException(status_code=401, detail="Invalid session")
     
     session_data = user_sessions[session]
+    
+    # Check if session has expired
+    if is_session_expired(session_data):
+        # Clean up expired session
+        user_sessions.pop(session, None)
+        raise HTTPException(status_code=401, detail="Session expired. Please sign in again.")
+    
+    # Validate token with HuggingFace
+    if not await validate_token_with_hf(session_data["access_token"]):
+        # Token is invalid, clean up session
+        user_sessions.pop(session, None)
+        raise HTTPException(status_code=401, detail="Authentication expired. Please sign in again.")
+    
     return {
         "access_token": session_data["access_token"],
         "user_info": session_data["user_info"],
@@ -359,14 +433,71 @@ async def get_session(session: str):
 
 @app.get("/api/auth/status")
 async def auth_status(authorization: Optional[str] = Header(None)):
-    """Check authentication status"""
+    """Check authentication status and validate token"""
     auth = get_auth_from_header(authorization)
-    if auth.is_authenticated():
+    
+    if not auth.is_authenticated():
+        return AuthStatus(
+            authenticated=False,
+            username=None,
+            message="Not authenticated"
+        )
+    
+    # For dev tokens, skip validation
+    if auth.token and auth.token.startswith("dev_token_"):
+        return AuthStatus(
+            authenticated=True,
+            username=auth.username,
+            message=f"Authenticated as {auth.username} (dev mode)"
+        )
+    
+    # For session tokens, check expiration and validate
+    token = authorization.replace("Bearer ", "") if authorization else None
+    if token and "-" in token and len(token) > 20 and token in user_sessions:
+        session_data = user_sessions[token]
+        
+        # Check if session has expired
+        if is_session_expired(session_data):
+            # Clean up expired session
+            user_sessions.pop(token, None)
+            return AuthStatus(
+                authenticated=False,
+                username=None,
+                message="Session expired"
+            )
+        
+        # Validate token with HuggingFace
+        if not await validate_token_with_hf(session_data["access_token"]):
+            # Token is invalid, clean up session
+            user_sessions.pop(token, None)
+            return AuthStatus(
+                authenticated=False,
+                username=None,
+                message="Authentication expired"
+            )
+        
         return AuthStatus(
             authenticated=True,
             username=auth.username,
             message=f"Authenticated as {auth.username}"
         )
+    
+    # For direct OAuth tokens, validate with HF
+    if auth.token:
+        is_valid = await validate_token_with_hf(auth.token)
+        if is_valid:
+            return AuthStatus(
+                authenticated=True,
+                username=auth.username,
+                message=f"Authenticated as {auth.username}"
+            )
+        else:
+            return AuthStatus(
+                authenticated=False,
+                username=None,
+                message="Token expired or invalid"
+            )
+    
     return AuthStatus(
         authenticated=False,
         username=None,

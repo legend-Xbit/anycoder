@@ -179,6 +179,46 @@ export function isAuthenticated(): boolean {
 }
 
 /**
+ * Validate authentication with backend
+ * Returns true if authenticated, false if session expired
+ */
+export async function validateAuthentication(): Promise<boolean> {
+  const token = getStoredToken();
+  if (!token) {
+    return false;
+  }
+
+  // Skip validation for dev mode tokens
+  if (isDevelopment && token.startsWith('dev_token_')) {
+    return true;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/auth/status`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (response.status === 401) {
+      // Session expired, clean up
+      logout();
+      return false;
+    }
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = await response.json();
+    return data.authenticated === true;
+  } catch (error) {
+    console.error('Failed to validate authentication:', error);
+    return false;
+  }
+}
+
+/**
  * Development mode login (mock authentication)
  */
 export function loginDevMode(username: string): OAuthResult {

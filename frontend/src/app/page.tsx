@@ -95,6 +95,25 @@ export default function Home() {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
+  // Listen for authentication expiration events
+  useEffect(() => {
+    const handleAuthExpired = (e: CustomEvent) => {
+      console.log('[Auth] Session expired:', e.detail?.message);
+      // Clear authentication state
+      setIsAuthenticated(false);
+      setUsername(null);
+      apiClient.setToken(null);
+      
+      // Show alert to user
+      if (typeof window !== 'undefined') {
+        alert(e.detail?.message || 'Your session has expired. Please sign in again.');
+      }
+    };
+
+    window.addEventListener('auth-expired', handleAuthExpired as EventListener);
+    return () => window.removeEventListener('auth-expired', handleAuthExpired as EventListener);
+  }, []);
+
   // Listen for window focus (user returns to tab after OAuth redirect)
   // Only check if backend was available before or if we're authenticated with token
   useEffect(() => {

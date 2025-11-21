@@ -60,6 +60,28 @@ class ApiClient {
       return config;
     });
 
+    // Add response interceptor to handle authentication errors
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        // Handle 401 errors (expired/invalid authentication)
+        if (error.response && error.response.status === 401) {
+          // Clear authentication data
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('hf_oauth_token');
+            localStorage.removeItem('hf_user_info');
+            this.token = null;
+            
+            // Dispatch custom event to notify UI components
+            window.dispatchEvent(new CustomEvent('auth-expired', {
+              detail: { message: 'Your session has expired. Please sign in again.' }
+            }));
+          }
+        }
+        return Promise.reject(error);
+      }
+    );
+
     // Load token from localStorage on client side
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('hf_oauth_token');
