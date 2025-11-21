@@ -98,10 +98,62 @@ class ApiClient {
     return this.token;
   }
 
-  async getModels(): Promise<Model[]> {
+  // Cache helpers
+  private getCachedData<T>(key: string, maxAgeMs: number): T | null {
+    if (typeof window === 'undefined') return null;
+    
     try {
+      const cached = localStorage.getItem(key);
+      if (!cached) return null;
+      
+      const { data, timestamp } = JSON.parse(cached);
+      const age = Date.now() - timestamp;
+      
+      if (age > maxAgeMs) {
+        localStorage.removeItem(key);
+        return null;
+      }
+      
+      return data;
+    } catch (error) {
+      console.error(`Failed to get cached data for ${key}:`, error);
+      return null;
+    }
+  }
+
+  private setCachedData<T>(key: string, data: T): void {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      console.error(`Failed to cache data for ${key}:`, error);
+    }
+  }
+
+  async getModels(): Promise<Model[]> {
+    // Check cache first (24 hour TTL)
+    const cached = this.getCachedData<Model[]>('anycoder_models', 24 * 60 * 60 * 1000);
+    if (cached) {
+      console.log('Using cached models:', cached.length, 'models');
+      return cached;
+    }
+
+    try {
+      console.log('Fetching models from API...');
       const response = await this.client.get<Model[]>('/api/models');
-      return response.data;
+      const models = response.data;
+      
+      // Cache the successful response
+      if (models && models.length > 0) {
+        this.setCachedData('anycoder_models', models);
+        console.log('Cached', models.length, 'models');
+      }
+      
+      return models;
     } catch (error: any) {
       // Handle connection errors gracefully
       const isConnectionError = 
@@ -115,7 +167,13 @@ class ApiClient {
         error.response?.status === 502;
       
       if (isConnectionError) {
-        // Backend is not available - return empty array instead of throwing
+        // Try to return stale cache if available
+        const staleCache = this.getCachedData<Model[]>('anycoder_models', Infinity);
+        if (staleCache && staleCache.length > 0) {
+          console.warn('Backend not available, using stale cached models');
+          return staleCache;
+        }
+        
         console.warn('Backend not available, cannot load models');
         return [];
       }
@@ -125,8 +183,24 @@ class ApiClient {
   }
 
   async getLanguages(): Promise<{ languages: Language[] }> {
+    // Check cache first (24 hour TTL)
+    const cached = this.getCachedData<Language[]>('anycoder_languages', 24 * 60 * 60 * 1000);
+    if (cached) {
+      console.log('Using cached languages:', cached.length, 'languages');
+      return { languages: cached };
+    }
+
     try {
+      console.log('Fetching languages from API...');
       const response = await this.client.get<{ languages: Language[] }>('/api/languages');
+      const languages = response.data.languages;
+      
+      // Cache the successful response
+      if (languages && languages.length > 0) {
+        this.setCachedData('anycoder_languages', languages);
+        console.log('Cached', languages.length, 'languages');
+      }
+      
       return response.data;
     } catch (error: any) {
       // Handle connection errors gracefully
@@ -141,7 +215,14 @@ class ApiClient {
         error.response?.status === 502;
       
       if (isConnectionError) {
-        // Backend is not available - return default languages instead of throwing
+        // Try to return stale cache if available
+        const staleCache = this.getCachedData<Language[]>('anycoder_languages', Infinity);
+        if (staleCache && staleCache.length > 0) {
+          console.warn('Backend not available, using stale cached languages');
+          return { languages: staleCache };
+        }
+        
+        // Fall back to default languages
         console.warn('Backend not available, using default languages');
         return { languages: ['html', 'gradio', 'transformers.js', 'streamlit', 'comfyui', 'react'] };
       }
