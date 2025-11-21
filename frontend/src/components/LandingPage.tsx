@@ -274,7 +274,7 @@ export default function LandingPage({
               Build with AnyCoder
             </h2>
             <p className="text-lg md:text-xl text-[#86868b] font-normal">
-              Create apps and websites by chatting with AI
+              Create apps with AI
             </p>
           </div>
 

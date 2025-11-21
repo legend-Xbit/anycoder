@@ -12,6 +12,7 @@ from datetime import datetime
 import secrets
 import base64
 import urllib.parse
+import re
 
 # Import only what we need, avoiding Gradio UI imports
 import sys
@@ -373,6 +374,137 @@ async def auth_status(authorization: Optional[str] = Header(None)):
     )
 
 
+def cleanup_generated_code(code: str, language: str) -> str:
+    """Remove LLM explanatory text and extract only the actual code"""
+    try:
+        original_code = code
+        
+        # Special handling for ComfyUI JSON
+        if language == "comfyui":
+            # Try to parse as JSON first
+            try:
+                json.loads(code)
+                return code  # If it parses, return as-is
+            except json.JSONDecodeError:
+                pass
+            
+            # Find the last } in the code
+            last_brace = code.rfind('}')
+            if last_brace != -1:
+                # Extract everything up to and including the last }
+                potential_json = code[:last_brace + 1]
+                
+                # Try to find where the JSON actually starts
+                json_start = 0
+                if '```json' in potential_json:
+                    match = re.search(r'```json\s*\n', potential_json)
+                    if match:
+                        json_start = match.end()
+                elif '```' in potential_json:
+                    match = re.search(r'```\s*\n', potential_json)
+                    if match:
+                        json_start = match.end()
+                
+                # Extract the JSON
+                cleaned_json = potential_json[json_start:].strip()
+                cleaned_json = re.sub(r'```\s*$', '', cleaned_json).strip()
+                
+                # Validate
+                try:
+                    json.loads(cleaned_json)
+                    return cleaned_json
+                except json.JSONDecodeError:
+                    pass
+        
+        # General cleanup for code languages
+        # Remove markdown code blocks and extract code
+        if '```' in code:
+            # Pattern to match code blocks with language specifiers
+            patterns = [
+                r'```(?:html|HTML)\s*\n([\s\S]+?)(?:\n```|$)',
+                r'```(?:python|py|Python)\s*\n([\s\S]+?)(?:\n```|$)',
+                r'```(?:javascript|js|jsx|JavaScript)\s*\n([\s\S]+?)(?:\n```|$)',
+                r'```(?:typescript|ts|tsx|TypeScript)\s*\n([\s\S]+?)(?:\n```|$)',
+                r'```\s*\n([\s\S]+?)(?:\n```|$)',  # Generic code block
+            ]
+            
+            for pattern in patterns:
+                match = re.search(pattern, code, re.IGNORECASE)
+                if match:
+                    code = match.group(1).strip()
+                    break
+        
+        # Remove common LLM explanatory patterns
+        # Remove lines that start with explanatory text
+        lines = code.split('\n')
+        cleaned_lines = []
+        in_code = False
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Skip common explanatory patterns at the start
+            if not in_code and (
+                stripped.lower().startswith('here') or
+                stripped.lower().startswith('this') or
+                stripped.lower().startswith('the above') or
+                stripped.lower().startswith('note:') or
+                stripped.lower().startswith('explanation:') or
+                stripped.lower().startswith('to use') or
+                stripped.lower().startswith('usage:') or
+                stripped.lower().startswith('instructions:') or
+                stripped.startswith('===') and '===' in stripped  # Section markers
+            ):
+                continue
+            
+            # Once we hit actual code, we're in
+            if stripped and not stripped.startswith('#') and not stripped.startswith('//'):
+                in_code = True
+            
+            cleaned_lines.append(line)
+        
+        code = '\n'.join(cleaned_lines).strip()
+        
+        # Remove trailing explanatory text after the code ends
+        # For HTML: remove everything after final closing tag
+        if language == "html":
+            # Find last </html> or </body> or </div> at root level
+            last_html = code.rfind('</html>')
+            last_body = code.rfind('</body>')
+            last_tag = max(last_html, last_body)
+            if last_tag != -1:
+                # Check if there's significant text after
+                after_tag = code[last_tag + 7:].strip()  # +7 for </html> length
+                if after_tag and len(after_tag) > 100:  # Significant explanatory text
+                    code = code[:last_tag + 7].strip()
+        
+        # For Python: remove text after the last function/class definition or code block
+        elif language in ["gradio", "streamlit"]:
+            # Find the last line that looks like actual code (not comments or blank)
+            lines = code.split('\n')
+            last_code_line = -1
+            for i in range(len(lines) - 1, -1, -1):
+                stripped = lines[i].strip()
+                if stripped and not stripped.startswith('#') and not stripped.startswith('"""') and not stripped.startswith("'''"):
+                    # This looks like actual code
+                    last_code_line = i
+                    break
+            
+            if last_code_line != -1 and last_code_line < len(lines) - 5:
+                # If there are more than 5 lines after last code, likely explanatory
+                code = '\n'.join(lines[:last_code_line + 1])
+        
+        # Return cleaned code or original if cleaning made it too short
+        if len(code) > 50:
+            return code
+        else:
+            return original_code
+        
+    except Exception as e:
+        print(f"[Code Cleanup] Error for {language}: {e}")
+        return code
+
+
 @app.post("/api/generate")
 async def generate_code(
     request: CodeGenerationRequest,
@@ -481,6 +613,9 @@ async def generate_code(
                             "content": chunk_content
                         })
                         yield f"data: {event_data}\n\n"
+                
+                # Clean up generated code (remove LLM explanatory text and markdown)
+                generated_code = cleanup_generated_code(generated_code, language)
                 
                 # Send completion event (optimized - no timestamp in hot path)
                 completion_data = json.dumps({
