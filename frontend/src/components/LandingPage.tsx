@@ -341,8 +341,8 @@ export default function LandingPage({
                     <button
                       type="button"
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
+                        console.log('Language button clicked, toggling dropdown');
                         setShowLanguageDropdown(!showLanguageDropdown);
                         setShowModelDropdown(false);
                       }}
@@ -393,13 +393,8 @@ export default function LandingPage({
                     <button
                       type="button"
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
-                        console.log('Model button clicked!');
-                        console.log('Current showModelDropdown:', showModelDropdown);
-                        console.log('Models array:', models);
-                        console.log('Models length:', models.length);
-                        console.log('Selected model:', selectedModel);
+                        console.log('Model button clicked! Models length:', models.length, 'Show:', showModelDropdown);
                         setShowModelDropdown(!showModelDropdown);
                         setShowLanguageDropdown(false);
                       }}
