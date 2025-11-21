@@ -62,17 +62,29 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     
     # Fallback: support === index.html === format if any file is missing
     if not (files['index.html'] and files['index.js'] and files['style.css']):
-        # Use regex to extract sections
-        html_fallback = re.search(r'===\s*index\.html\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
-        js_fallback = re.search(r'===\s*index\.js\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
-        css_fallback = re.search(r'===\s*style\.css\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        # Use regex to extract sections - match === markers with optional whitespace and newlines
+        html_fallback = re.search(r'===\s*index\.html\s*===\s*[\r\n]+([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        js_fallback = re.search(r'===\s*index\.js\s*===\s*[\r\n]+([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        css_fallback = re.search(r'===\s*style\.css\s*===\s*[\r\n]+([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
         
         if html_fallback:
-            files['index.html'] = html_fallback.group(1).strip()
+            content = html_fallback.group(1).strip()
+            # Remove code block markers if present
+            content = re.sub(r'^```\w*\s*[\r\n]+', '', content)
+            content = re.sub(r'[\r\n]+```\s*$', '', content)
+            files['index.html'] = content.strip()
         if js_fallback:
-            files['index.js'] = js_fallback.group(1).strip()
+            content = js_fallback.group(1).strip()
+            # Remove code block markers if present
+            content = re.sub(r'^```\w*\s*[\r\n]+', '', content)
+            content = re.sub(r'[\r\n]+```\s*$', '', content)
+            files['index.js'] = content.strip()
         if css_fallback:
-            files['style.css'] = css_fallback.group(1).strip()
+            content = css_fallback.group(1).strip()
+            # Remove code block markers if present
+            content = re.sub(r'^```\w*\s*[\r\n]+', '', content)
+            content = re.sub(r'[\r\n]+```\s*$', '', content)
+            files['style.css'] = content.strip()
     
     # Additional fallback: extract from numbered sections or file headers
     if not (files['index.html'] and files['index.js'] and files['style.css']):

@@ -40,17 +40,51 @@ You MUST output ALL THREE files using this EXACT format with === markers:
 === index.html ===
 <!DOCTYPE html>
 <html lang="en">
-<!-- index.html content here -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your App Title</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Your complete HTML content here -->
+    <script type="module" src="index.js"></script>
+</body>
 </html>
 
 === index.js ===
-// index.js content here
+import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0';
+
+// Your complete JavaScript code here
+// Include all functionality, event listeners, and logic
 
 === style.css ===
-/* style.css content here */
+/* Your complete CSS styles here */
+/* Include all styling for the application */
 
-DO NOT use markdown code blocks (```html, ```javascript, ```css).
-ONLY use the === filename === format shown above.
+**CRITICAL FORMATTING RULES:**
+1. Start each file IMMEDIATELY after the === marker (on the next line)
+2. DO NOT use markdown code blocks (```html, ```javascript, ```css) - these will cause parsing errors
+3. DO NOT leave any file empty - each file MUST contain complete, functional code
+4. ONLY use the === filename === format shown above
+5. Make sure there is a blank line between each file section
+6. Each file must be complete and ready to deploy - no placeholders or comments like "// add code here"
+
+**Example of CORRECT format:**
+=== index.html ===
+<!DOCTYPE html>
+<html>
+<head>...</head>
+<body>...</body>
+</html>
+
+=== index.js ===
+import { pipeline } from '...';
+// Complete working code
+
+=== style.css ===
+body { margin: 0; }
+/* Complete styling */
 
 Requirements:
 1. Create a modern, responsive web application using transformers.js
@@ -111,11 +145,17 @@ const pipe = await pipeline('sentiment-analysis', 'Xenova/distilbert-base-uncase
 
 Consider providing users with options to choose device (CPU/GPU) and quantization level based on their needs.
 
-The index.html should contain the basic HTML structure and link to the CSS and JS files.
-The index.js should contain all the JavaScript logic including transformers.js integration.
-The style.css should contain all the styling for the application.
+**File Content Requirements:**
+- **index.html**: Complete HTML structure with proper DOCTYPE, meta tags, links to CSS/JS files, and full body content
+- **index.js**: Complete JavaScript logic with transformers.js imports and ALL functionality implemented
+- **style.css**: Complete styling for the entire application - NO empty or placeholder styles
 
-Generate complete, working code files as shown above.
+**🚨 FINAL REMINDERS:**
+1. Use the === filename === markers EXACTLY as shown in the examples
+2. DO NOT use markdown code blocks (```html, ```js, ```css)
+3. ALL THREE files must be complete and functional - no placeholders or "TODO" comments
+4. Start each file's content immediately on the line after the === marker
+5. Ensure each file has actual content - empty files will cause deployment failure
 
 IMPORTANT: Always include "Built with anycoder" as clickable text in the header/top section of your application that links to https://huggingface.co/spaces/akhaliq/anycoder"""
 
