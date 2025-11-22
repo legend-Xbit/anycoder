@@ -81,7 +81,14 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
         if js_fallback:
             files['index.js'] = js_fallback.group(1).strip()
         if css_fallback:
-            files['style.css'] = css_fallback.group(1).strip()
+            css_content = css_fallback.group(1).strip()
+            files['style.css'] = css_content
+            
+            # Also normalize HTML to reference style.css (singular)
+            if files['index.html'] and 'styles.css' in files['index.html']:
+                print("[Parser] Normalizing styles.css reference to style.css in HTML")
+                files['index.html'] = files['index.html'].replace('href="styles.css"', 'href="style.css"')
+                files['index.html'] = files['index.html'].replace("href='styles.css'", "href='style.css'")
     
     # Additional fallback: extract from numbered sections or file headers
     if not (files['index.html'] and files['index.js'] and files['style.css']):
@@ -101,6 +108,19 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
                     content = re.sub(r'^```\w*\s*\n', '', content)
                     content = re.sub(r'\n```\s*$', '', content)
                     files[file_key] = content.strip()
+    
+    # Normalize filename references in HTML
+    if files['index.html'] and files['style.css']:
+        if 'styles.css' in files['index.html']:
+            print("[Parser] Normalizing styles.css reference to style.css in HTML")
+            files['index.html'] = files['index.html'].replace('href="styles.css"', 'href="style.css"')
+            files['index.html'] = files['index.html'].replace("href='styles.css'", "href='style.css'")
+    
+    if files['index.html'] and files['index.js']:
+        if 'app.js' in files['index.html']:
+            print("[Parser] Normalizing app.js reference to index.js in HTML")
+            files['index.html'] = files['index.html'].replace('src="app.js"', 'src="index.js"')
+            files['index.html'] = files['index.html'].replace("src='app.js'", "src='index.js'")
     
     # Normalize transformers.js imports to use v3.8.0 CDN
     cdn_url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0"
