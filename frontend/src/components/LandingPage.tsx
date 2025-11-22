@@ -16,6 +16,7 @@ import type { OAuthUserInfo } from '@/lib/auth';
 
 interface LandingPageProps {
   onStart: (prompt: string, language: Language, modelId: string) => void;
+  onImport?: (code: string, language: Language, importUrl?: string) => void;
   isAuthenticated: boolean;
   initialLanguage?: Language;
   initialModel?: string;
@@ -24,6 +25,7 @@ interface LandingPageProps {
 
 export default function LandingPage({ 
   onStart, 
+  onImport,
   isAuthenticated,
   initialLanguage = 'html',
   initialModel = 'zai-org/GLM-4.6',
@@ -46,11 +48,18 @@ export default function LandingPage({
   // Dropdown states
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const languageDropdownRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
+  const importDialogRef = useRef<HTMLDivElement>(null);
   
   // Trending apps state
   const [trendingApps, setTrendingApps] = useState<any[]>([]);
+  
+  // Import project state
+  const [importUrl, setImportUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState('');
 
   // Debug effect for dropdown state
   useEffect(() => {
@@ -144,6 +153,9 @@ export default function LandingPage({
       if (modelDropdownRef.current && !modelDropdownRef.current.contains(event.target as Node)) {
         setShowModelDropdown(false);
       }
+      if (importDialogRef.current && !importDialogRef.current.contains(event.target as Node)) {
+        setShowImportDialog(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
@@ -208,10 +220,51 @@ export default function LandingPage({
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
+  const handleImportProject = async () => {
+    if (!importUrl.trim()) {
+      setImportError('Please enter a valid URL');
+      return;
+    }
+
+    if (!isAuthenticated) {
+      alert('Please sign in with HuggingFace first!');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportError('');
+
+    try {
+      const result = await apiClient.importProject(importUrl);
+      
+      if (result.status === 'success') {
+        // Use onImport if available (better UX - directly loads code)
+        // Otherwise fall back to onStart (sends message to generate)
+        if (onImport && result.code) {
+          onImport(result.code, result.language || 'html', importUrl);
+        } else {
+          // Fallback: trigger code generation with import context
+          const importMessage = `Imported from ${importUrl}`;
+          onStart(importMessage, result.language || 'html', selectedModel);
+        }
+        
+        setShowImportDialog(false);
+        setImportUrl('');
+      } else {
+        setImportError(result.message || 'Failed to import project');
+      }
+    } catch (error: any) {
+      console.error('Import error:', error);
+      setImportError(error.response?.data?.message || error.message || 'Failed to import project');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#000000] overflow-y-auto">
+    <div className="h-screen flex flex-col bg-[#000000] overflow-hidden">
       {/* Header - Apple style */}
-      <header className="flex items-center justify-between px-6 py-4 backdrop-blur-xl bg-[#000000]/80 border-b border-[#424245]/30 flex-shrink-0">
+      <header className="flex items-center justify-between px-6 py-3 backdrop-blur-xl bg-[#000000]/80 border-b border-[#424245]/30 flex-shrink-0">
         <a 
           href="https://huggingface.co/spaces/akhaliq/anycoder" 
           target="_blank" 
@@ -302,27 +355,27 @@ export default function LandingPage({
       </header>
 
       {/* Main Content - Apple-style centered layout */}
-      <main className="flex-1 flex items-center justify-center px-4 py-12 min-h-0">
-        <div className="w-full max-w-3xl">
+      <main className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="w-full max-w-3xl mx-auto flex flex-col items-center justify-center min-h-full">
           {/* Apple-style Headline */}
-          <div className="text-center mb-12">
-            <h2 className="text-5xl md:text-6xl lg:text-7xl font-semibold text-white mb-3 tracking-tight leading-[1.05]">
+          <div className="text-center mb-8">
+            <h2 className="text-4xl md:text-5xl font-semibold text-white mb-2 tracking-tight leading-tight">
               Build with AnyCoder
             </h2>
-            <p className="text-lg md:text-xl text-[#86868b] font-normal">
+            <p className="text-base md:text-lg text-[#86868b] font-normal">
               Create apps with AI
             </p>
           </div>
 
           {/* Simple prompt form */}
-          <form onSubmit={handleSubmit} className="relative">
+          <form onSubmit={handleSubmit} className="relative w-full mb-8">
             <div className="relative bg-[#2d2d30] rounded-2xl border border-[#424245] shadow-2xl">
               {/* Textarea */}
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Message AnyCoder"
-                className="w-full px-5 py-4 text-base text-[#f5f5f7] bg-transparent placeholder:text-[#86868b] resize-none focus:outline-none min-h-[56px] font-normal"
+                className="w-full px-4 py-3 text-sm text-[#f5f5f7] bg-transparent placeholder:text-[#86868b] resize-none focus:outline-none min-h-[48px] font-normal"
                 rows={1}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -333,7 +386,7 @@ export default function LandingPage({
               />
               
               {/* Bottom controls - Apple style */}
-              <div className="flex items-center justify-between px-4 pb-4 gap-3">
+              <div className="flex items-center justify-between px-3 pb-3 gap-2">
                 {/* Compact dropdowns on the left */}
                 <div className="flex items-center gap-2">
                   {/* Language Dropdown */}
@@ -397,6 +450,7 @@ export default function LandingPage({
                         console.log('Model button clicked! Models length:', models.length, 'Show:', showModelDropdown);
                         setShowModelDropdown(!showModelDropdown);
                         setShowLanguageDropdown(false);
+                        setShowImportDialog(false);
                       }}
                       className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all flex items-center gap-1.5 max-w-[200px] font-medium"
                     >
@@ -445,6 +499,72 @@ export default function LandingPage({
                       </div>
                     )}
                   </div>
+
+                  {/* Import Project Button */}
+                  <div className="relative" ref={importDialogRef}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowImportDialog(!showImportDialog);
+                        setShowLanguageDropdown(false);
+                        setShowModelDropdown(false);
+                        setImportError('');
+                      }}
+                      className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all flex items-center gap-1.5 font-medium"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <span>Import</span>
+                    </button>
+                    
+                    {/* Import Dialog */}
+                    {showImportDialog && (
+                      <div 
+                        className="absolute top-full left-0 mt-2 w-80 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-50"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="p-4">
+                          <h3 className="text-sm font-medium text-[#f5f5f7] mb-3">Import Project</h3>
+                          <input
+                            type="text"
+                            value={importUrl}
+                            onChange={(e) => setImportUrl(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleImportProject()}
+                            placeholder="https://huggingface.co/spaces/..."
+                            className="w-full px-3 py-2 rounded-lg text-xs bg-[#2d2d30] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 font-normal mb-2"
+                            disabled={isImporting}
+                          />
+                          {importError && (
+                            <p className="text-xs text-red-400 mb-2">{importError}</p>
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleImportProject}
+                              disabled={isImporting || !importUrl.trim()}
+                              className="flex-1 px-3 py-2 bg-white text-black rounded-lg text-xs hover:bg-[#f5f5f7] disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                            >
+                              {isImporting ? 'Importing...' : 'Import'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowImportDialog(false);
+                                setImportUrl('');
+                                setImportError('');
+                              }}
+                              className="px-3 py-2 bg-[#2d2d30] text-[#f5f5f7] rounded-lg text-xs hover:bg-[#3d3d3f] font-medium"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-[#86868b] mt-3">
+                            Import from HuggingFace Spaces, Models, or GitHub
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Send button on the right - Apple style */}
@@ -462,8 +582,8 @@ export default function LandingPage({
             </div>
             
             {!isAuthenticated && (
-              <div className="mt-6 text-center">
-                <p className="text-sm text-[#86868b]">
+              <div className="mt-4 text-center">
+                <p className="text-xs text-[#86868b]">
                   Sign in to get started
                 </p>
               </div>
@@ -472,50 +592,49 @@ export default function LandingPage({
 
           {/* Trending Apps Section */}
           {trendingApps.length > 0 && (
-            <div className="mt-16">
-              <h3 className="text-2xl font-semibold text-white mb-6 text-center">
+            <div className="mt-8 w-full">
+              <h3 className="text-xl font-semibold text-white mb-4 text-center">
                 Top Trending Apps Built with AnyCoder
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {trendingApps.map((app) => (
                   <a
                     key={app.id}
                     href={`https://huggingface.co/spaces/${app.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group bg-[#1d1d1f] border border-[#424245] rounded-xl p-5 hover:border-white/30 transition-all hover:shadow-xl hover:scale-[1.02]"
-                  >
-                    <div className="flex items-start justify-between mb-3">
+                    className="group bg-[#1d1d1f] border border-[#424245] rounded-xl p-4 hover:border-white/30 transition-all hover:shadow-xl hover:scale-[1.02]">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-sm font-medium text-[#f5f5f7] truncate group-hover:text-white transition-colors">
+                        <h4 className="text-xs font-medium text-[#f5f5f7] truncate group-hover:text-white transition-colors">
                           {app.id.split('/')[1]}
                         </h4>
-                        <p className="text-xs text-[#86868b] mt-1">
+                        <p className="text-[10px] text-[#86868b] mt-0.5">
                           by {app.id.split('/')[0]}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                        <div className="flex items-center gap-1">
-                          <svg className="w-3.5 h-3.5 text-[#86868b]" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                        <div className="flex items-center gap-0.5">
+                          <svg className="w-3 h-3 text-[#86868b]" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                           </svg>
-                          <span className="text-xs text-[#86868b] font-medium">{app.likes}</span>
+                          <span className="text-[10px] text-[#86868b] font-medium">{app.likes}</span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <svg className="w-3.5 h-3.5 text-[#86868b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="flex items-center gap-0.5">
+                          <svg className="w-3 h-3 text-[#86868b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                           </svg>
-                          <span className="text-xs text-[#86868b] font-medium">{app.trendingScore}</span>
+                          <span className="text-[10px] text-[#86868b] font-medium">{app.trendingScore}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span className="px-2 py-0.5 bg-[#2d2d30] text-[#86868b] text-[10px] rounded-full font-medium">
+                    <div className="flex flex-wrap gap-1">
+                      <span className="px-1.5 py-0.5 bg-[#2d2d30] text-[#86868b] text-[9px] rounded-full font-medium">
                         {app.sdk}
                       </span>
                       {app.tags?.slice(0, 2).map((tag: string) => 
                         tag !== 'anycoder' && tag !== app.sdk && tag !== 'region:us' && (
-                          <span key={tag} className="px-2 py-0.5 bg-[#2d2d30] text-[#86868b] text-[10px] rounded-full font-medium">
+                          <span key={tag} className="px-1.5 py-0.5 bg-[#2d2d30] text-[#86868b] text-[9px] rounded-full font-medium">
                             {tag}
                           </span>
                         )

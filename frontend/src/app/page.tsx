@@ -534,6 +534,11 @@ export default function Home() {
     console.log('[Import] Current username:', username);
     console.log('[Import] Current repo before import:', currentRepoId);
     
+    // Hide landing page when importing
+    if (showLandingPage) {
+      setShowLandingPage(false);
+    }
+    
     setGeneratedCode(code);
     setSelectedLanguage(language);
     
@@ -610,6 +615,7 @@ export default function Home() {
       <div className="min-h-screen animate-in fade-in duration-300">
         <LandingPage 
           onStart={handleLandingPageStart}
+          onImport={handleImport}
           isAuthenticated={isAuthenticated}
           initialLanguage={selectedLanguage}
           initialModel={selectedModel}
