@@ -130,10 +130,10 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     # Fallback: support === index.html === format if any file is missing
     if not (files['index.html'] and files['index.js'] and files['style.css']):
         # Use regex to extract sections - match === markers with optional whitespace and newlines
-        # Made [\r\n]+ optional with * instead of + to handle cases where content follows immediately
-        html_fallback = re.search(r'===\s*index\.html\s*===\s*[\r\n]*([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
-        js_fallback = re.search(r'===\s*index\.js\s*===\s*[\r\n]*([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
-        css_fallback = re.search(r'===\s*style\.css\s*===\s*[\r\n]*([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        # Fixed lookahead to allow any whitespace (not just \n) before next === marker
+        html_fallback = re.search(r'===\s*index\.html\s*===\s*[\r\n]*([\s\S]+?)(?=\s*===\s*index\.js\s*===|$)', code, re.IGNORECASE)
+        js_fallback = re.search(r'===\s*index\.js\s*===\s*[\r\n]*([\s\S]+?)(?=\s*===\s*style\.css\s*===|$)', code, re.IGNORECASE)
+        css_fallback = re.search(r'===\s*style\.css\s*===\s*[\r\n]*([\s\S]+?)$', code, re.IGNORECASE)
         
         print(f"[Parser] Fallback extraction - HTML found: {bool(html_fallback)}, JS found: {bool(js_fallback)}, CSS found: {bool(css_fallback)}")
         
