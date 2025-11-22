@@ -520,6 +520,11 @@ def cleanup_generated_code(code: str, language: str) -> str:
     try:
         original_code = code
         
+        # Special handling for transformers.js - preserve === markers
+        if language == "transformers.js":
+            # Don't clean transformers.js code - it needs the === markers
+            return code
+        
         # Special handling for ComfyUI JSON
         if language == "comfyui":
             # Try to parse as JSON first
