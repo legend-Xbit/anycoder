@@ -18,14 +18,12 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     print(f"[Parser] Received code length: {len(code)} characters")
     print(f"[Parser] First 200 chars: {code[:200]}")
     
-    # Auto-fix: If code doesn't start with === index.html ===, add it
+    # Check if code has === markers
     code_stripped = code.strip()
-    if not code_stripped.startswith('==='):
-        print("[Parser] Auto-fixing: Adding missing === index.html === marker")
-        code = '=== index.html ===\n' + code
-        code_stripped = code.strip()
+    if '===' in code_stripped:
+        print("[Parser] Code contains === markers, proceeding with parsing")
     else:
-        print("[Parser] Code starts with === marker, proceeding normally")
+        print("[Parser] WARNING: No === markers found in code")
     
     # Check if code starts with HTML instead of markers (common LLM mistake)
     if code_stripped.startswith('<!DOCTYPE') or code_stripped.startswith('<html'):
@@ -131,9 +129,14 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     if not (files['index.html'] and files['index.js'] and files['style.css']):
         # Use regex to extract sections - match === markers with optional whitespace and newlines
         # Fixed lookahead to allow any whitespace (not just \n) before next === marker
-        html_fallback = re.search(r'===\s*index\.html\s*===\s*[\r\n]*([\s\S]+?)(?=\s*===\s*index\.js\s*===|$)', code, re.IGNORECASE)
-        js_fallback = re.search(r'===\s*index\.js\s*===\s*[\r\n]*([\s\S]+?)(?=\s*===\s*style\.css\s*===|$)', code, re.IGNORECASE)
-        css_fallback = re.search(r'===\s*style\.css\s*===\s*[\r\n]*([\s\S]+?)$', code, re.IGNORECASE)
+        # Also support alternative names: styles.css or style.css, app.js or index.js
+        html_fallback = re.search(r'===\s*index\.html\s*===\s*[\r\n]*([\s\S]+?)(?=\s*===|$)', code, re.IGNORECASE)
+        
+        # Try both index.js and app.js
+        js_fallback = re.search(r'===\s*(?:index\.js|app\.js)\s*===\s*[\r\n]*([\s\S]+?)(?=\s*===|$)', code, re.IGNORECASE)
+        
+        # Try both style.css and styles.css
+        css_fallback = re.search(r'===\s*(?:style\.css|styles\.css)\s*===\s*[\r\n]*([\s\S]+?)$', code, re.IGNORECASE)
         
         print(f"[Parser] Fallback extraction - HTML found: {bool(html_fallback)}, JS found: {bool(js_fallback)}, CSS found: {bool(css_fallback)}")
         
