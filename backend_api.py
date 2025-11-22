@@ -520,37 +520,10 @@ def cleanup_generated_code(code: str, language: str) -> str:
     try:
         original_code = code
         
-        # Special handling for transformers.js - extract only the === sections
+        # Special handling for transformers.js - don't clean, pass through as-is
+        # The parser will handle extracting the files from === markers
         if language == "transformers.js":
-            # Find the first === marker
-            first_marker = code.find('===')
-            if first_marker == -1:
-                # No markers found, return as-is
-                return code
-            
-            # Find the last code section end (after the last ===)
-            # Look for the last === marker
-            last_marker_start = code.rfind('===')
-            if last_marker_start == -1:
-                return code
-            
-            # Find the end of the last code section
-            # This is typically followed by explanatory text starting with --- or multiple newlines
-            code_after_last_marker = code[last_marker_start:]
-            
-            # Find where the actual code section ends (look for --- or excessive explanatory text)
-            end_markers = ['---', '\n\n\nThis ', '\n\n\n✨', '\n\n\n🎨', '\n\n\n🚀']
-            code_end = len(code)
-            
-            for end_marker in end_markers:
-                pos = code.find(end_marker, last_marker_start)
-                if pos != -1 and pos < code_end:
-                    code_end = pos
-            
-            # Extract from first === to end of code
-            cleaned_code = code[first_marker:code_end].strip()
-            
-            return cleaned_code
+            return code
         
         # Special handling for ComfyUI JSON
         if language == "comfyui":
