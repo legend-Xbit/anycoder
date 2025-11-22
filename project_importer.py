@@ -174,6 +174,40 @@ class ProjectImporter:
             # Get model info
             model_info = self.api.model_info(model_id)
             pipeline_tag = getattr(model_info, "pipeline_tag", None)
+            library_name = getattr(model_info, "library_name", None)
+            tags = getattr(model_info, "tags", [])
+            
+            # Check if this is an ONNX model (especially from onnx-community)
+            is_onnx_model = (
+                "onnx" in model_id.lower() or 
+                "onnx" in str(library_name).lower() or
+                any("onnx" in str(tag).lower() for tag in tags) or
+                "transformers.js" in str(library_name).lower() or
+                any("transformers.js" in str(tag).lower() for tag in tags)
+            )
+            
+            # For ONNX models, try to extract Transformers.js code from README first
+            if is_onnx_model:
+                try:
+                    readme = self._fetch_hf_model_readme(model_id)
+                    if readme:
+                        transformersjs_code = self._extract_transformersjs_code(readme, model_id)
+                        if transformersjs_code:
+                            return {
+                                "status": "success",
+                                "message": f"Successfully imported ONNX model: {model_id} (Transformers.js code)",
+                                "code": transformersjs_code,
+                                "language": "transformers.js",
+                                "url": f"https://huggingface.co/{model_id}",
+                                "metadata": {
+                                    "pipeline_tag": pipeline_tag,
+                                    "library_name": library_name,
+                                    "code_type": "transformers.js",
+                                    "is_onnx": True
+                                }
+                            }
+                except Exception as e:
+                    print(f"Failed to extract Transformers.js code: {e}")
             
             # Try to get inference provider code
             inference_code = self._generate_inference_code(model_id, pipeline_tag)
@@ -624,6 +658,57 @@ with open("output.mp3", "wb") as f:
             return sorted_blocks[0][0] or "python", sorted_blocks[0][1]
         
         return None, None
+    
+    def _extract_transformersjs_code(self, readme: str, model_id: str) -> Optional[str]:
+        """Extract Transformers.js code from README"""
+        if not readme:
+            return None
+        
+        # Find all code blocks
+        code_blocks = []
+        for match in re.finditer(r"```([\w+-]+)?\s*\n([\s\S]*?)```", readme, re.IGNORECASE):
+            lang = (match.group(1) or "").lower()
+            code = match.group(2) or ""
+            code_blocks.append((lang, code.strip()))
+        
+        # Look for JavaScript/TypeScript blocks with Transformers.js code
+        for lang, code in code_blocks:
+            if lang in ('js', 'javascript', 'ts', 'typescript'):
+                # Check if it contains Transformers.js imports
+                if '@huggingface/transformers' in code or '@xenova/transformers' in code:
+                    return code
+        
+        # If no specific block found, generate default Transformers.js code
+        return self._generate_transformersjs_code(model_id)
+    
+    def _generate_transformersjs_code(self, model_id: str) -> str:
+        """Generate default Transformers.js code for a model"""
+        return f'''import {{ pipeline, TextStreamer }} from "@huggingface/transformers";
+
+// Create a text generation pipeline
+const generator = await pipeline(
+  "text-generation",
+  "{model_id}",
+  {{ dtype: "fp32" }},
+);
+
+// Define the list of messages
+const messages = [
+  {{ role: "system", content: "You are a helpful assistant." }},
+  {{ role: "user", content: "Write a poem about machine learning." }},
+];
+
+// Generate a response
+const output = await generator(messages, {{
+  max_new_tokens: 512,
+  do_sample: false,
+  streamer: new TextStreamer(generator.tokenizer, {{
+    skip_prompt: true,
+    skip_special_tokens: true,
+    // callback_function: (text) => {{ /* Optional callback function */ }},
+  }}),
+}});
+console.log(output[0].generated_text.at(-1).content);'''
 
 
 # ==================== CLI Interface ====================
