@@ -66,20 +66,26 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     # Fallback: support === index.html === format if any file is missing
     if not (files['index.html'] and files['index.js'] and files['style.css']):
         # Use regex to extract sections - support alternative filenames
-        html_fallback = re.search(r'===\s*index\.html\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        # Stop at next === marker, or common end markers
+        # More aggressive: stop at blank line followed by explanatory text patterns
+        html_fallback = re.search(r'===\s*index\.html\s*===\s*\n([\s\S]+?)(?=\n===|\n\s*---|\n\n(?:This |✨|🎨|🚀|\*\*Key Features|\*\*Design)|$)', code, re.IGNORECASE)
         
-        # Try both index.js and app.js
-        js_fallback = re.search(r'===\s*(?:index\.js|app\.js)\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        # Try both index.js and app.js  
+        js_fallback = re.search(r'===\s*(?:index\.js|app\.js)\s*===\s*\n([\s\S]+?)(?=\n===|\n\s*---|\n\n(?:This |✨|🎨|🚀|\*\*Key Features|\*\*Design)|$)', code, re.IGNORECASE)
         
         # Try both style.css and styles.css
-        css_fallback = re.search(r'===\s*(?:style\.css|styles\.css)\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
+        css_fallback = re.search(r'===\s*(?:style\.css|styles\.css)\s*===\s*\n([\s\S]+?)(?=\n===|\n\s*---|\n\n(?:This |✨|🎨|🚀|\*\*Key Features|\*\*Design)|$)', code, re.IGNORECASE)
         
         print(f"[Parser] Fallback extraction - HTML found: {bool(html_fallback)}, JS found: {bool(js_fallback)}, CSS found: {bool(css_fallback)}")
         
         if html_fallback:
             files['index.html'] = html_fallback.group(1).strip()
         if js_fallback:
-            files['index.js'] = js_fallback.group(1).strip()
+            js_content = js_fallback.group(1).strip()
+            # Fix common JavaScript syntax issues from LLM output
+            # Fix line breaks in string literals (common LLM mistake)
+            js_content = re.sub(r'"\s*\n\s*([^"])', r'" + "\1', js_content)  # Fix broken strings
+            files['index.js'] = js_content
         if css_fallback:
             css_content = css_fallback.group(1).strip()
             files['style.css'] = css_content
