@@ -18,68 +18,11 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     print(f"[Parser] Received code length: {len(code)} characters")
     print(f"[Parser] First 200 chars: {code[:200]}")
     
-    code_stripped = code.strip()
-    
-    # Check if code starts with HTML instead of markers (common LLM mistake)
-    if code_stripped.startswith('<!DOCTYPE') or code_stripped.startswith('<html'):
-        print("[Parser] WARNING: Code starts with HTML instead of === index.html === marker")
-        print("[Parser] Attempting to extract files from malformed output...")
-        
-        # Try to split by === markers that do exist
-        if '=== index.js ===' in code and '=== style.css ===' in code:
-            # Extract HTML as everything before === index.js ===
-            html_end = code.find('=== index.js ===')
-            html_content = code[:html_end].strip()
-            
-            # Extract JS between === index.js === and === style.css ===
-            js_start = code.find('=== index.js ===') + len('=== index.js ===')
-            js_end = code.find('=== style.css ===')
-            js_content = code[js_start:js_end].strip()
-            
-            # Extract CSS after === style.css ===
-            css_start = code.find('=== style.css ===') + len('=== style.css ===')
-            css_content = code[css_start:].strip()
-            
-            print(f"[Parser] Recovered HTML: {len(html_content)} chars")
-            print(f"[Parser] Recovered JS: {len(js_content)} chars")
-            print(f"[Parser] Recovered CSS: {len(css_content)} chars")
-            
-            files = {
-                'index.html': html_content,
-                'index.js': js_content,
-                'style.css': css_content
-            }
-            
-            # Normalize imports and return early since we've already parsed everything
-            cdn_url = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0"
-            for file_key in ['index.html', 'index.js']:
-                if files[file_key]:
-                    content = files[file_key]
-                    content = re.sub(
-                        r"from\s+['\"]https://cdn.jsdelivr.net/npm/@huggingface/transformers@[^'\"]+['\"]",
-                        f"from '{cdn_url}'",
-                        content
-                    )
-                    content = re.sub(
-                        r"from\s+['\"]https://cdn.jsdelivr.net/npm/@xenova/transformers@[^'\"]+['\"]",
-                        f"from '{cdn_url}'",
-                        content
-                    )
-                    files[file_key] = content
-            
-            return files
-        else:
-            files = {
-                'index.html': '',
-                'index.js': '',
-                'style.css': ''
-            }
-    else:
-        files = {
-            'index.html': '',
-            'index.js': '',
-            'style.css': ''
-        }
+    files = {
+        'index.html': '',
+        'index.js': '',
+        'style.css': ''
+    }
     
     # Multiple patterns to match the three code blocks with different variations
     html_patterns = [
@@ -122,45 +65,31 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     
     # Fallback: support === index.html === format if any file is missing
     if not (files['index.html'] and files['index.js'] and files['style.css']):
-        # Use regex to extract sections - match === markers with optional whitespace and newlines
-        # Fixed lookahead to allow any whitespace (not just \n) before next === marker
-        # Also support alternative names: styles.css or style.css, app.js or index.js
-        html_fallback = re.search(r'===\s*index\.html\s*===\s*[\r\n]*([\s\S]+?)(?=\s*===|$)', code, re.IGNORECASE)
+        # Use regex to extract sections - support alternative filenames
+        html_fallback = re.search(r'===\s*index\.html\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
         
         # Try both index.js and app.js
-        js_fallback = re.search(r'===\s*(?:index\.js|app\.js)\s*===\s*[\r\n]*([\s\S]+?)(?=\s*===|$)', code, re.IGNORECASE)
+        js_fallback = re.search(r'===\s*(?:index\.js|app\.js)\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
         
         # Try both style.css and styles.css
-        css_fallback = re.search(r'===\s*(?:style\.css|styles\.css)\s*===\s*[\r\n]*([\s\S]+?)$', code, re.IGNORECASE)
+        css_fallback = re.search(r'===\s*(?:style\.css|styles\.css)\s*===\s*\n([\s\S]+?)(?=\n===|$)', code, re.IGNORECASE)
         
         print(f"[Parser] Fallback extraction - HTML found: {bool(html_fallback)}, JS found: {bool(js_fallback)}, CSS found: {bool(css_fallback)}")
         
         if html_fallback:
-            content = html_fallback.group(1).strip()
-            # Remove code block markers if present
-            content = re.sub(r'^```\w*\s*[\r\n]+', '', content)
-            content = re.sub(r'[\r\n]+```\s*$', '', content)
-            files['index.html'] = content.strip()
+            files['index.html'] = html_fallback.group(1).strip()
         if js_fallback:
-            content = js_fallback.group(1).strip()
-            # Remove code block markers if present
-            content = re.sub(r'^```\w*\s*[\r\n]+', '', content)
-            content = re.sub(r'[\r\n]+```\s*$', '', content)
-            files['index.js'] = content.strip()
+            files['index.js'] = js_fallback.group(1).strip()
         if css_fallback:
-            content = css_fallback.group(1).strip()
-            # Remove code block markers if present
-            content = re.sub(r'^```\w*\s*[\r\n]+', '', content)
-            content = re.sub(r'[\r\n]+```\s*$', '', content)
-            files['style.css'] = content.strip()
+            files['style.css'] = css_fallback.group(1).strip()
     
     # Additional fallback: extract from numbered sections or file headers
     if not (files['index.html'] and files['index.js'] and files['style.css']):
         # Try patterns like "1. index.html:" or "**index.html**"
         patterns = [
             (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)index\.html(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'index.html'),
-            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)index\.js(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'index.js'),
-            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)style\.css(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'style.css')
+            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)(?:index\.js|app\.js)(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'index.js'),
+            (r'(?:^\d+\.\s*|^##\s*|^\*\*\s*)(?:style\.css|styles\.css)(?:\s*:|\*\*:?)\s*\n([\s\S]+?)(?=\n(?:\d+\.|##|\*\*|===)|$)', 'style.css')
         ]
         
         for pattern, file_key in patterns:
