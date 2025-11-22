@@ -18,6 +18,8 @@ def parse_transformers_js_output(code: str) -> Dict[str, str]:
     print(f"[Parser] Received code length: {len(code)} characters")
     print(f"[Parser] First 200 chars: {code[:200]}")
     
+    code_stripped = code.strip()
+    
     # Check if code starts with HTML instead of markers (common LLM mistake)
     if code_stripped.startswith('<!DOCTYPE') or code_stripped.startswith('<html'):
         print("[Parser] WARNING: Code starts with HTML instead of === index.html === marker")
