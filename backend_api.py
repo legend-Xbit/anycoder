@@ -908,23 +908,47 @@ async def deploy(
         print(f"[Deploy] Request parameters - language: {request.language}, space_name: {request.space_name}, existing_repo_id: {request.existing_repo_id}")
         
         # Check for existing deployed space in this session
-        existing_repo_id = request.existing_repo_id
         session_token = authorization.replace("Bearer ", "") if authorization else None
+        existing_repo_id = request.existing_repo_id
         
-        # If no existing_repo_id provided, check session for previously deployed spaces
-        if not existing_repo_id and session_token and session_token in user_sessions:
+        # ALWAYS check session for previously deployed spaces (even if frontend provides existing_repo_id)
+        # This ensures we catch spaces that were deployed in this session
+        if session_token and session_token in user_sessions:
             session = user_sessions[session_token]
             deployed_spaces = session.get("deployed_spaces", [])
+            
+            print(f"[Deploy] Checking session for existing spaces. Found {len(deployed_spaces)} deployed spaces.")
+            for i, space in enumerate(deployed_spaces):
+                print(f"[Deploy]   Space {i+1}: repo_id={space.get('repo_id')}, language={space.get('language')}, timestamp={space.get('timestamp')}")
             
             # Find the most recent space for this language
             for space in reversed(deployed_spaces):
                 if space.get("language") == request.language:
-                    existing_repo_id = space.get("repo_id")
-                    print(f"[Deploy] Found existing space for {request.language}: {existing_repo_id}")
+                    session_space_id = space.get("repo_id")
+                    print(f"[Deploy] ✅ Found existing space in session for {request.language}: {session_space_id}")
+                    # Use session space if no explicit existing_repo_id provided, OR if they match
+                    if not existing_repo_id:
+                        existing_repo_id = session_space_id
+                        print(f"[Deploy] Using session space: {existing_repo_id}")
+                    elif existing_repo_id != session_space_id:
+                        # Frontend and session disagree - trust the session (more recent)
+                        print(f"[Deploy] ⚠️ Frontend provided {existing_repo_id} but session has {session_space_id}. Using session.")
+                        existing_repo_id = session_space_id
                     break
+            
+            if not existing_repo_id:
+                print(f"[Deploy] ⚠️ No existing space found for language: {request.language}")
+        else:
+            print(f"[Deploy] ⚠️ No session found. session_token: {session_token[:10] if session_token else 'None'}")
         
         # Use the standalone deployment function
-        print(f"[Deploy] Calling deploy_to_huggingface_space with existing_repo_id: {existing_repo_id}")
+        print(f"[Deploy] ========== CALLING deploy_to_huggingface_space ==========")
+        print(f"[Deploy] existing_repo_id: {existing_repo_id}")
+        print(f"[Deploy] space_name: {request.space_name}")
+        print(f"[Deploy] language: {request.language}")
+        print(f"[Deploy] username: {auth.username}")
+        print(f"[Deploy] ==========================================================")
+        
         success, message, space_url = deploy_to_huggingface_space(
             code=request.code,
             language=request.language,
@@ -940,13 +964,18 @@ async def deploy(
         if success:
             # Extract repo_id from space_url
             repo_id = space_url.split("/spaces/")[-1] if space_url else None
-            print(f"[Deploy] Success! Repo ID: {repo_id}")
+            print(f"[Deploy] ✅ Success! Repo ID: {repo_id}")
+            print(f"[Deploy] Space URL: {space_url}")
+            print(f"[Deploy] Message: {message}")
             
             # Track deployed space in session for follow-up updates
             if session_token and session_token in user_sessions:
                 if repo_id:
                     session = user_sessions[session_token]
                     deployed_spaces = session.get("deployed_spaces", [])
+                    
+                    print(f"[Deploy] 📝 Tracking space in session...")
+                    print(f"[Deploy] Current deployed_spaces count: {len(deployed_spaces)}")
                     
                     # Update or add the space
                     space_entry = {
@@ -956,11 +985,29 @@ async def deploy(
                     }
                     
                     # Remove old entry for same repo_id if exists
+                    old_count = len(deployed_spaces)
                     deployed_spaces = [s for s in deployed_spaces if s.get("repo_id") != repo_id]
+                    if old_count != len(deployed_spaces):
+                        print(f"[Deploy] Removed old entry for {repo_id}")
+                    
+                    # Also remove old entries for same language (keep only most recent per language)
+                    # This ensures we always update the same space for a given language
+                    deployed_spaces = [s for s in deployed_spaces if s.get("language") != request.language]
+                    
                     deployed_spaces.append(space_entry)
                     
                     session["deployed_spaces"] = deployed_spaces
-                    print(f"[Deploy] Tracked space in session: {repo_id}")
+                    print(f"[Deploy] ✅ Tracked space in session: {repo_id}")
+                    print(f"[Deploy] New deployed_spaces count: {len(deployed_spaces)}")
+                    print(f"[Deploy] All deployed spaces: {[s.get('repo_id') for s in deployed_spaces]}")
+                else:
+                    print(f"[Deploy] ⚠️ Could not extract repo_id from space_url: {space_url}")
+            else:
+                if not session_token:
+                    print(f"[Deploy] ⚠️ No session_token provided for tracking")
+                elif session_token not in user_sessions:
+                    print(f"[Deploy] ⚠️ Session not found: {session_token[:10]}...")
+                    print(f"[Deploy] Available sessions: {[k[:10] for k in list(user_sessions.keys())[:5]]}")
             
             return {
                 "success": True,

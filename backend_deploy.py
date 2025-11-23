@@ -517,6 +517,13 @@ def deploy_to_huggingface_space(
         # Determine if this is an update or new deployment
         is_update = existing_repo_id is not None
         
+        print(f"[Deploy] ========== DEPLOYMENT DECISION ==========")
+        print(f"[Deploy] existing_repo_id provided: {existing_repo_id}")
+        print(f"[Deploy] history provided: {history is not None} (length: {len(history) if history else 0})")
+        print(f"[Deploy] username: {username}")
+        print(f"[Deploy] is_update: {is_update}")
+        print(f"[Deploy] ============================================")
+        
         if is_update:
             # Use existing repo
             repo_id = existing_repo_id
