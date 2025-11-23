@@ -1,6 +1,7 @@
 // HuggingFace OAuth authentication utilities (Server-side flow for Docker Spaces)
 
 const STORAGE_KEY = 'hf_oauth_token';
+const SESSION_KEY = 'hf_session_token';  // NEW: Store session UUID
 const USER_INFO_KEY = 'hf_user_info';
 const DEV_MODE_KEY = 'hf_dev_mode';
 const API_BASE = '/api';
@@ -71,8 +72,9 @@ export async function initializeOAuth(): Promise<OAuthResult | null> {
             userInfo,
           };
           
-          // Store the OAuth result
+          // Store the OAuth result AND session token
           storeOAuthData(oauthResult);
+          storeSessionToken(sessionToken);  // NEW: Store session UUID
           
           // Clean up URL
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -129,6 +131,7 @@ export async function loginWithHuggingFace(): Promise<void> {
 export function logout(): void {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SESSION_KEY);  // NEW: Clear session token
     localStorage.removeItem(USER_INFO_KEY);
     localStorage.removeItem(DEV_MODE_KEY);
   }
@@ -142,6 +145,25 @@ function storeOAuthData(result: OAuthResult): void {
     localStorage.setItem(STORAGE_KEY, result.accessToken);
     localStorage.setItem(USER_INFO_KEY, JSON.stringify(result.userInfo));
   }
+}
+
+/**
+ * Store session token in localStorage
+ */
+function storeSessionToken(sessionToken: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(SESSION_KEY, sessionToken);
+  }
+}
+
+/**
+ * Get stored session token
+ */
+export function getStoredSessionToken(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(SESSION_KEY);
+  }
+  return null;
 }
 
 /**

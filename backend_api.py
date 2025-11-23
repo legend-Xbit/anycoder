@@ -915,7 +915,19 @@ async def deploy(
         # PRIORITY 1: Check history for deployed/imported spaces (like Gradio version does)
         # This is more reliable than session tracking since history persists in frontend
         if request.history and auth.username:
-            print(f"[Deploy] Checking history for deployed spaces ({len(request.history)} messages)...")
+            print(f"[Deploy] ========== CHECKING HISTORY ==========")
+            print(f"[Deploy] History length: {len(request.history)} messages")
+            print(f"[Deploy] Username: {auth.username}")
+            
+            # Log each message in history for debugging
+            for i, msg in enumerate(request.history):
+                role = msg.get('role', 'unknown')
+                content = msg.get('content', '')
+                content_preview = content[:100] if content else ''
+                print(f"[Deploy]   Message {i+1}: role={role}, content_preview='{content_preview}...'")
+            
+            print(f"[Deploy] ==========================================")
+            
             for msg in request.history:
                 role = msg.get('role', '')
                 content = msg.get('content', '')
@@ -923,13 +935,18 @@ async def deploy(
                 # Check for deployment confirmations
                 if role == 'assistant' and ('✅ Deployed!' in content or '✅ Updated!' in content):
                     import re
+                    print(f"[Deploy] 🔍 Found deployment message in history!")
+                    print(f"[Deploy] Content: {content[:200]}")
                     match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', content)
                     if match:
                         history_space_id = match.group(1)
-                        print(f"[Deploy] ✅ Found deployed space in history: {history_space_id}")
+                        print(f"[Deploy] ✅ EXTRACTED space ID from history: {history_space_id}")
                         if not existing_repo_id:
                             existing_repo_id = history_space_id
+                            print(f"[Deploy] ✅ WILL UPDATE EXISTING SPACE: {existing_repo_id}")
                         break
+                    else:
+                        print(f"[Deploy] ⚠️ Deployment message found but couldn't extract space ID")
                 
                 # Check for imports
                 elif role == 'user' and 'import' in content.lower():
@@ -943,6 +960,11 @@ async def deploy(
                             if not existing_repo_id:
                                 existing_repo_id = imported_space
                             break
+        else:
+            if not request.history:
+                print(f"[Deploy] ⚠️ No history provided in request")
+            if not auth.username:
+                print(f"[Deploy] ⚠️ No username available")
         
         # PRIORITY 2: Check session for previously deployed spaces (fallback)
         # This helps when history isn't passed from frontend

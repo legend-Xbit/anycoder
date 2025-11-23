@@ -1,6 +1,7 @@
 // API client for AnyCoder backend
 
 import axios, { AxiosInstance } from 'axios';
+import { getStoredSessionToken } from './auth';  // NEW: Import session token
 import type {
   Model,
   AuthStatus,
@@ -54,7 +55,12 @@ class ApiClient {
 
     // Add auth token to requests if available
     this.client.interceptors.request.use((config) => {
-      if (this.token) {
+      // Use session token instead of OAuth token for session tracking
+      const sessionToken = getStoredSessionToken();
+      if (sessionToken) {
+        config.headers.Authorization = `Bearer ${sessionToken}`;
+      } else if (this.token) {
+        // Fallback to OAuth token if no session token
         config.headers.Authorization = `Bearer ${this.token}`;
       }
       return config;
@@ -274,7 +280,8 @@ class ApiClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+        ...(getStoredSessionToken() ? { 'Authorization': `Bearer ${getStoredSessionToken()}` } : 
+            this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
       },
       body: JSON.stringify(request),
       signal: abortController.signal,

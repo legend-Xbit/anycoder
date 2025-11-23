@@ -433,13 +433,20 @@ export default function Home() {
       console.log('[Deploy] Username:', currentUsername);
       console.log('[Deploy] Existing space from history:', existingSpace);
       console.log('[Deploy] Will create new space?', !existingSpace);
+      console.log('[Deploy] Messages count:', messages.length);
+      console.log('[Deploy] Messages (first 3):', messages.slice(0, 3).map(m => ({ role: m.role, content: m.content.substring(0, 100) })));
+      
+      // CRITICAL DEBUG: Check what we're actually sending
+      const historyToSend = messages.map(msg => ({ role: msg.role, content: msg.content }));
+      console.log('[Deploy] History to send (length):', historyToSend.length);
+      console.log('[Deploy] History to send (first 2):', historyToSend.slice(0, 2));
       console.log('[Deploy] =================================================================');
       
       // Build deploy request, omitting undefined fields
       const deployRequest: any = {
         code: generatedCode,
         language: selectedLanguage,
-        history: messages.map(msg => ({ role: msg.role, content: msg.content }))  // Pass full chat history
+        history: historyToSend  // Use the variable we just logged
       };
       
       // Only include optional fields if they have values
@@ -478,12 +485,12 @@ export default function Home() {
           }
         }
         
-        // Add deployment message to chat (EXACT Gradio format with markdown link)
+        // Add deployment message to chat (EXACT format backend expects)
         const deployMessage: Message = {
           role: 'assistant',
           content: existingSpace 
-            ? `Updated! [Open your app here](${response.space_url})` 
-            : `Deployed! [Open your app here](${response.space_url})`,
+            ? `✅ Updated! View your space at: ${response.space_url}` 
+            : `✅ Deployed! View your space at: ${response.space_url}`,
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, deployMessage]);
