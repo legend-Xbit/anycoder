@@ -49,6 +49,7 @@ export interface DeploymentRequest {
   requirements?: string;
   existing_repo_id?: string;  // For updating existing spaces
   commit_message?: string;
+  history?: Array<{role: string; content: string}>;  // Chat history for tracking
 }
 
 export interface DeploymentResponse {

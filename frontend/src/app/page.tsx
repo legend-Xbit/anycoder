@@ -439,6 +439,7 @@ export default function Home() {
       const deployRequest: any = {
         code: generatedCode,
         language: selectedLanguage,
+        history: messages.map(msg => ({ role: msg.role, content: msg.content }))  // Pass full chat history
       };
       
       // Only include optional fields if they have values
@@ -455,7 +456,8 @@ export default function Home() {
         space_name: deployRequest.space_name,
         language: deployRequest.language,
         has_code: !!deployRequest.code,
-        code_length: deployRequest.code?.length
+        code_length: deployRequest.code?.length,
+        history_length: deployRequest.history?.length
       });
       console.log('[Deploy] Full request object:', JSON.stringify(deployRequest, null, 2).substring(0, 500));
       

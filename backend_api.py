@@ -207,6 +207,7 @@ class DeploymentRequest(BaseModel):
     requirements: Optional[str] = None
     existing_repo_id: Optional[str] = None  # For updating existing spaces
     commit_message: Optional[str] = None
+    history: List[Dict] = []  # Chat history for tracking deployed spaces
 
 
 class AuthStatus(BaseModel):
@@ -911,9 +912,41 @@ async def deploy(
         session_token = authorization.replace("Bearer ", "") if authorization else None
         existing_repo_id = request.existing_repo_id
         
-        # ALWAYS check session for previously deployed spaces (even if frontend provides existing_repo_id)
-        # This ensures we catch spaces that were deployed in this session
-        if session_token and session_token in user_sessions:
+        # PRIORITY 1: Check history for deployed/imported spaces (like Gradio version does)
+        # This is more reliable than session tracking since history persists in frontend
+        if request.history and auth.username:
+            print(f"[Deploy] Checking history for deployed spaces ({len(request.history)} messages)...")
+            for msg in request.history:
+                role = msg.get('role', '')
+                content = msg.get('content', '')
+                
+                # Check for deployment confirmations
+                if role == 'assistant' and ('✅ Deployed!' in content or '✅ Updated!' in content):
+                    import re
+                    match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', content)
+                    if match:
+                        history_space_id = match.group(1)
+                        print(f"[Deploy] ✅ Found deployed space in history: {history_space_id}")
+                        if not existing_repo_id:
+                            existing_repo_id = history_space_id
+                        break
+                
+                # Check for imports
+                elif role == 'user' and 'import' in content.lower():
+                    import re
+                    match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', content)
+                    if match:
+                        imported_space = match.group(1)
+                        # Only use if user owns it
+                        if imported_space.startswith(f"{auth.username}/"):
+                            print(f"[Deploy] ✅ Found imported space in history (user owns it): {imported_space}")
+                            if not existing_repo_id:
+                                existing_repo_id = imported_space
+                            break
+        
+        # PRIORITY 2: Check session for previously deployed spaces (fallback)
+        # This helps when history isn't passed from frontend
+        if not existing_repo_id and session_token and session_token in user_sessions:
             session = user_sessions[session_token]
             
             # Ensure deployed_spaces exists (for backward compatibility with old sessions)
@@ -931,20 +964,13 @@ async def deploy(
                 if space.get("language") == request.language:
                     session_space_id = space.get("repo_id")
                     print(f"[Deploy] ✅ Found existing space in session for {request.language}: {session_space_id}")
-                    # Use session space if no explicit existing_repo_id provided, OR if they match
-                    if not existing_repo_id:
-                        existing_repo_id = session_space_id
-                        print(f"[Deploy] Using session space: {existing_repo_id}")
-                    elif existing_repo_id != session_space_id:
-                        # Frontend and session disagree - trust the session (more recent)
-                        print(f"[Deploy] ⚠️ Frontend provided {existing_repo_id} but session has {session_space_id}. Using session.")
-                        existing_repo_id = session_space_id
+                    existing_repo_id = session_space_id
                     break
             
             if not existing_repo_id:
                 print(f"[Deploy] ⚠️ No existing space found for language: {request.language}")
-        else:
-            print(f"[Deploy] ⚠️ No session found. session_token: {session_token[:10] if session_token else 'None'}")
+        elif not existing_repo_id:
+            print(f"[Deploy] ⚠️ No session found and no history provided. session_token: {session_token[:10] if session_token else 'None'}")
         
         # Use the standalone deployment function
         print(f"[Deploy] ========== CALLING deploy_to_huggingface_space ==========")
