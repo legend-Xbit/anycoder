@@ -413,6 +413,54 @@ CMD ["npm", "start", "--", "-p", "7860"]
 """
 
 
+def extract_space_id_from_history(history: Optional[List[Dict]], username: Optional[str] = None) -> Optional[str]:
+    """
+    Extract existing space ID from chat history (for updates after followups/imports)
+    
+    Args:
+        history: Chat history (list of dicts with 'role' and 'content')
+        username: Current username (to verify ownership of imported spaces)
+    
+    Returns:
+        Space ID (username/space-name) if found, None otherwise
+    """
+    if not history:
+        return None
+    
+    import re
+    existing_space = None
+    
+    # Look through history for previous deployments or imports
+    for msg in history:
+        role = msg.get('role', '')
+        content = msg.get('content', '')
+        
+        # Check assistant messages for deployment confirmations
+        if role == 'assistant':
+            if "✅ Deployed!" in content or "✅ Updated!" in content:
+                # Look for space URL pattern
+                match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', content)
+                if match:
+                    existing_space = match.group(1)
+                    break
+        
+        # Check user messages for imports
+        elif role == 'user':
+            if "import" in content.lower() and "space" in content.lower():
+                # Extract space name from import message
+                match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', content)
+                if match:
+                    imported_space = match.group(1)
+                    # Only use imported space if user owns it (can update it)
+                    if username and imported_space.startswith(f"{username}/"):
+                        existing_space = imported_space
+                        break
+                    # If user doesn't own the imported space, we'll create a new one
+                    # (existing_space remains None, triggering new deployment)
+    
+    return existing_space
+
+
 def deploy_to_huggingface_space(
     code: str,
     language: str,
@@ -422,7 +470,8 @@ def deploy_to_huggingface_space(
     description: Optional[str] = None,
     private: bool = False,
     existing_repo_id: Optional[str] = None,
-    commit_message: Optional[str] = None
+    commit_message: Optional[str] = None,
+    history: Optional[List[Dict]] = None
 ) -> Tuple[bool, str, Optional[str]]:
     """
     Deploy code to HuggingFace Spaces (create new or update existing)
@@ -437,6 +486,7 @@ def deploy_to_huggingface_space(
         private: Whether to make the space private (only for new spaces)
         existing_repo_id: If provided (username/space-name), updates this space instead of creating new one
         commit_message: Custom commit message (defaults to "Deploy from anycoder" or "Update from anycoder")
+        history: Chat history (list of dicts with 'role' and 'content') - used to detect followups/imports
     
     Returns:
         Tuple of (success: bool, message: str, space_url: Optional[str])
@@ -449,6 +499,21 @@ def deploy_to_huggingface_space(
     try:
         api = HfApi(token=token)
         
+        # Get username if not provided (needed for history tracking)
+        if not username:
+            try:
+                user_info = api.whoami()
+                username = user_info.get("name") or user_info.get("preferred_username") or "user"
+            except Exception as e:
+                pass  # Will handle later if needed
+        
+        # Check history for existing space if not explicitly provided
+        # This enables automatic updates for followup prompts and imported spaces
+        if not existing_repo_id and history:
+            existing_repo_id = extract_space_id_from_history(history, username)
+            if existing_repo_id:
+                print(f"[Deploy] Detected existing space from history: {existing_repo_id}")
+        
         # Determine if this is an update or new deployment
         is_update = existing_repo_id is not None
         
@@ -456,7 +521,15 @@ def deploy_to_huggingface_space(
             # Use existing repo
             repo_id = existing_repo_id
             space_name = existing_repo_id.split('/')[-1]
-            username = existing_repo_id.split('/')[0] if '/' in existing_repo_id else username
+            if '/' in existing_repo_id:
+                username = existing_repo_id.split('/')[0]
+            elif not username:
+                # Get username if still not available
+                try:
+                    user_info = api.whoami()
+                    username = user_info.get("name") or user_info.get("preferred_username") or "user"
+                except Exception as e:
+                    return False, f"Failed to get user info: {str(e)}", None
         else:
             # Get username if not provided
             if not username:
@@ -882,7 +955,12 @@ def deploy_to_huggingface_space(
             
             space_url = f"https://huggingface.co/spaces/{repo_id}"
             action = "Updated" if is_update else "Deployed"
-            return True, f"✅ {action} successfully to {repo_id}!", space_url
+            
+            # Include the space URL in the message for history tracking
+            # This allows future deployments to detect this as the existing space
+            success_msg = f"✅ {action}! View your space at: {space_url}"
+            
+            return True, success_msg, space_url
             
     except Exception as e:
         print(f"[Deploy] Top-level exception caught: {type(e).__name__}: {str(e)}")
