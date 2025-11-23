@@ -915,6 +915,11 @@ async def deploy(
         # This ensures we catch spaces that were deployed in this session
         if session_token and session_token in user_sessions:
             session = user_sessions[session_token]
+            
+            # Ensure deployed_spaces exists (for backward compatibility with old sessions)
+            if "deployed_spaces" not in session:
+                session["deployed_spaces"] = []
+            
             deployed_spaces = session.get("deployed_spaces", [])
             
             print(f"[Deploy] Checking session for existing spaces. Found {len(deployed_spaces)} deployed spaces.")
@@ -972,6 +977,11 @@ async def deploy(
             if session_token and session_token in user_sessions:
                 if repo_id:
                     session = user_sessions[session_token]
+                    
+                    # Ensure deployed_spaces exists
+                    if "deployed_spaces" not in session:
+                        session["deployed_spaces"] = []
+                    
                     deployed_spaces = session.get("deployed_spaces", [])
                     
                     print(f"[Deploy] 📝 Tracking space in session...")
