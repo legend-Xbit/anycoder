@@ -28,6 +28,13 @@ export default function Home() {
   
   // Mobile view state: 'chat', 'editor', or 'settings' - start on chat for mobile
   const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('chat');
+  
+  // Resizable sidebar widths (in pixels)
+  const [chatSidebarWidth, setChatSidebarWidth] = useState(320);
+  const [settingsSidebarWidth, setSettingsSidebarWidth] = useState(288);
+  const [isResizingChat, setIsResizingChat] = useState(false);
+  const [isResizingSettings, setIsResizingSettings] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // Load messages from localStorage on mount (client-side only to avoid hydration issues)
   useEffect(() => {
@@ -46,6 +53,26 @@ export default function Home() {
           console.error('[localStorage] Failed to parse saved messages:', e);
         }
       }
+      
+      // Load sidebar widths from localStorage
+      const savedChatWidth = localStorage.getItem('anycoder_chat_sidebar_width');
+      const savedSettingsWidth = localStorage.getItem('anycoder_settings_sidebar_width');
+      if (savedChatWidth) {
+        setChatSidebarWidth(parseInt(savedChatWidth, 10));
+      }
+      if (savedSettingsWidth) {
+        setSettingsSidebarWidth(parseInt(savedSettingsWidth, 10));
+      }
+      
+      // Check if desktop on mount
+      const checkDesktop = () => {
+        setIsDesktop(window.innerWidth >= 768);
+      };
+      checkDesktop();
+      
+      // Listen for window resize to update desktop status
+      window.addEventListener('resize', checkDesktop);
+      return () => window.removeEventListener('resize', checkDesktop);
     }
   }, []); // Empty deps = run once on mount
 
@@ -618,6 +645,63 @@ export default function Home() {
     await handleSendMessage(prompt, language, modelId);
   };
 
+  // Resize handlers for chat sidebar (desktop only)
+  const startResizingChat = () => {
+    if (isDesktop) {
+      setIsResizingChat(true);
+    }
+  };
+
+  const startResizingSettings = () => {
+    if (isDesktop) {
+      setIsResizingSettings(true);
+    }
+  };
+
+  // Handle mouse move for resizing (desktop only)
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDesktop) return; // Skip on mobile
+      
+      if (isResizingChat) {
+        const newWidth = Math.min(Math.max(e.clientX, 250), 600); // Min 250px, max 600px
+        setChatSidebarWidth(newWidth);
+      }
+      if (isResizingSettings) {
+        const newWidth = Math.min(Math.max(window.innerWidth - e.clientX, 220), 500); // Min 220px, max 500px
+        setSettingsSidebarWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isResizingChat) {
+        setIsResizingChat(false);
+        // Save to localStorage
+        localStorage.setItem('anycoder_chat_sidebar_width', chatSidebarWidth.toString());
+        document.body.classList.remove('resizing');
+      }
+      if (isResizingSettings) {
+        setIsResizingSettings(false);
+        // Save to localStorage
+        localStorage.setItem('anycoder_settings_sidebar_width', settingsSidebarWidth.toString());
+        document.body.classList.remove('resizing');
+      }
+    };
+
+    if (isResizingChat || isResizingSettings) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      // Add resizing class to body for cursor and selection styles
+      document.body.classList.add('resizing');
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.classList.remove('resizing');
+    };
+  }, [isResizingChat, isResizingSettings, chatSidebarWidth, settingsSidebarWidth, isDesktop]);
+
   // Show landing page if no messages and showLandingPage is true
   if (showLandingPage && messages.length === 0) {
     return (
@@ -641,13 +725,17 @@ export default function Home() {
       {/* Apple-style layout - Responsive */}
       <main className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar - Chat Panel (Hidden on mobile, shown when mobileView='chat') */}
-        <div className={`
-          ${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex
-          w-full md:w-80 
-          bg-[#000000] border-r border-[#424245]/30 
-          flex-col
-          absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
-        `}>
+        <div 
+          className={`
+            ${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex
+            w-full
+            bg-[#000000] border-r border-[#424245]/30 
+            flex-col
+            absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
+            md:flex-shrink-0
+          `}
+          style={isDesktop ? { width: `${chatSidebarWidth}px` } : undefined}
+        >
           {/* Panel Header */}
           <div className="flex items-center px-4 py-3 bg-[#000000] border-b border-[#424245]/30">
             <span className="text-sm font-medium text-[#f5f5f7]">Chat</span>
@@ -664,11 +752,20 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Resize Handle for Chat Sidebar (Desktop only) */}
+        <div 
+          className={`hidden md:block resize-handle ${isResizingChat ? 'resizing' : ''}`}
+          onMouseDown={startResizingChat}
+          title="Drag to resize chat panel"
+        />
+
         {/* Center - Editor Group (Always visible on mobile when mobileView='editor', always visible on desktop) */}
         <div className={`
           ${mobileView === 'editor' ? 'flex' : 'hidden'} md:flex
           flex-1 flex-col bg-[#000000]
           absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
+          md:min-w-0 overflow-hidden
+          w-full
         `}>
           {/* Tab Bar */}
           <div className="flex items-center px-4 h-10 bg-[#1d1d1f] border-b border-[#424245]/30">
@@ -704,15 +801,26 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Resize Handle for Settings Sidebar (Desktop only) */}
+        <div 
+          className={`hidden md:block resize-handle ${isResizingSettings ? 'resizing' : ''}`}
+          onMouseDown={startResizingSettings}
+          title="Drag to resize settings panel"
+        />
+
         {/* Right Sidebar - Configuration Panel (Hidden on mobile, shown when mobileView='settings') */}
-        <div className={`
-          ${mobileView === 'settings' ? 'flex' : 'hidden'} md:flex
-          w-full md:w-72
-          bg-[#000000] border-l border-[#424245]/30 
-          overflow-y-auto
-          absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
-          flex-col
-        `}>
+        <div 
+          className={`
+            ${mobileView === 'settings' ? 'flex' : 'hidden'} md:flex
+            w-full
+            bg-[#000000] border-l border-[#424245]/30 
+            overflow-y-auto
+            absolute md:relative inset-0 md:inset-auto z-10 md:z-auto
+            flex-col
+            md:flex-shrink-0
+          `}
+          style={isDesktop ? { width: `${settingsSidebarWidth}px` } : undefined}
+        >
           <ControlPanel
             selectedLanguage={selectedLanguage}
             selectedModel={selectedModel}

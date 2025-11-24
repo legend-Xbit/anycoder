@@ -126,3 +126,67 @@ select:focus-visible {
   animation: fade-in 0.3s ease-in-out;
 }
 
+/* Resize handle styles */
+.resize-handle {
+  position: relative;
+  width: 4px;
+  cursor: col-resize;
+  user-select: none;
+  background: transparent;
+  transition: background-color 0.2s ease, width 0.15s ease;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Clickable area (extends beyond visible width) */
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  left: -4px;
+  right: -4px;
+}
+
+/* Visual indicator (three dots) */
+.resize-handle::after {
+  content: '⋮';
+  position: relative;
+  z-index: 1;
+  font-size: 16px;
+  color: rgba(134, 134, 139, 0.4);
+  transition: color 0.2s ease;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.resize-handle:hover {
+  background: rgba(0, 123, 255, 0.2);
+}
+
+.resize-handle:hover::after {
+  color: rgba(0, 123, 255, 0.8);
+}
+
+.resize-handle:active,
+.resize-handle.resizing {
+  background: rgba(0, 123, 255, 0.4);
+  width: 4px;
+}
+
+.resize-handle:active::after,
+.resize-handle.resizing::after {
+  color: rgba(0, 123, 255, 1);
+}
+
+/* Prevent text selection during resize */
+body.resizing {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+
+body.resizing * {
+  cursor: col-resize !important;
+}
+
