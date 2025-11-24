@@ -269,7 +269,16 @@ def get_auth_from_header(authorization: Optional[str] = None):
         # Look up the session to get user info
         if token in user_sessions:
             session = user_sessions[token]
-            return MockAuth(session["access_token"], session["username"])
+            username = session.get("username")
+            
+            # If username is missing from session (e.g., old session), try to fetch it
+            if not username and session.get("user_info"):
+                user_info = session["user_info"]
+                username = user_info.get("name") or user_info.get("preferred_username") or "user"
+                # Update the session with the username for future requests
+                session["username"] = username
+            
+            return MockAuth(session["access_token"], username)
     
     # Dev token format: dev_token_<username>_<timestamp>
     if token and token.startswith("dev_token_"):
@@ -908,16 +917,30 @@ async def deploy(
         print(f"[Deploy] Attempting deployment with token (first 10 chars): {user_token[:10]}...")
         print(f"[Deploy] Request parameters - language: {request.language}, space_name: {request.space_name}, existing_repo_id: {request.existing_repo_id}")
         
+        # If username is missing, fetch it from HuggingFace API
+        username = auth.username
+        if not username:
+            print(f"[Deploy] Username not found in auth, fetching from HuggingFace API...")
+            try:
+                from huggingface_hub import HfApi
+                hf_api = HfApi(token=user_token)
+                user_info = hf_api.whoami()
+                username = user_info.get("name") or user_info.get("preferred_username") or "user"
+                print(f"[Deploy] Fetched username from HF API: {username}")
+            except Exception as e:
+                print(f"[Deploy] Warning: Could not fetch username from HF API: {e}")
+                # Continue without username - the deploy function will try to fetch it again
+        
         # Check for existing deployed space in this session
         session_token = authorization.replace("Bearer ", "") if authorization else None
         existing_repo_id = request.existing_repo_id
         
         # PRIORITY 1: Check history for deployed/imported spaces (like Gradio version does)
         # This is more reliable than session tracking since history persists in frontend
-        if request.history and auth.username:
+        if request.history and username:
             print(f"[Deploy] ========== CHECKING HISTORY ==========")
             print(f"[Deploy] History length: {len(request.history)} messages")
-            print(f"[Deploy] Username: {auth.username}")
+            print(f"[Deploy] Username: {username}")
             
             # Log each message in history for debugging
             for i, msg in enumerate(request.history):
@@ -955,7 +978,7 @@ async def deploy(
                     if match:
                         imported_space = match.group(1)
                         # Only use if user owns it
-                        if imported_space.startswith(f"{auth.username}/"):
+                        if imported_space.startswith(f"{username}/"):
                             print(f"[Deploy] ✅ Found imported space in history (user owns it): {imported_space}")
                             if not existing_repo_id:
                                 existing_repo_id = imported_space
@@ -963,7 +986,7 @@ async def deploy(
         else:
             if not request.history:
                 print(f"[Deploy] ⚠️ No history provided in request")
-            if not auth.username:
+            if not username:
                 print(f"[Deploy] ⚠️ No username available")
         
         # PRIORITY 2: Check session for previously deployed spaces (fallback)
@@ -999,7 +1022,7 @@ async def deploy(
         print(f"[Deploy] existing_repo_id: {existing_repo_id}")
         print(f"[Deploy] space_name: {request.space_name}")
         print(f"[Deploy] language: {request.language}")
-        print(f"[Deploy] username: {auth.username}")
+        print(f"[Deploy] username: {username}")
         print(f"[Deploy] ==========================================================")
         
         success, message, space_url = deploy_to_huggingface_space(
@@ -1007,7 +1030,7 @@ async def deploy(
             language=request.language,
             space_name=request.space_name,
             token=user_token,
-            username=auth.username,
+            username=username,
             description=request.description if hasattr(request, 'description') else None,
             private=False,
             existing_repo_id=existing_repo_id,
