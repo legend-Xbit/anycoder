@@ -274,9 +274,17 @@ def get_auth_from_header(authorization: Optional[str] = None):
             # If username is missing from session (e.g., old session), try to fetch it
             if not username and session.get("user_info"):
                 user_info = session["user_info"]
-                username = user_info.get("name") or user_info.get("preferred_username") or "user"
+                # Use same order as OAuth callback for consistency
+                username = (
+                    user_info.get("preferred_username") or
+                    user_info.get("name") or
+                    user_info.get("sub") or
+                    user_info.get("username") or
+                    "user"
+                )
                 # Update the session with the username for future requests
                 session["username"] = username
+                print(f"[Auth] Extracted and cached username from user_info: {username}")
             
             return MockAuth(session["access_token"], username)
     
@@ -385,6 +393,18 @@ async def oauth_callback(code: str, state: str, request: Request):
             userinfo_response.raise_for_status()
             user_info = userinfo_response.json()
             
+            # Extract username - try multiple possible fields
+            username = (
+                user_info.get("preferred_username") or  # Primary HF field
+                user_info.get("name") or                # Alternative field
+                user_info.get("sub") or                 # OpenID subject
+                user_info.get("username") or            # Generic username
+                "user"                                  # Fallback
+            )
+            
+            print(f"[OAuth] User info received: {user_info}")
+            print(f"[OAuth] Extracted username: {username}")
+            
             # Calculate token expiration
             # OAuth tokens typically have expires_in in seconds
             expires_in = token_data.get("expires_in", 28800)  # Default 8 hours
@@ -397,9 +417,11 @@ async def oauth_callback(code: str, state: str, request: Request):
                 "user_info": user_info,
                 "timestamp": datetime.now(),
                 "expires_at": expires_at,
-                "username": user_info.get("name") or user_info.get("preferred_username") or "user",
+                "username": username,
                 "deployed_spaces": []  # Track deployed spaces for follow-up updates
             }
+            
+            print(f"[OAuth] Session created: {session_token[:10]}... for user: {username}")
             
             # Redirect to frontend with session token
             frontend_url = f"{protocol}://{SPACE_HOST}/?session={session_token}"
@@ -866,7 +888,15 @@ async def deploy(
     authorization: Optional[str] = Header(None)
 ):
     """Deploy generated code to HuggingFace Spaces"""
+    print(f"[Deploy] ========== NEW DEPLOYMENT REQUEST ==========")
+    print(f"[Deploy] Authorization header present: {authorization is not None}")
+    if authorization:
+        auth_preview = authorization[:20] + "..." if len(authorization) > 20 else authorization
+        print(f"[Deploy] Authorization preview: {auth_preview}")
+    
     auth = get_auth_from_header(authorization)
+    
+    print(f"[Deploy] Auth object - is_authenticated: {auth.is_authenticated()}, username: {auth.username}, has_token: {auth.token is not None}")
     
     if not auth.is_authenticated():
         raise HTTPException(status_code=401, detail="Authentication required")
