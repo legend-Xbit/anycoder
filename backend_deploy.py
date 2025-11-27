@@ -636,6 +636,15 @@ def deploy_to_huggingface_space(
             elif language in ["gradio", "streamlit"]:
                 files = parse_multi_file_python_output(code)
                 
+                # Fallback: if no files parsed (missing === markers), treat entire code as app.py
+                if not files:
+                    print(f"[Deploy] No file markers found in {language} code, using entire code as app.py")
+                    # Clean up code blocks if present
+                    cleaned_code = remove_code_block(code)
+                    # Determine app filename based on language
+                    app_filename = "streamlit_app.py" if language == "streamlit" else "app.py"
+                    files[app_filename] = cleaned_code
+                
                 # Write Python files (create subdirectories if needed)
                 for filename, content in files.items():
                     file_path = temp_path / filename
@@ -691,6 +700,13 @@ def deploy_to_huggingface_space(
             else:
                 # Default: treat as Gradio app
                 files = parse_multi_file_python_output(code)
+                
+                # Fallback: if no files parsed (missing === markers), treat entire code as app.py
+                if not files:
+                    print(f"[Deploy] No file markers found in default (gradio) code, using entire code as app.py")
+                    # Clean up code blocks if present
+                    cleaned_code = remove_code_block(code)
+                    files['app.py'] = cleaned_code
                 
                 # Write files (create subdirectories if needed)
                 for filename, content in files.items():
