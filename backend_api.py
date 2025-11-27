@@ -294,7 +294,27 @@ def get_auth_from_header(authorization: Optional[str] = None):
         username = parts[2] if len(parts) > 2 else "user"
         return MockAuth(token, username)
     
-    # Regular token (OAuth access token passed directly)
+    # Regular OAuth access token passed directly - try to fetch username from HF
+    # This happens when frontend sends OAuth token after OAuth callback
+    if token and len(token) > 20:
+        try:
+            from huggingface_hub import HfApi
+            hf_api = HfApi(token=token)
+            user_info = hf_api.whoami()
+            username = (
+                user_info.get("preferred_username") or
+                user_info.get("name") or
+                user_info.get("sub") or
+                "user"
+            )
+            print(f"[Auth] Fetched username from OAuth token: {username}")
+            return MockAuth(token, username)
+        except Exception as e:
+            print(f"[Auth] Could not fetch username from OAuth token: {e}")
+            # Return with token but no username - deployment will try to fetch it
+            return MockAuth(token, None)
+    
+    # Fallback: token with no username
     return MockAuth(token, None)
 
 

@@ -1,7 +1,6 @@
 // API client for AnyCoder backend
 
 import axios, { AxiosInstance } from 'axios';
-import { getStoredSessionToken } from './auth';  // NEW: Import session token
 import type {
   Model,
   AuthStatus,
@@ -55,12 +54,8 @@ class ApiClient {
 
     // Add auth token to requests if available
     this.client.interceptors.request.use((config) => {
-      // Use session token instead of OAuth token for session tracking
-      const sessionToken = getStoredSessionToken();
-      if (sessionToken) {
-        config.headers.Authorization = `Bearer ${sessionToken}`;
-      } else if (this.token) {
-        // Fallback to OAuth token if no session token
+      // ALWAYS use OAuth token primarily, session token is for backend tracking only
+      if (this.token) {
         config.headers.Authorization = `Bearer ${this.token}`;
       }
       return config;
@@ -71,10 +66,24 @@ class ApiClient {
       (response) => response,
       (error) => {
         // Handle 401 errors (expired/invalid authentication)
+        // ONLY log out on specific auth errors, not all 401s
         if (error.response && error.response.status === 401) {
-          // Clear authentication data
-          if (typeof window !== 'undefined') {
+          const errorData = error.response.data;
+          const errorMessage = errorData?.detail || errorData?.message || '';
+          
+          // Only log out if it's an authentication/session issue
+          // Don't log out for permission errors on specific resources
+          const shouldLogout = 
+            errorMessage.includes('Authentication required') ||
+            errorMessage.includes('Invalid token') ||
+            errorMessage.includes('Token expired') ||
+            errorMessage.includes('Session expired') ||
+            error.config?.url?.includes('/auth/');
+          
+          if (shouldLogout && typeof window !== 'undefined') {
+            // Clear ALL authentication data including session token
             localStorage.removeItem('hf_oauth_token');
+            localStorage.removeItem('hf_session_token');
             localStorage.removeItem('hf_user_info');
             this.token = null;
             
@@ -280,8 +289,7 @@ class ApiClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(getStoredSessionToken() ? { 'Authorization': `Bearer ${getStoredSessionToken()}` } : 
-            this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
+        ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
       },
       body: JSON.stringify(request),
       signal: abortController.signal,
