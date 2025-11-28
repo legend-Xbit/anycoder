@@ -28,7 +28,7 @@ export default function LandingPage({
   onImport,
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'zai-org/GLM-4.6',
+  initialModel = 'claude-opus-4.5',
   onAuthChange
 }: LandingPageProps) {
   const [prompt, setPrompt] = useState('');

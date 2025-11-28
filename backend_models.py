@@ -50,13 +50,6 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
     
-    elif model_id == "gpt-5":
-        # Use Poe (OpenAI-compatible) client for GPT-5 model
-        return OpenAI(
-            api_key=os.getenv("POE_API_KEY"),
-            base_url="https://api.poe.com/v1"
-        )
-    
     elif model_id == "gpt-5.1":
         # Use Poe (OpenAI-compatible) client for GPT-5.1 model
         return OpenAI(
@@ -106,6 +99,13 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             base_url="https://api.poe.com/v1"
         )
     
+    elif model_id == "claude-opus-4.5":
+        # Use Poe (OpenAI-compatible) client for Claude-Opus-4.5
+        return OpenAI(
+            api_key=os.getenv("POE_API_KEY"),
+            base_url="https://api.poe.com/v1"
+        )
+    
     elif model_id == "claude-sonnet-4.5":
         # Use Poe (OpenAI-compatible) client for Claude-Sonnet-4.5
         return OpenAI(
@@ -118,13 +118,6 @@ def get_inference_client(model_id: str, provider: str = "auto"):
         return OpenAI(
             api_key=os.getenv("POE_API_KEY"),
             base_url="https://api.poe.com/v1"
-        )
-    
-    elif model_id == "qwen3-max-preview":
-        # Use DashScope International OpenAI client for Qwen3 Max Preview
-        return OpenAI(
-            api_key=os.getenv("DASHSCOPE_API_KEY"),
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
     
     elif model_id == "x-ai/grok-4.1-fast":
@@ -169,13 +162,6 @@ def get_inference_client(model_id: str, provider: str = "auto"):
     
     elif model_id == "gemini-2.5-pro":
         # Use Google Gemini Pro (OpenAI-compatible) client
-        return OpenAI(
-            api_key=os.getenv("GEMINI_API_KEY"),
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        )
-    
-    elif model_id == "gemini-flash-latest":
-        # Use Google Gemini Flash Latest (OpenAI-compatible) client
         return OpenAI(
             api_key=os.getenv("GEMINI_API_KEY"),
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
