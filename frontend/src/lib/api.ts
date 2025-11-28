@@ -150,7 +150,7 @@ class ApiClient {
   }
 
   async getModels(): Promise<Model[]> {
-    // Check cache first (24 hour TTL)
+    // Check cache first (24 hour TTL - cache once per day)
     const cached = this.getCachedData<Model[]>('anycoder_models', 24 * 60 * 60 * 1000);
     if (cached) {
       console.log('Using cached models:', cached.length, 'models');
@@ -165,7 +165,7 @@ class ApiClient {
       // Cache the successful response
       if (models && models.length > 0) {
         this.setCachedData('anycoder_models', models);
-        console.log('Cached', models.length, 'models');
+        console.log('Cached', models.length, 'models (valid for 24 hours)');
       }
       
       return models;
@@ -198,7 +198,7 @@ class ApiClient {
   }
 
   async getLanguages(): Promise<{ languages: Language[] }> {
-    // Check cache first (24 hour TTL)
+    // Check cache first (24 hour TTL - cache once per day)
     const cached = this.getCachedData<Language[]>('anycoder_languages', 24 * 60 * 60 * 1000);
     if (cached) {
       console.log('Using cached languages:', cached.length, 'languages');
@@ -213,7 +213,7 @@ class ApiClient {
       // Cache the successful response
       if (languages && languages.length > 0) {
         this.setCachedData('anycoder_languages', languages);
-        console.log('Cached', languages.length, 'languages');
+        console.log('Cached', languages.length, 'languages (valid for 24 hours)');
       }
       
       return response.data;

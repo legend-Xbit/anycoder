@@ -36,6 +36,15 @@ export default function Home() {
   const [isResizingSettings, setIsResizingSettings] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
 
+  // Clear cache on app startup to ensure fresh data
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log('[Cache] Clearing models and languages cache on app startup');
+      localStorage.removeItem('anycoder_models');
+      localStorage.removeItem('anycoder_languages');
+    }
+  }, []); // Run once on mount
+
   // Load messages from localStorage on mount (client-side only to avoid hydration issues)
   useEffect(() => {
     if (typeof window !== 'undefined') {
