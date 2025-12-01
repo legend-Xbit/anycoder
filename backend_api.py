@@ -835,7 +835,25 @@ async def generate_code(
                         from backend_deploy import deploy_to_huggingface_space
                         
                         # Convert history to the format expected by deploy function
-                        history_list = [[msg.get('role', ''), msg.get('content', '')] for msg in (request.history or [])]
+                        # History comes from frontend as [[role, content], ...]
+                        history_list = []
+                        if request.history:
+                            for msg in request.history:
+                                if isinstance(msg, list) and len(msg) >= 2:
+                                    # Already in correct format [[role, content], ...]
+                                    history_list.append([msg[0], msg[1]])
+                                elif isinstance(msg, dict):
+                                    # Convert dict format to list format
+                                    role = msg.get('role', '')
+                                    content = msg.get('content', '')
+                                    if role and content:
+                                        history_list.append([role, content])
+                        
+                        print(f"[Auto-Deploy] Starting deployment...")
+                        print(f"[Auto-Deploy] - Language: {language}")
+                        print(f"[Auto-Deploy] - History items: {len(history_list)}")
+                        print(f"[Auto-Deploy] - Username: {auth.username}")
+                        print(f"[Auto-Deploy] - Code length: {len(generated_code)}")
                         
                         # Deploy the code
                         success, message, space_url = deploy_to_huggingface_space(
@@ -845,6 +863,11 @@ async def generate_code(
                             username=auth.username,
                             history=history_list
                         )
+                        
+                        print(f"[Auto-Deploy] Deployment result:")
+                        print(f"[Auto-Deploy] - Success: {success}")
+                        print(f"[Auto-Deploy] - Message: {message}")
+                        print(f"[Auto-Deploy] - Space URL: {space_url}")
                         
                         if success and space_url:
                             # Send deployment success
@@ -863,12 +886,21 @@ async def generate_code(
                             yield f"data: {deploy_error_data}\n\n"
                     except Exception as deploy_error:
                         # Log deployment error but don't fail the generation
-                        print(f"[Auto-Deploy] Error: {deploy_error}")
+                        import traceback
+                        print(f"[Auto-Deploy] ========== DEPLOYMENT EXCEPTION ==========")
+                        print(f"[Auto-Deploy] Exception type: {type(deploy_error).__name__}")
+                        print(f"[Auto-Deploy] Error message: {str(deploy_error)}")
+                        print(f"[Auto-Deploy] Full traceback:")
+                        traceback.print_exc()
+                        print(f"[Auto-Deploy] ==========================================")
+                        
                         deploy_error_data = json.dumps({
                             "type": "deploy_error",
                             "message": f"⚠️ Deployment error: {str(deploy_error)}"
                         })
                         yield f"data: {deploy_error_data}\n\n"
+                else:
+                    print(f"[Auto-Deploy] Skipped - authenticated: {auth.is_authenticated()}, token_exists: {auth.token is not None}, is_dev: {auth.token.startswith('dev_token_') if auth.token else False}")
                 
             except Exception as e:
                 # Handle rate limiting and other API errors
