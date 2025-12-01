@@ -413,12 +413,12 @@ CMD ["npm", "start", "--", "-p", "7860"]
 """
 
 
-def extract_space_id_from_history(history: Optional[List[Dict]], username: Optional[str] = None) -> Optional[str]:
+def extract_space_id_from_history(history: Optional[List], username: Optional[str] = None) -> Optional[str]:
     """
     Extract existing space ID from chat history (for updates after followups/imports)
     
     Args:
-        history: Chat history (list of dicts with 'role' and 'content')
+        history: Chat history (list of lists [[role, content], ...] or list of dicts)
         username: Current username (to verify ownership of imported spaces)
     
     Returns:
@@ -432,8 +432,15 @@ def extract_space_id_from_history(history: Optional[List[Dict]], username: Optio
     
     # Look through history for previous deployments or imports
     for msg in history:
-        role = msg.get('role', '')
-        content = msg.get('content', '')
+        # Handle both list format [[role, content], ...] and dict format [{'role': ..., 'content': ...}, ...]
+        if isinstance(msg, list) and len(msg) >= 2:
+            role = msg[0]
+            content = msg[1]
+        elif isinstance(msg, dict):
+            role = msg.get('role', '')
+            content = msg.get('content', '')
+        else:
+            continue
         
         # Check assistant messages for deployment confirmations
         if role == 'assistant':
