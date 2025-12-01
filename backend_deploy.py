@@ -444,11 +444,20 @@ def extract_space_id_from_history(history: Optional[List], username: Optional[st
         
         # Check assistant messages for deployment confirmations
         if role == 'assistant':
-            if "✅ Deployed!" in content or "✅ Updated!" in content:
+            # Look for various deployment success patterns (case-insensitive)
+            content_lower = content.lower()
+            has_deployment_indicator = (
+                "deployed" in content_lower or 
+                "updated" in content_lower or
+                "✅" in content  # Check mark often indicates deployment success
+            )
+            
+            if has_deployment_indicator:
                 # Look for space URL pattern
                 match = re.search(r'huggingface\.co/spaces/([^/\s\)]+/[^/\s\)]+)', content)
                 if match:
                     existing_space = match.group(1)
+                    print(f"[Extract Space] Found existing space: {existing_space}")
                     break
         
         # Check user messages for imports

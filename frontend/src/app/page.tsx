@@ -362,12 +362,12 @@ export default function Home() {
             setCurrentRepoId(match[1]);
           }
           
-          // Update message with deployment success and URL
+          // Update message with deployment success - use backend message format for history tracking
           setMessages((prev) => {
             const newMessages = [...prev];
             newMessages[newMessages.length - 1] = {
               ...assistantMessage,
-              content: `✅ Code generated and deployed!\n\n🚀 **View your app:** [${spaceUrl}](${spaceUrl})`,
+              content: `✅ Code generated successfully!\n\n${message}`,
             };
             return newMessages;
           });
