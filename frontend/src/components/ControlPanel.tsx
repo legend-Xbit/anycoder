@@ -9,7 +9,6 @@ interface ControlPanelProps {
   selectedModel: string;
   onLanguageChange: (language: Language) => void;
   onModelChange: (modelId: string) => void;
-  onDeploy: () => void;
   onClear: () => void;
   onImport?: (code: string, language: Language, importUrl?: string) => void;
   isGenerating: boolean;
@@ -20,7 +19,6 @@ export default function ControlPanel({
   selectedModel,
   onLanguageChange,
   onModelChange,
-  onDeploy,
   onClear,
   onImport,
   isGenerating,
@@ -268,13 +266,6 @@ export default function ControlPanel({
           className="w-full px-3 py-2.5 bg-white text-black text-sm rounded-full hover:bg-[#f5f5f7] disabled:opacity-30 disabled:cursor-not-allowed transition-all font-medium flex items-center justify-center active:scale-95"
         >
           Import Project
-        </button>
-        <button
-          onClick={onDeploy}
-          disabled={isGenerating}
-          className="w-full px-3 py-2.5 bg-white text-black text-sm rounded-full hover:bg-[#f5f5f7] disabled:opacity-30 disabled:cursor-not-allowed transition-all font-medium flex items-center justify-center active:scale-95"
-        >
-          Publish
         </button>
         <button
           onClick={onClear}

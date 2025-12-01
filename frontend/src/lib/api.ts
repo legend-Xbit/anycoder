@@ -274,7 +274,10 @@ class ApiClient {
     request: CodeGenerationRequest,
     onChunk: (content: string) => void,
     onComplete: (code: string) => void,
-    onError: (error: string) => void
+    onError: (error: string) => void,
+    onDeploying?: (message: string) => void,
+    onDeployed?: (message: string, spaceUrl: string) => void,
+    onDeployError?: (message: string) => void
   ): () => void {
     // Build the URL correctly whether we have a base URL or not
     const baseUrl = API_URL || window.location.origin;
@@ -353,7 +356,22 @@ class ApiClient {
                     // Use the complete code from the message if available, otherwise use accumulated
                     const finalCode = data.code || accumulatedCode;
                     onComplete(finalCode);
-                    return; // Exit the processing loop
+                    // Don't return yet - might have deployment events coming
+                  } else if (data.type === 'deploying') {
+                    console.log('[Stream] Deployment started:', data.message);
+                    if (onDeploying) {
+                      onDeploying(data.message || 'Deploying...');
+                    }
+                  } else if (data.type === 'deployed') {
+                    console.log('[Stream] Deployment successful:', data.space_url);
+                    if (onDeployed) {
+                      onDeployed(data.message || 'Deployed!', data.space_url);
+                    }
+                  } else if (data.type === 'deploy_error') {
+                    console.log('[Stream] Deployment error:', data.message);
+                    if (onDeployError) {
+                      onDeployError(data.message || 'Deployment failed');
+                    }
                   } else if (data.type === 'error') {
                     console.error('[Stream] Error:', data.message);
                     onError(data.message || 'Unknown error occurred');

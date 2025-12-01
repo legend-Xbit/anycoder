@@ -820,6 +820,56 @@ async def generate_code(
                 })
                 yield f"data: {completion_data}\n\n"
                 
+                # Auto-deploy after code generation (if authenticated)
+                auth = get_auth_from_header(authorization)
+                if auth.is_authenticated() and not (auth.token and auth.token.startswith("dev_token_")):
+                    try:
+                        # Send deploying status
+                        deploying_data = json.dumps({
+                            "type": "deploying",
+                            "message": "🚀 Deploying your app to HuggingFace Spaces..."
+                        })
+                        yield f"data: {deploying_data}\n\n"
+                        
+                        # Import deployment function
+                        from backend_deploy import deploy_to_huggingface_space
+                        
+                        # Convert history to the format expected by deploy function
+                        history_list = [[msg.get('role', ''), msg.get('content', '')] for msg in (request.history or [])]
+                        
+                        # Deploy the code
+                        success, message, space_url = deploy_to_huggingface_space(
+                            code=generated_code,
+                            language=language,
+                            token=auth.token,
+                            username=auth.username,
+                            history=history_list
+                        )
+                        
+                        if success and space_url:
+                            # Send deployment success
+                            deploy_success_data = json.dumps({
+                                "type": "deployed",
+                                "message": message,
+                                "space_url": space_url
+                            })
+                            yield f"data: {deploy_success_data}\n\n"
+                        else:
+                            # Send deployment error (non-blocking - code generation still succeeded)
+                            deploy_error_data = json.dumps({
+                                "type": "deploy_error",
+                                "message": f"⚠️ Deployment failed: {message}"
+                            })
+                            yield f"data: {deploy_error_data}\n\n"
+                    except Exception as deploy_error:
+                        # Log deployment error but don't fail the generation
+                        print(f"[Auto-Deploy] Error: {deploy_error}")
+                        deploy_error_data = json.dumps({
+                            "type": "deploy_error",
+                            "message": f"⚠️ Deployment error: {str(deploy_error)}"
+                        })
+                        yield f"data: {deploy_error_data}\n\n"
+                
             except Exception as e:
                 # Handle rate limiting and other API errors
                 error_message = str(e)

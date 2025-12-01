@@ -338,6 +338,55 @@ export default function Home() {
             };
             return newMessages;
           });
+        },
+        // onDeploying
+        (message: string) => {
+          console.log('[Deploy] Deployment started:', message);
+          // Update message to show deployment in progress
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            newMessages[newMessages.length - 1] = {
+              ...assistantMessage,
+              content: `✅ Code generated successfully!\n\n${message}`,
+            };
+            return newMessages;
+          });
+        },
+        // onDeployed
+        (message: string, spaceUrl: string) => {
+          console.log('[Deploy] Deployment successful:', spaceUrl);
+          
+          // Extract repo_id from space URL
+          const match = spaceUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+          if (match) {
+            setCurrentRepoId(match[1]);
+          }
+          
+          // Update message with deployment success and URL
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            newMessages[newMessages.length - 1] = {
+              ...assistantMessage,
+              content: `✅ Code generated and deployed!\n\n🚀 **View your app:** [${spaceUrl}](${spaceUrl})`,
+            };
+            return newMessages;
+          });
+          
+          // Open the space URL in a new tab
+          window.open(spaceUrl, '_blank');
+        },
+        // onDeployError
+        (message: string) => {
+          console.log('[Deploy] Deployment error:', message);
+          // Update message to show deployment failed (but code generation succeeded)
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            newMessages[newMessages.length - 1] = {
+              ...assistantMessage,
+              content: `✅ Code generated successfully!\n\n${message}\n\nYou can still use the "Publish" button to deploy manually.`,
+            };
+            return newMessages;
+          });
         }
       );
     } catch (error) {
@@ -835,7 +884,6 @@ export default function Home() {
             selectedModel={selectedModel}
             onLanguageChange={setSelectedLanguage}
             onModelChange={setSelectedModel}
-            onDeploy={handleDeploy}
             onClear={handleClear}
             onImport={handleImport}
             isGenerating={isGenerating}
