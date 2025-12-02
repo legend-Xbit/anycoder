@@ -93,11 +93,11 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
+    {"name": "DeepSeek V3.2", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental - Default model for code generation via HuggingFace Router with Novita provider"},
+    {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation"},
     {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning"},
     {"name": "Grok 4.1 Fast", "id": "x-ai/grok-4.1-fast", "description": "Grok 4.1 Fast model via OpenRouter (20 req/min on free tier)"},
     {"name": "MiniMax M2", "id": "MiniMaxAI/MiniMax-M2", "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider"},
-    {"name": "DeepSeek V3.2-Exp", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental via HuggingFace"},
-    {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation"},
     {"name": "GPT-5.1", "id": "gpt-5.1", "description": "OpenAI GPT-5.1 model via Poe for advanced code generation and general tasks"},
     {"name": "GPT-5.1 Instant", "id": "gpt-5.1-instant", "description": "OpenAI GPT-5.1 Instant model via Poe for fast responses"},
     {"name": "GPT-5.1 Codex", "id": "gpt-5.1-codex", "description": "OpenAI GPT-5.1 Codex model via Poe optimized for code generation"},

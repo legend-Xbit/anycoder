@@ -28,7 +28,7 @@ export default function LandingPage({
   onImport,
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'claude-opus-4.5',
+  initialModel = 'deepseek-ai/DeepSeek-V3.2-Exp',
   onAuthChange
 }: LandingPageProps) {
   const [prompt, setPrompt] = useState('');

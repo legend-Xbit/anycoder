@@ -269,8 +269,8 @@ def get_real_model_id(model_id: str) -> str:
         # Kimi K2 Instruct needs Groq provider
         return "moonshotai/Kimi-K2-Instruct:groq"
     
-    elif model_id.startswith("deepseek-ai/DeepSeek-V3"):
-        # DeepSeek V3 models need Novita provider
+    elif model_id.startswith("deepseek-ai/DeepSeek-V3") or model_id.startswith("deepseek-ai/DeepSeek-R1"):
+        # DeepSeek V3 and R1 models need Novita provider
         return f"{model_id}:novita"
     
     elif model_id == "zai-org/GLM-4.5":

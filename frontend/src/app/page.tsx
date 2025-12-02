@@ -17,7 +17,7 @@ export default function Home() {
   
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('claude-opus-4.5');
+  const [selectedModel, setSelectedModel] = useState('deepseek-ai/DeepSeek-V3.2-Exp');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);  // Track imported/deployed space
