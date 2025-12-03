@@ -67,6 +67,7 @@ export default function LandingPage({
   const [redesignUrl, setRedesignUrl] = useState('');
   const [isRedesigning, setIsRedesigning] = useState(false);
   const [redesignError, setRedesignError] = useState('');
+  const [createPR, setCreatePR] = useState(false); // Default to normal redesign (not PR)
 
   // Debug effect for dropdown state
   useEffect(() => {
@@ -289,22 +290,68 @@ export default function LandingPage({
       const result = await apiClient.importProject(redesignUrl);
       
       if (result.status === 'success') {
-        // Import the code first, then trigger a redesign
-        if (onImport && result.code) {
-          onImport(result.code, result.language || 'html', redesignUrl);
-          // Automatically trigger a redesign prompt after import
-          setTimeout(() => {
-            const redesignPrompt = 'Make the app look better with minimal components needed and mobile friendly and modern design';
-            onStart(redesignPrompt, result.language || 'html', selectedModel);
-          }, 100);
-        } else {
-          // Fallback: trigger code generation with redesign context
-          const redesignMessage = `Redesign this app from ${redesignUrl}: make the app look better with minimal components needed and mobile friendly and modern design`;
-          onStart(redesignMessage, result.language || 'html', selectedModel);
-        }
+        // Extract repo_id from URL for PR creation
+        const spaceMatch = redesignUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+        const repoId = spaceMatch ? spaceMatch[1] : null;
         
-        setShowRedesignDialog(false);
-        setRedesignUrl('');
+        if (createPR && repoId && onImport && onStart) {
+          // Option 1: Create a PR on the imported space
+          // First, import and let AI redesign it
+          onImport(result.code, result.language || 'html', redesignUrl);
+          
+          // Send redesign prompt with code context
+          setTimeout(async () => {
+            const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
+
+Current code:
+\`\`\`${result.language || 'html'}
+${result.code}
+\`\`\`
+
+Please redesign this with:
+- Minimal, clean components
+- Mobile-first responsive design
+- Modern UI/UX best practices
+- Better visual hierarchy and spacing`;
+            
+            if (onStart) {
+              onStart(redesignPrompt, result.language || 'html', selectedModel);
+            }
+            
+            // Show info that PR will be created after code generation
+            console.log('[Redesign] Will create PR after code generation completes');
+          }, 100);
+          
+          setShowRedesignDialog(false);
+          setRedesignUrl('');
+          
+        } else if (onImport && onStart) {
+          // Option 2: Normal redesign flow (import and generate new code)
+          onImport(result.code, result.language || 'html', redesignUrl);
+          
+          setTimeout(() => {
+            const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
+
+Current code:
+\`\`\`${result.language || 'html'}
+${result.code}
+\`\`\`
+
+Please redesign this with:
+- Minimal, clean components
+- Mobile-first responsive design
+- Modern UI/UX best practices
+- Better visual hierarchy and spacing`;
+            if (onStart) {
+              onStart(redesignPrompt, result.language || 'html', selectedModel);
+            }
+          }, 100);
+          
+          setShowRedesignDialog(false);
+          setRedesignUrl('');
+        } else {
+          setRedesignError('Missing required callbacks. Please try again.');
+        }
       } else {
         setRedesignError(result.message || 'Failed to import project for redesign');
       }
@@ -634,12 +681,18 @@ export default function LandingPage({
                         setShowImportDialog(false);
                         setRedesignError('');
                       }}
-                      className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all flex items-center gap-1.5 font-medium"
+                      className="relative px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all flex items-center gap-1.5 font-medium overflow-visible"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                       <span>Redesign</span>
+                      {/* Enhanced NEW Badge with glow effect */}
+                      <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white text-[9px] font-extrabold rounded-full shadow-lg animate-pulse">
+                        <span className="relative z-10">NEW</span>
+                        {/* Glow effect */}
+                        <span className="absolute inset-0 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-full blur-sm opacity-75 animate-pulse"></span>
+                      </span>
                     </button>
                     
                     {/* Redesign Dialog */}
@@ -656,9 +709,24 @@ export default function LandingPage({
                             onChange={(e) => setRedesignUrl(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleRedesignProject()}
                             placeholder="https://huggingface.co/spaces/..."
-                            className="w-full px-3 py-2 rounded-lg text-xs bg-[#2d2d30] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 font-normal mb-2"
+                            className="w-full px-3 py-2 rounded-lg text-xs bg-[#2d2d30] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 font-normal mb-3"
                             disabled={isRedesigning}
                           />
+                          
+                          {/* PR Option */}
+                          <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={createPR}
+                              onChange={(e) => setCreatePR(e.target.checked)}
+                              disabled={isRedesigning}
+                              className="w-4 h-4 rounded bg-[#2d2d30] border-[#424245] text-white focus:ring-white focus:ring-offset-0"
+                            />
+                            <span className="text-xs text-[#f5f5f7]">
+                              Create Pull Request on original space
+                            </span>
+                          </label>
+                          
                           {redesignError && (
                             <p className="text-xs text-red-400 mb-2">{redesignError}</p>
                           )}
@@ -682,7 +750,9 @@ export default function LandingPage({
                             </button>
                           </div>
                           <p className="text-[10px] text-[#86868b] mt-3">
-                            Import and automatically redesign with modern, mobile-friendly design
+                            {createPR 
+                              ? 'Creates a Pull Request on the original space with your redesign'
+                              : 'Import and automatically redesign with modern, mobile-friendly design'}
                           </p>
                         </div>
                       </div>
@@ -773,3 +843,4 @@ export default function LandingPage({
     </div>
   );
 }
+

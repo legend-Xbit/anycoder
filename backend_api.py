@@ -240,6 +240,20 @@ class ImportResponse(BaseModel):
     metadata: Dict
 
 
+class PullRequestRequest(BaseModel):
+    repo_id: str  # username/space-name
+    code: str
+    language: str
+    pr_title: Optional[str] = None
+    pr_description: Optional[str] = None
+
+
+class PullRequestResponse(BaseModel):
+    success: bool
+    message: str
+    pr_url: Optional[str] = None
+
+
 # Mock authentication for development
 # In production, integrate with HuggingFace OAuth
 class MockAuth:
@@ -1256,6 +1270,93 @@ async def deploy(
         raise HTTPException(
             status_code=500, 
             detail=f"Deployment failed: {str(e)}"
+        )
+
+
+@app.post("/api/create-pr", response_model=PullRequestResponse)
+async def create_pull_request(
+    request: PullRequestRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """Create a Pull Request on an existing HuggingFace Space with redesigned code"""
+    print(f"[PR] ========== NEW PULL REQUEST ==========")
+    print(f"[PR] Repo ID: {request.repo_id}")
+    print(f"[PR] Language: {request.language}")
+    print(f"[PR] PR Title: {request.pr_title}")
+    
+    auth = get_auth_from_header(authorization)
+    
+    if not auth.is_authenticated():
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Check if this is dev mode
+    if auth.token and auth.token.startswith("dev_token_"):
+        return PullRequestResponse(
+            success=False,
+            message="Dev mode: PR creation not available in dev mode. Please use production authentication.",
+            pr_url=None
+        )
+    
+    # Production mode with real OAuth token
+    try:
+        from backend_deploy import create_pull_request_on_space
+        
+        user_token = auth.token if auth.token else os.getenv("HF_TOKEN")
+        
+        if not user_token:
+            raise HTTPException(status_code=401, detail="No HuggingFace token available. Please sign in first.")
+        
+        print(f"[PR] Creating PR with token (first 10 chars): {user_token[:10]}...")
+        
+        # Create the pull request
+        success, message, pr_url = create_pull_request_on_space(
+            repo_id=request.repo_id,
+            code=request.code,
+            language=request.language,
+            token=user_token,
+            pr_title=request.pr_title,
+            pr_description=request.pr_description
+        )
+        
+        print(f"[PR] Result:")
+        print(f"[PR] - Success: {success}")
+        print(f"[PR] - Message: {message}")
+        print(f"[PR] - PR URL: {pr_url}")
+        
+        if success:
+            return PullRequestResponse(
+                success=True,
+                message=message,
+                pr_url=pr_url
+            )
+        else:
+            # Provide user-friendly error messages
+            if "401" in message or "Unauthorized" in message:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Authentication failed. Please sign in again with HuggingFace."
+                )
+            elif "403" in message or "Forbidden" in message or "Permission" in message:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Permission denied. You may not have write access to this space."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=message
+                )
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"[PR] Error: {error_details}")
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create pull request: {str(e)}"
         )
 
 

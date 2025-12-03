@@ -491,6 +491,17 @@ class ApiClient {
     return response.data;
   }
 
+  async createPullRequest(repoId: string, code: string, language: string, prTitle?: string, prDescription?: string): Promise<any> {
+    const response = await this.client.post('/api/create-pr', {
+      repo_id: repoId,
+      code,
+      language,
+      pr_title: prTitle,
+      pr_description: prDescription
+    });
+    return response.data;
+  }
+
   logout() {
     this.token = null;
   }
