@@ -1165,18 +1165,21 @@ def duplicate_space_to_user(
         user_info = api.whoami()
         username = user_info.get("name") or user_info.get("preferred_username") or "user"
         
-        # Get original space info to detect hardware
+        # Get original space info to detect hardware and SDK
         print(f"[Duplicate] Fetching info for {from_space_id}")
         original_hardware = None
         original_storage = None
+        original_sdk = None
         try:
             original_space_info = api.space_info(from_space_id)
+            # Get SDK type
+            original_sdk = getattr(original_space_info, 'sdk', None)
             # Get runtime info
             runtime = getattr(original_space_info, 'runtime', None)
             if runtime:
                 original_hardware = getattr(runtime, 'hardware', None)
                 original_storage = getattr(runtime, 'storage', None)
-            print(f"[Duplicate] Original space hardware: {original_hardware}, storage: {original_storage}")
+            print(f"[Duplicate] Original space SDK: {original_sdk}, hardware: {original_hardware}, storage: {original_storage}")
         except Exception as e:
             print(f"[Duplicate] Could not fetch space info: {e}")
         
@@ -1203,14 +1206,20 @@ def duplicate_space_to_user(
             "exist_ok": True
         }
         
-        # Add hardware and storage if detected (required for GPU spaces)
-        if original_hardware:
-            duplicate_params["hardware"] = original_hardware
-            print(f"[Duplicate] Adding hardware: {original_hardware}")
-        
-        if original_storage and original_storage.get('requested'):
-            duplicate_params["storage"] = original_storage.get('requested')
-            print(f"[Duplicate] Adding storage: {original_storage.get('requested')}")
+        # Hardware is only needed for Gradio, Docker, and Streamlit spaces
+        # Static spaces don't have hardware
+        if original_sdk and original_sdk != "static":
+            # For non-static spaces, hardware is required
+            hardware_to_use = original_hardware if original_hardware else "cpu-basic"
+            duplicate_params["hardware"] = hardware_to_use
+            print(f"[Duplicate] Hardware: {hardware_to_use} (SDK: {original_sdk})")
+            
+            # Storage is optional
+            if original_storage and original_storage.get('requested'):
+                duplicate_params["storage"] = original_storage.get('requested')
+                print(f"[Duplicate] Storage: {original_storage.get('requested')}")
+        else:
+            print(f"[Duplicate] Static space - no hardware needed (SDK: {original_sdk})")
         
         # Only set private if explicitly requested
         if private:
