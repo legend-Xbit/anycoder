@@ -49,9 +49,11 @@ export default function LandingPage({
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showRedesignDialog, setShowRedesignDialog] = useState(false);
   const languageDropdownRef = useRef<HTMLDivElement>(null);
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const importDialogRef = useRef<HTMLDivElement>(null);
+  const redesignDialogRef = useRef<HTMLDivElement>(null);
   
   // Trending apps state
   const [trendingApps, setTrendingApps] = useState<any[]>([]);
@@ -60,6 +62,11 @@ export default function LandingPage({
   const [importUrl, setImportUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState('');
+  
+  // Redesign project state
+  const [redesignUrl, setRedesignUrl] = useState('');
+  const [isRedesigning, setIsRedesigning] = useState(false);
+  const [redesignError, setRedesignError] = useState('');
 
   // Debug effect for dropdown state
   useEffect(() => {
@@ -155,6 +162,9 @@ export default function LandingPage({
       }
       if (importDialogRef.current && !importDialogRef.current.contains(event.target as Node)) {
         setShowImportDialog(false);
+      }
+      if (redesignDialogRef.current && !redesignDialogRef.current.contains(event.target as Node)) {
+        setShowRedesignDialog(false);
       }
     };
 
@@ -258,6 +268,51 @@ export default function LandingPage({
       setImportError(error.response?.data?.message || error.message || 'Failed to import project');
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handleRedesignProject = async () => {
+    if (!redesignUrl.trim()) {
+      setRedesignError('Please enter a valid URL');
+      return;
+    }
+
+    if (!isAuthenticated) {
+      alert('Please sign in with HuggingFace first!');
+      return;
+    }
+
+    setIsRedesigning(true);
+    setRedesignError('');
+
+    try {
+      const result = await apiClient.importProject(redesignUrl);
+      
+      if (result.status === 'success') {
+        // Import the code first, then trigger a redesign
+        if (onImport && result.code) {
+          onImport(result.code, result.language || 'html', redesignUrl);
+          // Automatically trigger a redesign prompt after import
+          setTimeout(() => {
+            const redesignPrompt = 'Make the app look better with minimal components needed and mobile friendly and modern design';
+            onStart(redesignPrompt, result.language || 'html', selectedModel);
+          }, 100);
+        } else {
+          // Fallback: trigger code generation with redesign context
+          const redesignMessage = `Redesign this app from ${redesignUrl}: make the app look better with minimal components needed and mobile friendly and modern design`;
+          onStart(redesignMessage, result.language || 'html', selectedModel);
+        }
+        
+        setShowRedesignDialog(false);
+        setRedesignUrl('');
+      } else {
+        setRedesignError(result.message || 'Failed to import project for redesign');
+      }
+    } catch (error: any) {
+      console.error('Redesign error:', error);
+      setRedesignError(error.response?.data?.message || error.message || 'Failed to import project for redesign');
+    } finally {
+      setIsRedesigning(false);
     }
   };
 
@@ -509,6 +564,7 @@ export default function LandingPage({
                         setShowImportDialog(!showImportDialog);
                         setShowLanguageDropdown(false);
                         setShowModelDropdown(false);
+                        setShowRedesignDialog(false);
                         setImportError('');
                       }}
                       className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all flex items-center gap-1.5 font-medium"
@@ -560,6 +616,73 @@ export default function LandingPage({
                           </div>
                           <p className="text-[10px] text-[#86868b] mt-3">
                             Import from HuggingFace Spaces, Models, or GitHub
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Redesign Project Button */}
+                  <div className="relative" ref={redesignDialogRef}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowRedesignDialog(!showRedesignDialog);
+                        setShowLanguageDropdown(false);
+                        setShowModelDropdown(false);
+                        setShowImportDialog(false);
+                        setRedesignError('');
+                      }}
+                      className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all flex items-center gap-1.5 font-medium"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Redesign</span>
+                    </button>
+                    
+                    {/* Redesign Dialog */}
+                    {showRedesignDialog && (
+                      <div 
+                        className="absolute top-full left-0 mt-2 w-80 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-50"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="p-4">
+                          <h3 className="text-sm font-medium text-[#f5f5f7] mb-3">Redesign Project</h3>
+                          <input
+                            type="text"
+                            value={redesignUrl}
+                            onChange={(e) => setRedesignUrl(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleRedesignProject()}
+                            placeholder="https://huggingface.co/spaces/..."
+                            className="w-full px-3 py-2 rounded-lg text-xs bg-[#2d2d30] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 font-normal mb-2"
+                            disabled={isRedesigning}
+                          />
+                          {redesignError && (
+                            <p className="text-xs text-red-400 mb-2">{redesignError}</p>
+                          )}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleRedesignProject}
+                              disabled={isRedesigning || !redesignUrl.trim()}
+                              className="flex-1 px-3 py-2 bg-white text-black rounded-lg text-xs hover:bg-[#f5f5f7] disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                            >
+                              {isRedesigning ? 'Redesigning...' : 'Redesign'}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowRedesignDialog(false);
+                                setRedesignUrl('');
+                                setRedesignError('');
+                              }}
+                              className="px-3 py-2 bg-[#2d2d30] text-[#f5f5f7] rounded-lg text-xs hover:bg-[#3d3d3f] font-medium"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-[#86868b] mt-3">
+                            Import and automatically redesign with modern, mobile-friendly design
                           </p>
                         </div>
                       </div>
