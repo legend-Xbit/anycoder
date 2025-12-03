@@ -15,7 +15,7 @@ import type { Model, Language } from '@/types';
 import type { OAuthUserInfo } from '@/lib/auth';
 
 interface LandingPageProps {
-  onStart: (prompt: string, language: Language, modelId: string) => void;
+  onStart: (prompt: string, language: Language, modelId: string, repoId?: string) => void;
   onImport?: (code: string, language: Language, importUrl?: string) => void;
   isAuthenticated: boolean;
   initialLanguage?: Language;
@@ -334,9 +334,11 @@ export default function LandingPage({
       
       // Import code and trigger AI redesign (don't duplicate yet)
       if (onImport && onStart) {
+        // First import the code (this will set currentRepoId in the parent)
         onImport(result.code, result.language || 'html', redesignUrl);
         
         // Send redesign prompt with code context
+        // Pass the repoId directly to avoid React state timing issues
         setTimeout(async () => {
           const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
 
@@ -354,7 +356,11 @@ Please redesign this with:
 ${createPR ? '\n\nNote: After generating the redesign, I will create a Pull Request on the original space.' : '\n\nNote: After generating the redesign, I can deploy to a new space or duplicate the original space.'}`;
           
           if (onStart) {
-            onStart(redesignPrompt, result.language || 'html', selectedModel);
+            // Extract repo ID from URL to pass directly (avoids state timing issues)
+            const spaceMatch = redesignUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+            const extractedRepoId = spaceMatch ? spaceMatch[1] : undefined;
+            console.log('[Redesign] Passing repoId to onStart:', extractedRepoId);
+            onStart(redesignPrompt, result.language || 'html', selectedModel, extractedRepoId);
           }
           
           if (createPR) {

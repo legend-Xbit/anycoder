@@ -232,7 +232,7 @@ export default function Home() {
     }
   };
 
-  const handleSendMessage = async (message: string, overrideLanguage?: Language, overrideModel?: string) => {
+  const handleSendMessage = async (message: string, overrideLanguage?: Language, overrideModel?: string, overrideRepoId?: string) => {
     if (!isAuthenticated) {
       alert('Please sign in with HuggingFace first! Click the "Sign in with Hugging Face" button in the header.');
       return;
@@ -278,6 +278,15 @@ export default function Home() {
     setGeneratedCode('');
 
     // Prepare request with enhanced query that includes current code
+    // Use overrideRepoId if provided (from import/duplicate), otherwise use currentRepoId from state
+    const effectiveRepoId = overrideRepoId || currentRepoId || undefined;
+    
+    console.log('[SendMessage] ========== GENERATION REQUEST ==========');
+    console.log('[SendMessage] overrideRepoId:', overrideRepoId);
+    console.log('[SendMessage] currentRepoId:', currentRepoId);
+    console.log('[SendMessage] effectiveRepoId (will use):', effectiveRepoId);
+    console.log('[SendMessage] ==========================================');
+    
     const request: CodeGenerationRequest = {
       query: enhancedMessage,
       language: language,
@@ -285,7 +294,7 @@ export default function Home() {
       provider: 'auto',
       history: messages.map((m) => [m.role, m.content]),
       agent_mode: false,
-      existing_repo_id: currentRepoId || undefined,  // Pass duplicated/imported space ID for auto-deploy
+      existing_repo_id: effectiveRepoId,  // Pass duplicated/imported space ID for auto-deploy
     };
 
     const assistantMessage: Message = {
@@ -655,8 +664,10 @@ export default function Home() {
         
         // Only set as current repo if user owns it
         if (username && importedRepoId.startsWith(`${username}/`)) {
+          console.log('[Import] ✅✅✅ BEFORE setCurrentRepoId - currentRepoId was:', currentRepoId);
           setCurrentRepoId(importedRepoId);
-          console.log('[Import] ✅✅✅ SETTING currentRepoId to:', importedRepoId);
+          console.log('[Import] ✅✅✅ CALLED setCurrentRepoId with:', importedRepoId);
+          console.log('[Import] ✅✅✅ Note: State update is async, currentRepoId will update later');
         } else {
           // User doesn't own the imported space, clear current repo
           setCurrentRepoId(null);
@@ -697,11 +708,12 @@ export default function Home() {
   };
 
   // Handle landing page prompt submission
-  const handleLandingPageStart = async (prompt: string, language: Language, modelId: string) => {
+  const handleLandingPageStart = async (prompt: string, language: Language, modelId: string, repoId?: string) => {
     // Hide landing page immediately for smooth transition
     setShowLandingPage(false);
     // Send the message with the selected language and model
-    await handleSendMessage(prompt, language, modelId);
+    // Pass repoId if provided (for imported/duplicated spaces)
+    await handleSendMessage(prompt, language, modelId, repoId);
   };
 
   // Resize handlers for chat sidebar (desktop only)
