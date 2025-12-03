@@ -15,7 +15,7 @@ import type { Model, Language } from '@/types';
 import type { OAuthUserInfo } from '@/lib/auth';
 
 interface LandingPageProps {
-  onStart: (prompt: string, language: Language, modelId: string, repoId?: string) => void;
+  onStart: (prompt: string, language: Language, modelId: string, repoId?: string, shouldCreatePR?: boolean) => void;
   onImport?: (code: string, language: Language, importUrl?: string) => void;
   isAuthenticated: boolean;
   initialLanguage?: Language;
@@ -436,7 +436,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
             if (onStart) {
               console.log('[Redesign] Will create PR - not passing repo ID');
               console.log('[Redesign] Using Claude-Sonnet-4.5 for redesign');
-              onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', undefined);
+              onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', repoId, true); // Pass true for shouldCreatePR
             }
             
             console.log('[Redesign] Will create PR after code generation completes');

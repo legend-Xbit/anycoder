@@ -22,6 +22,7 @@ export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);  // Track imported/deployed space
   const [username, setUsername] = useState<string | null>(null);  // Track current user
+  const [pendingPR, setPendingPR] = useState<{ repoId: string; language: Language } | null>(null);  // Track pending PR after redesign
   
   // Landing page state - show landing page if no messages exist
   const [showLandingPage, setShowLandingPage] = useState(true);
@@ -341,6 +342,13 @@ export default function Home() {
             };
             return newMessages;
           });
+          
+          // Check if we need to create a PR (redesign with PR option)
+          if (pendingPR) {
+            console.log('[PR] Creating pull request for:', pendingPR.repoId);
+            createPullRequestAfterGeneration(pendingPR.repoId, code, pendingPR.language);
+            setPendingPR(null); // Clear pending PR
+          }
         },
         // onError
         (error: string) => {
@@ -411,6 +419,61 @@ export default function Home() {
         newMessages[newMessages.length - 1] = {
           ...assistantMessage,
           content: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        };
+        return newMessages;
+      });
+    }
+  };
+
+  const createPullRequestAfterGeneration = async (repoId: string, code: string, language: Language) => {
+    try {
+      console.log('[PR] Creating PR on:', repoId);
+      
+      // Update message to show PR creation in progress
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          ...newMessages[newMessages.length - 1],
+          content: '✅ Code generated successfully!\n\n🔄 Creating Pull Request...',
+        };
+        return newMessages;
+      });
+      
+      const prResult = await apiClient.createPullRequest(
+        repoId,
+        code,
+        language,
+        '🎨 Redesign from AnyCoder',
+        undefined
+      );
+      
+      if (prResult.success && prResult.pr_url) {
+        console.log('[PR] Pull Request created:', prResult.pr_url);
+        
+        // Update message with PR link
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1] = {
+            ...newMessages[newMessages.length - 1],
+            content: `✅ Code generated successfully!\n\n✅ Pull Request created! [View PR](${prResult.pr_url})`,
+          };
+          return newMessages;
+        });
+        
+        // Open PR in new tab
+        window.open(prResult.pr_url, '_blank');
+      } else {
+        throw new Error(prResult.message || 'Failed to create Pull Request');
+      }
+    } catch (error: any) {
+      console.error('[PR] Failed to create Pull Request:', error);
+      
+      // Update message with error
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          ...newMessages[newMessages.length - 1],
+          content: `✅ Code generated successfully!\n\n❌ Failed to create Pull Request: ${error.message || 'Unknown error'}`,
         };
         return newMessages;
       });
@@ -713,12 +776,19 @@ export default function Home() {
   };
 
   // Handle landing page prompt submission
-  const handleLandingPageStart = async (prompt: string, language: Language, modelId: string, repoId?: string) => {
+  const handleLandingPageStart = async (prompt: string, language: Language, modelId: string, repoId?: string, shouldCreatePR?: boolean) => {
     // Hide landing page immediately for smooth transition
     setShowLandingPage(false);
+    
+    // If shouldCreatePR is true, set pending PR state
+    if (shouldCreatePR && repoId) {
+      console.log('[PR] Setting pending PR for:', repoId);
+      setPendingPR({ repoId, language });
+    }
+    
     // Send the message with the selected language and model
-    // Pass repoId if provided (for imported/duplicated spaces)
-    await handleSendMessage(prompt, language, modelId, repoId);
+    // Don't pass repoId to handleSendMessage when creating PR (we want to generate code first, then create PR)
+    await handleSendMessage(prompt, language, modelId, shouldCreatePR ? undefined : repoId);
   };
 
   // Resize handlers for chat sidebar (desktop only)
