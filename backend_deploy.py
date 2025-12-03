@@ -538,7 +538,53 @@ def deploy_to_huggingface_space(
         print(f"[Deploy] history provided: {history is not None} (length: {len(history) if history else 0})")
         print(f"[Deploy] username: {username}")
         print(f"[Deploy] is_update: {is_update}")
+        print(f"[Deploy] language: {language}")
         print(f"[Deploy] ============================================")
+        
+        # For Gradio space updates (import/redesign), only update .py files
+        if is_update and language == "gradio":
+            print(f"[Deploy] Gradio space update - will only update .py files")
+            
+            # Parse the code to get all files
+            files = parse_multi_file_python_output(code)
+            
+            # Fallback if no files parsed
+            if not files:
+                print(f"[Deploy] No file markers found, using entire code as app.py")
+                cleaned_code = remove_code_block(code)
+                files['app.py'] = cleaned_code
+            
+            # Filter to only .py files
+            py_files = {fname: content for fname, content in files.items() if fname.endswith('.py')}
+            
+            if not py_files:
+                return False, "Error: No Python files found in generated code", None
+            
+            print(f"[Deploy] Updating {len(py_files)} Python file(s): {list(py_files.keys())}")
+            
+            # Update each Python file individually
+            updated_files = []
+            for file_path, content in py_files.items():
+                print(f"[Deploy] Updating {file_path} ({len(content)} chars)")
+                success, msg = update_space_file(
+                    repo_id=existing_repo_id,
+                    file_path=file_path,
+                    content=content,
+                    token=token,
+                    commit_message=commit_message or f"Update {file_path} from anycoder"
+                )
+                
+                if success:
+                    updated_files.append(file_path)
+                else:
+                    print(f"[Deploy] Warning: Failed to update {file_path}: {msg}")
+            
+            if updated_files:
+                space_url = f"https://huggingface.co/spaces/{existing_repo_id}"
+                files_list = ", ".join(updated_files)
+                return True, f"✅ Updated {len(updated_files)} file(s): {files_list}! View at: {space_url}", space_url
+            else:
+                return False, "Failed to update any Python files", None
         
         if is_update:
             # Use existing repo

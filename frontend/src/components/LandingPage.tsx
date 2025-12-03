@@ -371,6 +371,7 @@ export default function LandingPage({
             console.log('[Redesign] Duplicated space ID:', duplicatedRepoId);
             
             setTimeout(() => {
+              const isGradio = (result.language || 'html') === 'gradio';
               const redesignPrompt = `I have existing code in the editor from a duplicated space. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
 
 Current code:
@@ -382,7 +383,9 @@ Please redesign this with:
 - Minimal, clean components
 - Mobile-first responsive design
 - Modern UI/UX best practices
-- Better visual hierarchy and spacing`;
+- Better visual hierarchy and spacing
+
+${isGradio ? '\n\nIMPORTANT: Only output Python (.py) files. Do NOT include requirements.txt or any other non-Python files. The existing dependencies and configuration files will be preserved.' : ''}`;
               
               if (onStart) {
                 // Pass duplicated space ID so auto-deploy updates it
@@ -411,6 +414,7 @@ Please redesign this with:
           onImport(result.code, result.language || 'html', redesignUrl);
           
           setTimeout(() => {
+            const isGradio = (result.language || 'html') === 'gradio';
             const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
 
 Current code:
@@ -423,6 +427,8 @@ Please redesign this with:
 - Mobile-first responsive design
 - Modern UI/UX best practices
 - Better visual hierarchy and spacing
+
+${isGradio ? '\n\nIMPORTANT: Only output Python (.py) files. Do NOT include requirements.txt or any other non-Python files. The existing dependencies and configuration files will be preserved.' : ''}
 
 Note: After generating the redesign, I will create a Pull Request on the original space.`;
             
