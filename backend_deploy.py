@@ -1167,13 +1167,18 @@ def duplicate_space_to_user(
         
         # Get original space info to detect hardware
         print(f"[Duplicate] Fetching info for {from_space_id}")
+        original_hardware = None
+        original_storage = None
         try:
             original_space_info = api.space_info(from_space_id)
-            original_hardware = getattr(original_space_info, 'hardware', None)
-            print(f"[Duplicate] Original space hardware: {original_hardware}")
+            # Get runtime info
+            runtime = getattr(original_space_info, 'runtime', None)
+            if runtime:
+                original_hardware = getattr(runtime, 'hardware', None)
+                original_storage = getattr(runtime, 'storage', None)
+            print(f"[Duplicate] Original space hardware: {original_hardware}, storage: {original_storage}")
         except Exception as e:
             print(f"[Duplicate] Could not fetch space info: {e}")
-            original_hardware = None
         
         # If no destination name provided, use original name
         if not to_space_name:
@@ -1199,13 +1204,17 @@ def duplicate_space_to_user(
             "exist_ok": True
         }
         
-        # Add hardware if the original space has it
-        if original_hardware and original_hardware != 'cpu-basic':
-            # Use the same hardware as original, or fallback to cpu-basic
+        # Always use the same hardware as the original space if it has one
+        if original_hardware:
             duplicate_params["hardware"] = original_hardware
-            print(f"[Duplicate] Using hardware: {original_hardware}")
+            print(f"[Duplicate] Using same hardware as original: {original_hardware}")
+        
+        if original_storage:
+            duplicate_params["storage"] = original_storage
+            print(f"[Duplicate] Using same storage as original: {original_storage}")
         
         # Duplicate the space
+        print(f"[Duplicate] Duplicating with params: {list(duplicate_params.keys())}")
         duplicated_repo = duplicate_space(**duplicate_params)
         
         # Extract space URL
