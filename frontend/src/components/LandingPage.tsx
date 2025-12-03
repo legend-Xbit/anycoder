@@ -390,7 +390,8 @@ ${isGradio ? '\n\nIMPORTANT: Only output Python (.py) files. Do NOT include requ
               if (onStart) {
                 // Pass duplicated space ID so auto-deploy updates it
                 console.log('[Redesign] Calling onStart with duplicated repo ID:', duplicatedRepoId);
-                onStart(redesignPrompt, result.language || 'html', selectedModel, duplicatedRepoId);
+                console.log('[Redesign] Using Claude-Sonnet-4.5 for redesign');
+                onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', duplicatedRepoId);
               }
             }, 100);
             
@@ -434,7 +435,8 @@ Note: After generating the redesign, I will create a Pull Request on the origina
             
             if (onStart) {
               console.log('[Redesign] Will create PR - not passing repo ID');
-              onStart(redesignPrompt, result.language || 'html', selectedModel, undefined);
+              console.log('[Redesign] Using Claude-Sonnet-4.5 for redesign');
+              onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', undefined);
             }
             
             console.log('[Redesign] Will create PR after code generation completes');
