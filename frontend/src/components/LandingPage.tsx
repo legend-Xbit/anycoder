@@ -356,11 +356,11 @@ Please redesign this with:
 ${createPR ? '\n\nNote: After generating the redesign, I will create a Pull Request on the original space.' : '\n\nNote: After generating the redesign, I can deploy to a new space or duplicate the original space.'}`;
           
           if (onStart) {
-            // Extract repo ID from URL to pass directly (avoids state timing issues)
-            const spaceMatch = redesignUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
-            const extractedRepoId = spaceMatch ? spaceMatch[1] : undefined;
-            console.log('[Redesign] Passing repoId to onStart:', extractedRepoId);
-            onStart(redesignPrompt, result.language || 'html', selectedModel, extractedRepoId);
+            // For redesign WITHOUT PR: Don't pass repo ID (will create new space)
+            // For redesign WITH PR: We'll handle PR creation separately
+            console.log('[Redesign] createPR:', createPR);
+            console.log('[Redesign] Will pass repoId: undefined (let auto-deploy create new space)');
+            onStart(redesignPrompt, result.language || 'html', selectedModel, undefined);
           }
           
           if (createPR) {
