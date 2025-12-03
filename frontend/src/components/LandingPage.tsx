@@ -246,20 +246,32 @@ export default function LandingPage({
     setImportError('');
 
     try {
+      console.log('[Import] ========== STARTING IMPORT ==========');
+      console.log('[Import] Import URL:', importUrl);
+      
       // Extract space ID from URL for duplication
       const spaceMatch = importUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+      console.log('[Import] Space regex match result:', spaceMatch);
       
       if (spaceMatch) {
         // This is a HuggingFace Space - duplicate it
         const fromSpaceId = spaceMatch[1];
-        console.log('[Import] Duplicating space:', fromSpaceId);
+        console.log('[Import] ✅ Detected HF Space - will duplicate:', fromSpaceId);
+        console.log('[Import] Calling apiClient.duplicateSpace...');
         
         const duplicateResult = await apiClient.duplicateSpace(fromSpaceId);
+        console.log('[Import] Duplicate API response:', duplicateResult);
         
         if (duplicateResult.success) {
+          console.log('[Import] ========== DUPLICATE SUCCESS ==========');
+          console.log('[Import] Duplicated space URL:', duplicateResult.space_url);
+          console.log('[Import] Duplicated space ID:', duplicateResult.space_id);
+          console.log('[Import] ==========================================');
+          
           // Also load the code in the editor
           const importResult = await apiClient.importProject(importUrl);
           if (importResult.status === 'success' && onImport && importResult.code) {
+            console.log('[Import] Calling onImport with duplicated space URL:', duplicateResult.space_url);
             // Pass the duplicated space URL so it's tracked for future deployments
             onImport(importResult.code, importResult.language || 'html', duplicateResult.space_url);
             
@@ -274,6 +286,7 @@ export default function LandingPage({
         }
       } else {
         // Not a Space URL - fall back to regular import
+        console.log('[Import] ❌ Not a HF Space URL - using regular import');
         const result = await apiClient.importProject(importUrl);
         
         if (result.status === 'success') {
@@ -332,15 +345,73 @@ export default function LandingPage({
         return;
       }
       
-      // Import code and trigger AI redesign (don't duplicate yet)
-      if (onImport && onStart) {
-        // First import the code (this will set currentRepoId in the parent)
-        onImport(result.code, result.language || 'html', redesignUrl);
+      if (!createPR) {
+        // Option 1: Redesign WITHOUT PR - Duplicate space first, then generate redesign
+        console.log('[Redesign] Duplicating space first:', repoId);
         
-        // Send redesign prompt with code context
-        // Pass the repoId directly to avoid React state timing issues
-        setTimeout(async () => {
-          const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
+        try {
+          const duplicateResult = await apiClient.duplicateSpace(repoId);
+          console.log('[Redesign] Duplicate result:', duplicateResult);
+          
+          if (!duplicateResult.success) {
+            setRedesignError(duplicateResult.message || 'Failed to duplicate space');
+            setIsRedesigning(false);
+            return;
+          }
+          
+          // Load code and trigger redesign
+          if (onImport && onStart) {
+            // Pass duplicated space URL
+            onImport(result.code, result.language || 'html', duplicateResult.space_url);
+            
+            // Extract duplicated space ID to pass to generation
+            const dupSpaceMatch = duplicateResult.space_url?.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+            const duplicatedRepoId = dupSpaceMatch ? dupSpaceMatch[1] : undefined;
+            
+            console.log('[Redesign] Duplicated space ID:', duplicatedRepoId);
+            
+            setTimeout(() => {
+              const redesignPrompt = `I have existing code in the editor from a duplicated space. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
+
+Current code:
+\`\`\`${result.language || 'html'}
+${result.code}
+\`\`\`
+
+Please redesign this with:
+- Minimal, clean components
+- Mobile-first responsive design
+- Modern UI/UX best practices
+- Better visual hierarchy and spacing`;
+              
+              if (onStart) {
+                // Pass duplicated space ID so auto-deploy updates it
+                console.log('[Redesign] Calling onStart with duplicated repo ID:', duplicatedRepoId);
+                onStart(redesignPrompt, result.language || 'html', selectedModel, duplicatedRepoId);
+              }
+            }, 100);
+            
+            // Show success message
+            alert(`✅ Space duplicated!\n\nYour space: ${duplicateResult.space_url}\n\nGenerating redesign now...`);
+          }
+          
+          setShowRedesignDialog(false);
+          setRedesignUrl('');
+          
+        } catch (dupError: any) {
+          console.error('[Redesign] Duplication error:', dupError);
+          setRedesignError(dupError.response?.data?.message || dupError.message || 'Failed to duplicate space');
+          setIsRedesigning(false);
+          return;
+        }
+        
+      } else {
+        // Option 2: Redesign WITH PR - Import code and generate, then create PR
+        if (onImport && onStart) {
+          onImport(result.code, result.language || 'html', redesignUrl);
+          
+          setTimeout(() => {
+            const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
 
 Current code:
 \`\`\`${result.language || 'html'}
@@ -353,27 +424,21 @@ Please redesign this with:
 - Modern UI/UX best practices
 - Better visual hierarchy and spacing
 
-${createPR ? '\n\nNote: After generating the redesign, I will create a Pull Request on the original space.' : '\n\nNote: After generating the redesign, I can deploy to a new space or duplicate the original space.'}`;
-          
-          if (onStart) {
-            // For redesign WITHOUT PR: Don't pass repo ID (will create new space)
-            // For redesign WITH PR: We'll handle PR creation separately
-            console.log('[Redesign] createPR:', createPR);
-            console.log('[Redesign] Will pass repoId: undefined (let auto-deploy create new space)');
-            onStart(redesignPrompt, result.language || 'html', selectedModel, undefined);
-          }
-          
-          if (createPR) {
+Note: After generating the redesign, I will create a Pull Request on the original space.`;
+            
+            if (onStart) {
+              console.log('[Redesign] Will create PR - not passing repo ID');
+              onStart(redesignPrompt, result.language || 'html', selectedModel, undefined);
+            }
+            
             console.log('[Redesign] Will create PR after code generation completes');
-          } else {
-            console.log('[Redesign] Code will be generated. User can deploy/duplicate after.');
-          }
-        }, 100);
-        
-        setShowRedesignDialog(false);
-        setRedesignUrl('');
-      } else {
-        setRedesignError('Missing required callbacks. Please try again.');
+          }, 100);
+          
+          setShowRedesignDialog(false);
+          setRedesignUrl('');
+        } else {
+          setRedesignError('Missing required callbacks. Please try again.');
+        }
       }
     } catch (error: any) {
       console.error('Redesign error:', error);

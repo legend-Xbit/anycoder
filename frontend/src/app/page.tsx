@@ -36,6 +36,11 @@ export default function Home() {
   const [isResizingSettings, setIsResizingSettings] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
 
+  // Debug: Log currentRepoId changes
+  useEffect(() => {
+    console.log('[App] 🔵 currentRepoId changed to:', currentRepoId);
+  }, [currentRepoId]);
+
   // Clear cache on app startup to ensure fresh data
   useEffect(() => {
     if (typeof window !== 'undefined') {
