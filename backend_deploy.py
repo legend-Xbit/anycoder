@@ -541,9 +541,9 @@ def deploy_to_huggingface_space(
         print(f"[Deploy] language: {language}")
         print(f"[Deploy] ============================================")
         
-        # For Gradio space updates (import/redesign), only update .py files
+        # For Gradio space updates (import/redesign), update .py files and upload all new files
         if is_update and language == "gradio":
-            print(f"[Deploy] Gradio space update - will only update .py files")
+            print(f"[Deploy] Gradio space update - updating .py files and uploading any new files")
             
             # Parse the code to get all files
             files = parse_multi_file_python_output(code)
@@ -554,18 +554,18 @@ def deploy_to_huggingface_space(
                 cleaned_code = remove_code_block(code)
                 files['app.py'] = cleaned_code
             
-            # Filter to only .py files
-            py_files = {fname: content for fname, content in files.items() if fname.endswith('.py')}
+            if not files:
+                return False, "Error: No files found in generated code", None
             
-            if not py_files:
-                return False, "Error: No Python files found in generated code", None
+            print(f"[Deploy] Generated {len(files)} file(s): {list(files.keys())}")
             
-            print(f"[Deploy] Updating {len(py_files)} Python file(s): {list(py_files.keys())}")
-            
-            # Update each Python file individually
+            # Upload all generated files (the LLM is instructed to only output .py files,
+            # but if it creates new assets/data files, we should upload those too)
+            # This approach updates .py files and adds any new files without touching
+            # existing non-.py files that weren't generated
             updated_files = []
-            for file_path, content in py_files.items():
-                print(f"[Deploy] Updating {file_path} ({len(content)} chars)")
+            for file_path, content in files.items():
+                print(f"[Deploy] Uploading {file_path} ({len(content)} chars)")
                 success, msg = update_space_file(
                     repo_id=existing_repo_id,
                     file_path=file_path,
@@ -584,7 +584,7 @@ def deploy_to_huggingface_space(
                 files_list = ", ".join(updated_files)
                 return True, f"✅ Updated {len(updated_files)} file(s): {files_list}! View at: {space_url}", space_url
             else:
-                return False, "Failed to update any Python files", None
+                return False, "Failed to update any files", None
         
         if is_update:
             # Use existing repo
