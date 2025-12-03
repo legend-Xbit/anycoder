@@ -331,15 +331,13 @@ export default function LandingPage({
         return;
       }
       
-      if (createPR) {
-        // Option 1: Create a PR on the original space
-        // Import code and let AI redesign it
-        if (onImport && onStart) {
-          onImport(result.code, result.language || 'html', redesignUrl);
-          
-          // Send redesign prompt with code context
-          setTimeout(async () => {
-            const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
+      // Import code and trigger AI redesign (don't duplicate yet)
+      if (onImport && onStart) {
+        onImport(result.code, result.language || 'html', redesignUrl);
+        
+        // Send redesign prompt with code context
+        setTimeout(async () => {
+          const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
 
 Current code:
 \`\`\`${result.language || 'html'}
@@ -350,59 +348,25 @@ Please redesign this with:
 - Minimal, clean components
 - Mobile-first responsive design
 - Modern UI/UX best practices
-- Better visual hierarchy and spacing`;
-            
-            if (onStart) {
-              onStart(redesignPrompt, result.language || 'html', selectedModel);
-            }
-            
-            console.log('[Redesign] Will create PR after code generation completes');
-          }, 100);
-          
-          setShowRedesignDialog(false);
-          setRedesignUrl('');
-        } else {
-          setRedesignError('Missing required callbacks. Please try again.');
-        }
-      } else {
-        // Option 2: Duplicate the space and then apply redesign
-        console.log('[Redesign] Duplicating space for redesign:', repoId);
-        
-        const duplicateResult = await apiClient.duplicateSpace(repoId);
-        
-        if (duplicateResult.success) {
-          // Show success message
-          alert(`✅ Space duplicated successfully!\n\nYour space: ${duplicateResult.space_url}\n\nNow generating redesign...`);
-          
-          // Load the code and trigger redesign
-          if (onImport && onStart) {
-            onImport(result.code, result.language || 'html', duplicateResult.space_url);
-            
-            setTimeout(() => {
-              const redesignPrompt = `I have existing code in the editor that I duplicated from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
+- Better visual hierarchy and spacing
 
-Current code:
-\`\`\`${result.language || 'html'}
-${result.code}
-\`\`\`
-
-Please redesign this with:
-- Minimal, clean components
-- Mobile-first responsive design
-- Modern UI/UX best practices
-- Better visual hierarchy and spacing`;
-              
-              if (onStart) {
-                onStart(redesignPrompt, result.language || 'html', selectedModel);
-              }
-            }, 100);
+${createPR ? '\n\nNote: After generating the redesign, I will create a Pull Request on the original space.' : '\n\nNote: After generating the redesign, I can deploy to a new space or duplicate the original space.'}`;
+          
+          if (onStart) {
+            onStart(redesignPrompt, result.language || 'html', selectedModel);
           }
           
-          setShowRedesignDialog(false);
-          setRedesignUrl('');
-        } else {
-          setRedesignError(duplicateResult.message || 'Failed to duplicate space');
-        }
+          if (createPR) {
+            console.log('[Redesign] Will create PR after code generation completes');
+          } else {
+            console.log('[Redesign] Code will be generated. User can deploy/duplicate after.');
+          }
+        }, 100);
+        
+        setShowRedesignDialog(false);
+        setRedesignUrl('');
+      } else {
+        setRedesignError('Missing required callbacks. Please try again.');
       }
     } catch (error: any) {
       console.error('Redesign error:', error);

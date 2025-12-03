@@ -1165,6 +1165,16 @@ def duplicate_space_to_user(
         user_info = api.whoami()
         username = user_info.get("name") or user_info.get("preferred_username") or "user"
         
+        # Get original space info to detect hardware
+        print(f"[Duplicate] Fetching info for {from_space_id}")
+        try:
+            original_space_info = api.space_info(from_space_id)
+            original_hardware = getattr(original_space_info, 'hardware', None)
+            print(f"[Duplicate] Original space hardware: {original_hardware}")
+        except Exception as e:
+            print(f"[Duplicate] Could not fetch space info: {e}")
+            original_hardware = None
+        
         # If no destination name provided, use original name
         if not to_space_name:
             # Extract original space name
@@ -1180,14 +1190,23 @@ def duplicate_space_to_user(
         
         print(f"[Duplicate] Duplicating {from_space_id} to {to_space_id}")
         
+        # Prepare duplicate_space parameters
+        duplicate_params = {
+            "from_id": from_space_id,
+            "to_id": to_space_name,  # Just the name, not full ID
+            "token": token,
+            "private": private,
+            "exist_ok": True
+        }
+        
+        # Add hardware if the original space has it
+        if original_hardware and original_hardware != 'cpu-basic':
+            # Use the same hardware as original, or fallback to cpu-basic
+            duplicate_params["hardware"] = original_hardware
+            print(f"[Duplicate] Using hardware: {original_hardware}")
+        
         # Duplicate the space
-        duplicated_repo = duplicate_space(
-            from_id=from_space_id,
-            to_id=to_space_name,  # Just the name, not full ID
-            token=token,
-            private=private,
-            exist_ok=True
-        )
+        duplicated_repo = duplicate_space(**duplicate_params)
         
         # Extract space URL
         space_url = f"https://huggingface.co/spaces/{to_space_id}"
