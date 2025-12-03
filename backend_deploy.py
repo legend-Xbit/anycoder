@@ -1134,6 +1134,76 @@ def list_user_spaces(
         return False, f"Failed to list spaces: {str(e)}", None
 
 
+def duplicate_space_to_user(
+    from_space_id: str,
+    to_space_name: Optional[str] = None,
+    token: Optional[str] = None,
+    private: bool = False
+) -> Tuple[bool, str, Optional[str]]:
+    """
+    Duplicate a HuggingFace Space to the user's account
+    
+    Args:
+        from_space_id: Source space ID (username/space-name)
+        to_space_name: Destination space name (just the name, not full ID)
+        token: HuggingFace API token
+        private: Whether the duplicated space should be private
+    
+    Returns:
+        Tuple of (success: bool, message: str, space_url: Optional[str])
+    """
+    if not token:
+        token = os.getenv("HF_TOKEN")
+        if not token:
+            return False, "No HuggingFace token provided", None
+    
+    try:
+        from huggingface_hub import duplicate_space
+        
+        # Get username from token
+        api = HfApi(token=token)
+        user_info = api.whoami()
+        username = user_info.get("name") or user_info.get("preferred_username") or "user"
+        
+        # If no destination name provided, use original name
+        if not to_space_name:
+            # Extract original space name
+            original_name = from_space_id.split('/')[-1]
+            to_space_name = original_name
+        
+        # Clean space name
+        to_space_name = re.sub(r'[^a-z0-9-]', '-', to_space_name.lower())
+        to_space_name = re.sub(r'-+', '-', to_space_name).strip('-')
+        
+        # Construct full destination ID
+        to_space_id = f"{username}/{to_space_name}"
+        
+        print(f"[Duplicate] Duplicating {from_space_id} to {to_space_id}")
+        
+        # Duplicate the space
+        duplicated_repo = duplicate_space(
+            from_id=from_space_id,
+            to_id=to_space_name,  # Just the name, not full ID
+            token=token,
+            private=private,
+            exist_ok=True
+        )
+        
+        # Extract space URL
+        space_url = f"https://huggingface.co/spaces/{to_space_id}"
+        
+        success_msg = f"✅ Space duplicated! View at: {space_url}"
+        print(f"[Duplicate] {success_msg}")
+        
+        return True, success_msg, space_url
+        
+    except Exception as e:
+        print(f"[Duplicate] Error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False, f"Failed to duplicate space: {str(e)}", None
+
+
 def create_pull_request_on_space(
     repo_id: str,
     code: str,

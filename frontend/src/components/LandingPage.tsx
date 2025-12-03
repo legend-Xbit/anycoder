@@ -246,23 +246,48 @@ export default function LandingPage({
     setImportError('');
 
     try {
-      const result = await apiClient.importProject(importUrl);
+      // Extract space ID from URL for duplication
+      const spaceMatch = importUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
       
-      if (result.status === 'success') {
-        // Use onImport if available (better UX - directly loads code)
-        // Otherwise fall back to onStart (sends message to generate)
-        if (onImport && result.code) {
-          onImport(result.code, result.language || 'html', importUrl);
-        } else {
-          // Fallback: trigger code generation with import context
-          const importMessage = `Imported from ${importUrl}`;
-          onStart(importMessage, result.language || 'html', selectedModel);
-        }
+      if (spaceMatch) {
+        // This is a HuggingFace Space - duplicate it
+        const fromSpaceId = spaceMatch[1];
+        console.log('[Import] Duplicating space:', fromSpaceId);
         
-        setShowImportDialog(false);
-        setImportUrl('');
+        const duplicateResult = await apiClient.duplicateSpace(fromSpaceId);
+        
+        if (duplicateResult.success) {
+          // Show success message with link to duplicated space
+          alert(`✅ Space duplicated successfully!\n\nView your space: ${duplicateResult.space_url}`);
+          
+          // Also load the code in the editor
+          const importResult = await apiClient.importProject(importUrl);
+          if (importResult.status === 'success' && onImport && importResult.code) {
+            onImport(importResult.code, importResult.language || 'html', duplicateResult.space_url);
+          }
+          
+          setShowImportDialog(false);
+          setImportUrl('');
+        } else {
+          setImportError(duplicateResult.message || 'Failed to duplicate space');
+        }
       } else {
-        setImportError(result.message || 'Failed to import project');
+        // Not a Space URL - fall back to regular import
+        const result = await apiClient.importProject(importUrl);
+        
+        if (result.status === 'success') {
+          if (onImport && result.code) {
+            onImport(result.code, result.language || 'html', importUrl);
+          } else {
+            const importMessage = `Imported from ${importUrl}`;
+            onStart(importMessage, result.language || 'html', selectedModel);
+          }
+          
+          setShowImportDialog(false);
+          setImportUrl('');
+        } else {
+          setImportError(result.message || 'Failed to import project');
+        }
       }
     } catch (error: any) {
       console.error('Import error:', error);
@@ -287,16 +312,29 @@ export default function LandingPage({
     setRedesignError('');
 
     try {
+      // Extract space ID from URL
+      const spaceMatch = redesignUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
+      const repoId = spaceMatch ? spaceMatch[1] : null;
+      
+      if (!repoId) {
+        setRedesignError('Please enter a valid HuggingFace Space URL');
+        setIsRedesigning(false);
+        return;
+      }
+      
+      // Import the code first
       const result = await apiClient.importProject(redesignUrl);
       
-      if (result.status === 'success') {
-        // Extract repo_id from URL for PR creation
-        const spaceMatch = redesignUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
-        const repoId = spaceMatch ? spaceMatch[1] : null;
-        
-        if (createPR && repoId && onImport && onStart) {
-          // Option 1: Create a PR on the imported space
-          // First, import and let AI redesign it
+      if (result.status !== 'success') {
+        setRedesignError(result.message || 'Failed to import project for redesign');
+        setIsRedesigning(false);
+        return;
+      }
+      
+      if (createPR) {
+        // Option 1: Create a PR on the original space
+        // Import code and let AI redesign it
+        if (onImport && onStart) {
           onImport(result.code, result.language || 'html', redesignUrl);
           
           // Send redesign prompt with code context
@@ -318,19 +356,30 @@ Please redesign this with:
               onStart(redesignPrompt, result.language || 'html', selectedModel);
             }
             
-            // Show info that PR will be created after code generation
             console.log('[Redesign] Will create PR after code generation completes');
           }, 100);
           
           setShowRedesignDialog(false);
           setRedesignUrl('');
+        } else {
+          setRedesignError('Missing required callbacks. Please try again.');
+        }
+      } else {
+        // Option 2: Duplicate the space and then apply redesign
+        console.log('[Redesign] Duplicating space for redesign:', repoId);
+        
+        const duplicateResult = await apiClient.duplicateSpace(repoId);
+        
+        if (duplicateResult.success) {
+          // Show success message
+          alert(`✅ Space duplicated successfully!\n\nYour space: ${duplicateResult.space_url}\n\nNow generating redesign...`);
           
-        } else if (onImport && onStart) {
-          // Option 2: Normal redesign flow (import and generate new code)
-          onImport(result.code, result.language || 'html', redesignUrl);
-          
-          setTimeout(() => {
-            const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
+          // Load the code and trigger redesign
+          if (onImport && onStart) {
+            onImport(result.code, result.language || 'html', duplicateResult.space_url);
+            
+            setTimeout(() => {
+              const redesignPrompt = `I have existing code in the editor that I duplicated from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
 
 Current code:
 \`\`\`${result.language || 'html'}
@@ -342,22 +391,22 @@ Please redesign this with:
 - Mobile-first responsive design
 - Modern UI/UX best practices
 - Better visual hierarchy and spacing`;
-            if (onStart) {
-              onStart(redesignPrompt, result.language || 'html', selectedModel);
-            }
-          }, 100);
+              
+              if (onStart) {
+                onStart(redesignPrompt, result.language || 'html', selectedModel);
+              }
+            }, 100);
+          }
           
           setShowRedesignDialog(false);
           setRedesignUrl('');
         } else {
-          setRedesignError('Missing required callbacks. Please try again.');
+          setRedesignError(duplicateResult.message || 'Failed to duplicate space');
         }
-      } else {
-        setRedesignError(result.message || 'Failed to import project for redesign');
       }
     } catch (error: any) {
       console.error('Redesign error:', error);
-      setRedesignError(error.response?.data?.message || error.message || 'Failed to import project for redesign');
+      setRedesignError(error.response?.data?.message || error.message || 'Failed to process redesign request');
     } finally {
       setIsRedesigning(false);
     }

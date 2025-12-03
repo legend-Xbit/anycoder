@@ -502,6 +502,15 @@ class ApiClient {
     return response.data;
   }
 
+  async duplicateSpace(fromSpaceId: string, toSpaceName?: string, isPrivate: boolean = false): Promise<any> {
+    const response = await this.client.post('/api/duplicate-space', {
+      from_space_id: fromSpaceId,
+      to_space_name: toSpaceName,
+      private: isPrivate
+    });
+    return response.data;
+  }
+
   logout() {
     this.token = null;
   }

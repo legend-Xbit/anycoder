@@ -254,6 +254,19 @@ class PullRequestResponse(BaseModel):
     pr_url: Optional[str] = None
 
 
+class DuplicateSpaceRequest(BaseModel):
+    from_space_id: str  # username/space-name
+    to_space_name: Optional[str] = None  # Just the name, not full ID
+    private: bool = False
+
+
+class DuplicateSpaceResponse(BaseModel):
+    success: bool
+    message: str
+    space_url: Optional[str] = None
+    space_id: Optional[str] = None
+
+
 # Mock authentication for development
 # In production, integrate with HuggingFace OAuth
 class MockAuth:
@@ -1357,6 +1370,101 @@ async def create_pull_request(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to create pull request: {str(e)}"
+        )
+
+
+@app.post("/api/duplicate-space", response_model=DuplicateSpaceResponse)
+async def duplicate_space_endpoint(
+    request: DuplicateSpaceRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """Duplicate a HuggingFace Space to the user's account"""
+    print(f"[Duplicate] ========== DUPLICATE SPACE REQUEST ==========")
+    print(f"[Duplicate] From: {request.from_space_id}")
+    print(f"[Duplicate] To: {request.to_space_name or 'auto'}")
+    print(f"[Duplicate] Private: {request.private}")
+    
+    auth = get_auth_from_header(authorization)
+    
+    if not auth.is_authenticated():
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    # Check if this is dev mode
+    if auth.token and auth.token.startswith("dev_token_"):
+        return DuplicateSpaceResponse(
+            success=False,
+            message="Dev mode: Space duplication not available in dev mode. Please use production authentication.",
+            space_url=None,
+            space_id=None
+        )
+    
+    # Production mode with real OAuth token
+    try:
+        from backend_deploy import duplicate_space_to_user
+        
+        user_token = auth.token if auth.token else os.getenv("HF_TOKEN")
+        
+        if not user_token:
+            raise HTTPException(status_code=401, detail="No HuggingFace token available. Please sign in first.")
+        
+        print(f"[Duplicate] Duplicating space with token (first 10 chars): {user_token[:10]}...")
+        
+        # Duplicate the space
+        success, message, space_url = duplicate_space_to_user(
+            from_space_id=request.from_space_id,
+            to_space_name=request.to_space_name,
+            token=user_token,
+            private=request.private
+        )
+        
+        print(f"[Duplicate] Result:")
+        print(f"[Duplicate] - Success: {success}")
+        print(f"[Duplicate] - Message: {message}")
+        print(f"[Duplicate] - Space URL: {space_url}")
+        
+        if success:
+            # Extract space_id from URL
+            space_id = space_url.split("/spaces/")[-1] if space_url else None
+            
+            return DuplicateSpaceResponse(
+                success=True,
+                message=message,
+                space_url=space_url,
+                space_id=space_id
+            )
+        else:
+            # Provide user-friendly error messages
+            if "401" in message or "Unauthorized" in message:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Authentication failed. Please sign in again with HuggingFace."
+                )
+            elif "403" in message or "Forbidden" in message or "Permission" in message:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Permission denied. You may not have access to this space."
+                )
+            elif "404" in message or "not found" in message.lower():
+                raise HTTPException(
+                    status_code=404,
+                    detail="Space not found. Please check the URL and try again."
+                )
+            else:
+                raise HTTPException(
+                    status_code=500,
+                    detail=message
+                )
+                
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        print(f"[Duplicate] Error: {error_details}")
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to duplicate space: {str(e)}"
         )
 
 
