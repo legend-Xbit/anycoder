@@ -257,13 +257,14 @@ export default function LandingPage({
         const duplicateResult = await apiClient.duplicateSpace(fromSpaceId);
         
         if (duplicateResult.success) {
-          // Show success message with link to duplicated space
-          alert(`✅ Space duplicated successfully!\n\nView your space: ${duplicateResult.space_url}`);
-          
           // Also load the code in the editor
           const importResult = await apiClient.importProject(importUrl);
           if (importResult.status === 'success' && onImport && importResult.code) {
+            // Pass the duplicated space URL so it's tracked for future deployments
             onImport(importResult.code, importResult.language || 'html', duplicateResult.space_url);
+            
+            // Show success message with link to duplicated space
+            alert(`✅ Space duplicated successfully!\n\nYour space: ${duplicateResult.space_url}\n\nThe code has been loaded in the editor. Any changes you deploy will update this duplicated space.`);
           }
           
           setShowImportDialog(false);

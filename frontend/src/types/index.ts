@@ -19,6 +19,7 @@ export interface CodeGenerationRequest {
   provider: string;
   history: string[][];
   agent_mode: boolean;
+  existing_repo_id?: string;  // For auto-deploy to update existing space
 }
 
 export interface CodeGenerationResponse {

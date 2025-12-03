@@ -196,6 +196,7 @@ class CodeGenerationRequest(BaseModel):
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False
+    existing_repo_id: Optional[str] = None  # For auto-deploy to update existing space
 
 
 class DeploymentRequest(BaseModel):
@@ -881,13 +882,15 @@ async def generate_code(
                         print(f"[Auto-Deploy] - History items: {len(history_list)}")
                         print(f"[Auto-Deploy] - Username: {auth.username}")
                         print(f"[Auto-Deploy] - Code length: {len(generated_code)}")
+                        print(f"[Auto-Deploy] - Existing repo ID from request: {request.existing_repo_id}")
                         
-                        # Deploy the code
+                        # Deploy the code (update existing space if provided)
                         success, message, space_url = deploy_to_huggingface_space(
                             code=generated_code,
                             language=language,
                             token=auth.token,
                             username=auth.username,
+                            existing_repo_id=request.existing_repo_id,  # Use duplicated/imported space
                             history=history_list
                         )
                         

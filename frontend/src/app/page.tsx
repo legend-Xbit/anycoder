@@ -285,6 +285,7 @@ export default function Home() {
       provider: 'auto',
       history: messages.map((m) => [m.role, m.content]),
       agent_mode: false,
+      existing_repo_id: currentRepoId || undefined,  // Pass duplicated/imported space ID for auto-deploy
     };
 
     const assistantMessage: Message = {
