@@ -1206,20 +1206,16 @@ def duplicate_space_to_user(
             "exist_ok": True
         }
         
-        # Hardware is only needed for Gradio, Docker, and Streamlit spaces
-        # Static spaces don't have hardware
-        if original_sdk and original_sdk != "static":
-            # For non-static spaces, hardware is required
-            hardware_to_use = original_hardware if original_hardware else "cpu-basic"
-            duplicate_params["hardware"] = hardware_to_use
-            print(f"[Duplicate] Hardware: {hardware_to_use} (SDK: {original_sdk})")
-            
-            # Storage is optional
-            if original_storage and original_storage.get('requested'):
-                duplicate_params["storage"] = original_storage.get('requested')
-                print(f"[Duplicate] Storage: {original_storage.get('requested')}")
-        else:
-            print(f"[Duplicate] Static space - no hardware needed (SDK: {original_sdk})")
+        # Hardware is REQUIRED by HF API for all space types when duplicating
+        # Use detected hardware or default to cpu-basic
+        hardware_to_use = original_hardware if original_hardware else "cpu-basic"
+        duplicate_params["hardware"] = hardware_to_use
+        print(f"[Duplicate] Hardware: {hardware_to_use} (SDK: {original_sdk}, original: {original_hardware})")
+        
+        # Storage is optional
+        if original_storage and original_storage.get('requested'):
+            duplicate_params["storage"] = original_storage.get('requested')
+            print(f"[Duplicate] Storage: {original_storage.get('requested')}")
         
         # Only set private if explicitly requested
         if private:
