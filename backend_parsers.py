@@ -328,7 +328,7 @@ Instructions:
 - Examples of comprehensive dependencies:
   * diffusers often needs: git+https://github.com/huggingface/transformers, sentencepiece, accelerate, torch, tokenizers
   * transformers often needs: accelerate, torch, tokenizers, datasets
-  * gradio often needs: requests, Pillow for image handling
+  * gradio often needs: gradio>=6.0, requests, Pillow for image handling (ALWAYS use gradio>=6.0)
   * pandas often needs: numpy, openpyxl for Excel files
   * matplotlib often needs: numpy, pillow for image saving
   * sklearn often needs: numpy, scipy, joblib
