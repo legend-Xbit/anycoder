@@ -1196,25 +1196,29 @@ def duplicate_space_to_user(
         print(f"[Duplicate] Duplicating {from_space_id} to {to_space_id}")
         
         # Prepare duplicate_space parameters
-        # Per docs: "The new Space will be created in your account and will be in the same 
-        # state as the original Space (running or paused)"
-        # Don't specify hardware/storage - let HuggingFace duplicate automatically
         duplicate_params = {
             "from_id": from_space_id,
             "to_id": to_space_name,  # Just the name, not full ID
             "token": token,
             "exist_ok": True
-            # Note: Not setting private, hardware, storage, secrets, variables
-            # to ensure TRUE duplication (HF copies everything automatically)
         }
+        
+        # Add hardware and storage if detected (required for GPU spaces)
+        if original_hardware:
+            duplicate_params["hardware"] = original_hardware
+            print(f"[Duplicate] Adding hardware: {original_hardware}")
+        
+        if original_storage and original_storage.get('requested'):
+            duplicate_params["storage"] = original_storage.get('requested')
+            print(f"[Duplicate] Adding storage: {original_storage.get('requested')}")
         
         # Only set private if explicitly requested
         if private:
             duplicate_params["private"] = private
         
-        # Duplicate the space (HuggingFace automatically copies all settings)
+        # Duplicate the space
         print(f"[Duplicate] Duplicating {from_space_id} to {username}/{to_space_name}")
-        print(f"[Duplicate] Letting HuggingFace handle hardware/storage/secrets automatically")
+        print(f"[Duplicate] Parameters: {list(duplicate_params.keys())}")
         duplicated_repo = duplicate_space(**duplicate_params)
         
         # Extract space URL
