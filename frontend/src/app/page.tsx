@@ -23,6 +23,7 @@ export default function Home() {
   const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);  // Track imported/deployed space
   const [username, setUsername] = useState<string | null>(null);  // Track current user
   const [pendingPR, setPendingPR] = useState<{ repoId: string; language: Language } | null>(null);  // Track pending PR after redesign
+  const pendingPRRef = useRef<{ repoId: string; language: Language } | null>(null);  // Ref for immediate access
   
   // Landing page state - show landing page if no messages exist
   const [showLandingPage, setShowLandingPage] = useState(true);
@@ -345,10 +346,16 @@ export default function Home() {
           });
           
           // Check if we need to create a PR (redesign with PR option)
-          if (pendingPR) {
-            console.log('[PR] Creating pull request for:', pendingPR.repoId);
-            createPullRequestAfterGeneration(pendingPR.repoId, code, pendingPR.language);
-            setPendingPR(null); // Clear pending PR
+          console.log('[PR] onComplete - Checking pendingPR ref:', pendingPRRef.current);
+          console.log('[PR] onComplete - Checking pendingPR state:', pendingPR);
+          const prInfo = pendingPRRef.current;
+          if (prInfo) {
+            console.log('[PR] Creating pull request for:', prInfo.repoId);
+            createPullRequestAfterGeneration(prInfo.repoId, code, prInfo.language);
+            setPendingPR(null); // Clear state
+            pendingPRRef.current = null; // Clear ref
+          } else {
+            console.log('[PR] No pending PR - skipping PR creation');
           }
         },
         // onError
@@ -781,10 +788,12 @@ export default function Home() {
     // Hide landing page immediately for smooth transition
     setShowLandingPage(false);
     
-    // If shouldCreatePR is true, set pending PR state
+    // If shouldCreatePR is true, set pending PR state and ref
     if (shouldCreatePR && repoId) {
       console.log('[PR] Setting pending PR for:', repoId);
-      setPendingPR({ repoId, language });
+      const prInfo = { repoId, language };
+      setPendingPR(prInfo);
+      pendingPRRef.current = prInfo;  // Set ref immediately for synchronous access
     }
     
     // Send the message with the selected language and model
