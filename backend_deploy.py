@@ -299,7 +299,7 @@ def detect_sdk_from_code(code: str, language: str) -> str:
         return "gradio"  # Default
 
 
-def add_anycoder_tag_to_readme(api, repo_id: str, app_port: Optional[int] = None) -> None:
+def add_anycoder_tag_to_readme(api, repo_id: str, app_port: Optional[int] = None, sdk: Optional[str] = None) -> None:
     """
     Download existing README, add anycoder tag and app_port if needed, and upload back.
     Preserves all existing README content and frontmatter.
@@ -308,6 +308,7 @@ def add_anycoder_tag_to_readme(api, repo_id: str, app_port: Optional[int] = None
         api: HuggingFace API client
         repo_id: Repository ID (username/space-name)
         app_port: Optional port number to set for Docker spaces (e.g., 7860)
+        sdk: Optional SDK type (e.g., 'gradio', 'streamlit', 'docker', 'static')
     """
     try:
         import tempfile
@@ -345,6 +346,17 @@ def add_anycoder_tag_to_readme(api, repo_id: str, app_port: Optional[int] = None
                 if app_port is not None and 'app_port:' not in frontmatter:
                     frontmatter += f'\napp_port: {app_port}'
                 
+                # For Gradio spaces, always set sdk_version to 6.0.2
+                if sdk == 'gradio':
+                    if 'sdk_version:' in frontmatter:
+                        # Update existing sdk_version
+                        frontmatter = re.sub(r'sdk_version:\s*[^\n]+', 'sdk_version: 6.0.2', frontmatter)
+                        print(f"[README] Updated sdk_version to 6.0.2 for Gradio space")
+                    else:
+                        # Add sdk_version
+                        frontmatter += '\nsdk_version: 6.0.2'
+                        print(f"[README] Added sdk_version: 6.0.2 for Gradio space")
+                
                 # Reconstruct the README
                 new_content = f"---\n{frontmatter}\n---{body}"
             else:
@@ -353,7 +365,8 @@ def add_anycoder_tag_to_readme(api, repo_id: str, app_port: Optional[int] = None
         else:
             # No frontmatter, add it at the beginning
             app_port_line = f'\napp_port: {app_port}' if app_port else ''
-            new_content = f"---\ntags:\n- anycoder{app_port_line}\n---\n\n{content}"
+            sdk_version_line = '\nsdk_version: 6.0.2' if sdk == 'gradio' else ''
+            new_content = f"---\ntags:\n- anycoder{app_port_line}{sdk_version_line}\n---\n\n{content}"
         
         # Upload the modified README
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding='utf-8') as f:
@@ -1044,7 +1057,7 @@ def deploy_to_huggingface_space(
                 import time
                 if not is_update:
                     time.sleep(2)  # Give HF time to generate README for new spaces
-                add_anycoder_tag_to_readme(api, repo_id, app_port)
+                add_anycoder_tag_to_readme(api, repo_id, app_port, sdk)
             except Exception as e:
                 # Don't fail deployment if README modification fails
                 print(f"Warning: Could not add anycoder tag to README: {e}")
