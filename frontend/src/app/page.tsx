@@ -238,7 +238,7 @@ export default function Home() {
     }
   };
 
-  const handleSendMessage = async (message: string, overrideLanguage?: Language, overrideModel?: string, overrideRepoId?: string) => {
+  const handleSendMessage = async (message: string, overrideLanguage?: Language, overrideModel?: string, overrideRepoId?: string, shouldCreatePR?: boolean) => {
     if (!isAuthenticated) {
       alert('Please sign in with HuggingFace first! Click the "Sign in with Hugging Face" button in the header.');
       return;
@@ -301,7 +301,7 @@ export default function Home() {
       history: messages.map((m) => [m.role, m.content]),
       agent_mode: false,
       existing_repo_id: effectiveRepoId,  // Pass duplicated/imported space ID for auto-deploy
-      skip_auto_deploy: !!pendingPR, // Skip auto-deploy if PR is pending
+      skip_auto_deploy: !!shouldCreatePR, // Skip auto-deploy if creating PR
     };
 
     const assistantMessage: Message = {
@@ -789,7 +789,7 @@ export default function Home() {
     
     // Send the message with the selected language and model
     // Don't pass repoId to handleSendMessage when creating PR (we want to generate code first, then create PR)
-    await handleSendMessage(prompt, language, modelId, shouldCreatePR ? undefined : repoId);
+    await handleSendMessage(prompt, language, modelId, shouldCreatePR ? undefined : repoId, shouldCreatePR);
   };
 
   // Resize handlers for chat sidebar (desktop only)
