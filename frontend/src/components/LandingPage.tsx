@@ -385,7 +385,7 @@ Please redesign this with:
 - Modern UI/UX best practices
 - Better visual hierarchy and spacing
 
-${isGradio ? '\n\nIMPORTANT: Only output Python (.py) files. Do NOT include requirements.txt or any other non-Python files. The existing dependencies and configuration files will be preserved.' : ''}`;
+${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, layout, styling). Do NOT modify or output any other .py files (utils.py, models.py, etc.). Do NOT include requirements.txt or README.md.' : ''}`;
               
               if (onStart) {
                 // Pass duplicated space ID so auto-deploy updates it
@@ -429,7 +429,7 @@ Please redesign this with:
 - Modern UI/UX best practices
 - Better visual hierarchy and spacing
 
-${isGradio ? '\n\nIMPORTANT: Only output Python (.py) files. Do NOT include requirements.txt or any other non-Python files. The existing dependencies and configuration files will be preserved.' : ''}
+${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, layout, styling). Do NOT modify or output any other .py files (utils.py, models.py, etc.). Do NOT include requirements.txt or README.md.' : ''}
 
 Note: After generating the redesign, I will create a Pull Request on the original space.`;
             
