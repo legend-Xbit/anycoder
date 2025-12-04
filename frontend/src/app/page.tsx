@@ -869,6 +869,8 @@ export default function Home() {
           initialLanguage={selectedLanguage}
           initialModel={selectedModel}
           onAuthChange={checkAuth}
+          setPendingPR={setPendingPR}
+          pendingPRRef={pendingPRRef}
         />
       </div>
     );

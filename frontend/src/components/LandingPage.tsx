@@ -21,6 +21,8 @@ interface LandingPageProps {
   initialLanguage?: Language;
   initialModel?: string;
   onAuthChange?: () => void;
+  setPendingPR?: (pr: { repoId: string; language: Language } | null) => void;
+  pendingPRRef?: React.MutableRefObject<{ repoId: string; language: Language } | null>;
 }
 
 export default function LandingPage({ 
@@ -29,7 +31,9 @@ export default function LandingPage({
   isAuthenticated,
   initialLanguage = 'html',
   initialModel = 'deepseek-ai/DeepSeek-V3.2-Exp',
-  onAuthChange
+  onAuthChange,
+  setPendingPR,
+  pendingPRRef
 }: LandingPageProps) {
   const [prompt, setPrompt] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(initialLanguage);
@@ -62,6 +66,8 @@ export default function LandingPage({
   const [importUrl, setImportUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState('');
+  const [importAction, setImportAction] = useState<'duplicate' | 'update' | 'pr'>('duplicate'); // Default to duplicate
+  const [isSpaceOwner, setIsSpaceOwner] = useState(false); // Track if user owns the space
   
   // Redesign project state
   const [redesignUrl, setRedesignUrl] = useState('');
@@ -231,6 +237,31 @@ export default function LandingPage({
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
+  // Check if user owns the imported space
+  const checkSpaceOwnership = (url: string) => {
+    if (!url || !userInfo?.preferred_username) {
+      setIsSpaceOwner(false);
+      return;
+    }
+    
+    const spaceMatch = url.match(/huggingface\.co\/spaces\/([^\/\s\)]+)\/[^\/\s\)]+/);
+    if (spaceMatch) {
+      const spaceOwner = spaceMatch[1];
+      const isOwner = spaceOwner === userInfo.preferred_username;
+      setIsSpaceOwner(isOwner);
+      console.log('[Import] Space owner:', spaceOwner, '| Current user:', userInfo.preferred_username, '| Is owner:', isOwner);
+      
+      // Auto-select update mode if owner, otherwise duplicate
+      if (isOwner) {
+        setImportAction('update');
+      } else {
+        setImportAction('duplicate');
+      }
+    } else {
+      setIsSpaceOwner(false);
+    }
+  };
+
   const handleImportProject = async () => {
     if (!importUrl.trim()) {
       setImportError('Please enter a valid URL');
@@ -248,41 +279,90 @@ export default function LandingPage({
     try {
       console.log('[Import] ========== STARTING IMPORT ==========');
       console.log('[Import] Import URL:', importUrl);
+      console.log('[Import] Action:', importAction);
       
-      // Extract space ID from URL for duplication
+      // Extract space ID from URL
       const spaceMatch = importUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
       console.log('[Import] Space regex match result:', spaceMatch);
       
       if (spaceMatch) {
-        // This is a HuggingFace Space - duplicate it
         const fromSpaceId = spaceMatch[1];
-        console.log('[Import] ✅ Detected HF Space - will duplicate:', fromSpaceId);
-        console.log('[Import] Calling apiClient.duplicateSpace...');
+        console.log('[Import] ✅ Detected HF Space:', fromSpaceId);
         
-        const duplicateResult = await apiClient.duplicateSpace(fromSpaceId);
-        console.log('[Import] Duplicate API response:', duplicateResult);
+        // Import the code first (always needed to load in editor)
+        const importResult = await apiClient.importProject(importUrl);
         
-        if (duplicateResult.success) {
-          console.log('[Import] ========== DUPLICATE SUCCESS ==========');
-          console.log('[Import] Duplicated space URL:', duplicateResult.space_url);
-          console.log('[Import] Duplicated space ID:', duplicateResult.space_id);
-          console.log('[Import] ==========================================');
+        if (importResult.status !== 'success') {
+          setImportError(importResult.message || 'Failed to import project');
+          setIsImporting(false);
+          return;
+        }
+        
+        // Handle different import actions
+        if (importAction === 'update' && isSpaceOwner) {
+          // Option 1: Update existing space directly (for owners)
+          console.log('[Import] Owner update - loading code for direct update to:', fromSpaceId);
           
-          // Also load the code in the editor
-          const importResult = await apiClient.importProject(importUrl);
-          if (importResult.status === 'success' && onImport && importResult.code) {
-            console.log('[Import] Calling onImport with duplicated space URL:', duplicateResult.space_url);
-            // Pass the duplicated space URL so it's tracked for future deployments
-            onImport(importResult.code, importResult.language || 'html', duplicateResult.space_url);
+          if (onImport && importResult.code) {
+            // Pass the original space URL so future deployments update it
+            onImport(importResult.code, importResult.language || 'html', importUrl);
             
-            // Show success message with link to duplicated space
-            alert(`✅ Space duplicated successfully!\n\nYour space: ${duplicateResult.space_url}\n\nThe code has been loaded in the editor. Any changes you deploy will update this duplicated space.`);
+            alert(`✅ Code loaded!\n\nYou can now make changes and deploy them directly to: ${importUrl}\n\nThe code has been loaded in the editor.`);
           }
           
           setShowImportDialog(false);
           setImportUrl('');
+          
+        } else if (importAction === 'pr') {
+          // Option 2: Create Pull Request
+          console.log('[Import] PR mode - loading code to create PR to:', fromSpaceId);
+          
+          if (onImport && importResult.code) {
+            // Load code in editor with the original space for PR tracking
+            onImport(importResult.code, importResult.language || 'html', importUrl);
+            
+            // Set pending PR state so any future code generation creates a PR
+            if (setPendingPR && pendingPRRef) {
+              const prInfo = { repoId: fromSpaceId, language: (importResult.language || 'html') as Language };
+              setPendingPR(prInfo);
+              pendingPRRef.current = prInfo;
+              console.log('[Import PR] Set pending PR:', prInfo);
+            }
+            
+            // Show success message
+            alert(`✅ Code loaded in PR mode!\n\nYou can now:\n• Make manual edits in the editor\n• Generate new features with AI\n\nWhen you deploy, a Pull Request will be created to: ${fromSpaceId}`);
+          }
+          
+          setShowImportDialog(false);
+          setImportUrl('');
+          
         } else {
-          setImportError(duplicateResult.message || 'Failed to duplicate space');
+          // Option 3: Duplicate space (default)
+          console.log('[Import] Duplicate mode - will duplicate:', fromSpaceId);
+          
+          const duplicateResult = await apiClient.duplicateSpace(fromSpaceId);
+          console.log('[Import] Duplicate API response:', duplicateResult);
+          
+          if (duplicateResult.success) {
+            console.log('[Import] ========== DUPLICATE SUCCESS ==========');
+            console.log('[Import] Duplicated space URL:', duplicateResult.space_url);
+            console.log('[Import] Duplicated space ID:', duplicateResult.space_id);
+            console.log('[Import] ==========================================');
+            
+            if (onImport && importResult.code) {
+              console.log('[Import] Calling onImport with duplicated space URL:', duplicateResult.space_url);
+              // Pass the duplicated space URL so it's tracked for future deployments
+              onImport(importResult.code, importResult.language || 'html', duplicateResult.space_url);
+              
+              // Show success message with link to duplicated space
+              alert(`✅ Space duplicated successfully!\n\nYour space: ${duplicateResult.space_url}\n\nThe code has been loaded in the editor. Any changes you deploy will update this duplicated space.`);
+            }
+            
+            setShowImportDialog(false);
+            setImportUrl('');
+          } else {
+            setImportError(duplicateResult.message || 'Failed to duplicate space');
+          }
         }
       } else {
         // Not a Space URL - fall back to regular import
@@ -726,15 +806,86 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                           <input
                             type="text"
                             value={importUrl}
-                            onChange={(e) => setImportUrl(e.target.value)}
+                            onChange={(e) => {
+                              setImportUrl(e.target.value);
+                              checkSpaceOwnership(e.target.value);
+                            }}
                             onKeyPress={(e) => e.key === 'Enter' && handleImportProject()}
                             placeholder="https://huggingface.co/spaces/..."
-                            className="w-full px-3 py-2 rounded-lg text-xs bg-[#2d2d30] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 font-normal mb-2"
+                            className="w-full px-3 py-2 rounded-lg text-xs bg-[#2d2d30] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 font-normal mb-3"
                             disabled={isImporting}
                           />
+                          
+                          {/* Import Action Options */}
+                          {importUrl.includes('huggingface.co/spaces/') && (
+                            <div className="mb-3 space-y-2">
+                              <p className="text-[10px] font-medium text-[#86868b] mb-2">Import Mode:</p>
+                              
+                              {/* Update Space (only for owners) */}
+                              {isSpaceOwner && (
+                                <label className="flex items-start gap-2 cursor-pointer group">
+                                  <input
+                                    type="radio"
+                                    checked={importAction === 'update'}
+                                    onChange={() => setImportAction('update')}
+                                    className="mt-0.5 w-3.5 h-3.5 rounded-full border-[#424245] bg-[#2d2d30] checked:bg-white checked:border-white"
+                                    disabled={isImporting}
+                                  />
+                                  <div>
+                                    <span className="text-[11px] text-[#f5f5f7] font-medium">Update your space directly</span>
+                                    <p className="text-[10px] text-[#86868b] mt-0.5">
+                                      ✅ You own this space - changes will update it
+                                    </p>
+                                  </div>
+                                </label>
+                              )}
+                              
+                              {/* Duplicate Space */}
+                              <label className="flex items-start gap-2 cursor-pointer group">
+                                <input
+                                  type="radio"
+                                  checked={importAction === 'duplicate'}
+                                  onChange={() => setImportAction('duplicate')}
+                                  className="mt-0.5 w-3.5 h-3.5 rounded-full border-[#424245] bg-[#2d2d30] checked:bg-white checked:border-white"
+                                  disabled={isImporting}
+                                />
+                                <div>
+                                  <span className="text-[11px] text-[#f5f5f7] font-medium">Duplicate to your account</span>
+                                  <p className="text-[10px] text-[#86868b] mt-0.5">
+                                    Create a copy you can freely modify
+                                  </p>
+                                </div>
+                              </label>
+                              
+                              {/* Create PR */}
+                              <label className="flex items-start gap-2 cursor-pointer group">
+                                <input
+                                  type="radio"
+                                  checked={importAction === 'pr'}
+                                  onChange={() => setImportAction('pr')}
+                                  className="mt-0.5 w-3.5 h-3.5 rounded-full border-[#424245] bg-[#2d2d30] checked:bg-white checked:border-white"
+                                  disabled={isImporting}
+                                />
+                                <div>
+                                  <span className="text-[11px] text-[#f5f5f7] font-medium">Create Pull Request</span>
+                                  <p className="text-[10px] text-[#86868b] mt-0.5">
+                                    Propose changes to the original space
+                                  </p>
+                                </div>
+                              </label>
+                              
+                              {importAction === 'pr' && (
+                                <p className="text-[10px] text-[#86868b] ml-6 mt-1">
+                                  ⚠️ Requires space owner to enable PRs
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          
                           {importError && (
                             <p className="text-xs text-red-400 mb-2">{importError}</p>
                           )}
+                          
                           <div className="flex gap-2">
                             <button
                               onClick={handleImportProject}
@@ -748,6 +899,8 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                                 setShowImportDialog(false);
                                 setImportUrl('');
                                 setImportError('');
+                                setIsSpaceOwner(false);
+                                setImportAction('duplicate');
                               }}
                               className="px-3 py-2 bg-[#2d2d30] text-[#f5f5f7] rounded-lg text-xs hover:bg-[#3d3d3f] font-medium"
                             >
