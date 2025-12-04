@@ -20,6 +20,7 @@ export interface CodeGenerationRequest {
   history: string[][];
   agent_mode: boolean;
   existing_repo_id?: string;  // For auto-deploy to update existing space
+  skip_auto_deploy?: boolean;  // Skip auto-deploy (for PR creation)
 }
 
 export interface CodeGenerationResponse {

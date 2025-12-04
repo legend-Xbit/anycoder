@@ -301,6 +301,7 @@ export default function Home() {
       history: messages.map((m) => [m.role, m.content]),
       agent_mode: false,
       existing_repo_id: effectiveRepoId,  // Pass duplicated/imported space ID for auto-deploy
+      skip_auto_deploy: !!pendingPR, // Skip auto-deploy if PR is pending
     };
 
     const assistantMessage: Message = {

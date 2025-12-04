@@ -197,6 +197,7 @@ class CodeGenerationRequest(BaseModel):
     history: List[List[str]] = []
     agent_mode: bool = False
     existing_repo_id: Optional[str] = None  # For auto-deploy to update existing space
+    skip_auto_deploy: bool = False  # Skip auto-deploy (for PR creation)
 
 
 class DeploymentRequest(BaseModel):
@@ -848,9 +849,13 @@ async def generate_code(
                 })
                 yield f"data: {completion_data}\n\n"
                 
-                # Auto-deploy after code generation (if authenticated)
+                # Auto-deploy after code generation (if authenticated and not skipped)
                 auth = get_auth_from_header(authorization)
-                if auth.is_authenticated() and not (auth.token and auth.token.startswith("dev_token_")):
+                
+                if request.skip_auto_deploy:
+                    print(f"[Auto-Deploy] Skipped - PR creation will be handled by frontend")
+                
+                if auth.is_authenticated() and not (auth.token and auth.token.startswith("dev_token_")) and not request.skip_auto_deploy:
                     try:
                         # Send deploying status
                         deploying_data = json.dumps({
