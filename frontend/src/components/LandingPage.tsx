@@ -807,7 +807,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                           />
                           
                           {/* PR Option */}
-                          <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                          <label className="flex items-center gap-2 mb-1 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={createPR}
@@ -819,6 +819,12 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                               Create Pull Request on original space
                             </span>
                           </label>
+                          
+                          {createPR && (
+                            <p className="text-[10px] text-[#86868b] mb-2 ml-6">
+                              ⚠️ Note: PR creation requires space owner to enable PRs. If disabled, uncheck this to duplicate the space instead.
+                            </p>
+                          )}
                           
                           {redesignError && (
                             <p className="text-xs text-red-400 mb-2">{redesignError}</p>
