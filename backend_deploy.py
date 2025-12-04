@@ -1290,7 +1290,27 @@ def duplicate_space_to_user(
         # Duplicate the space
         print(f"[Duplicate] Duplicating {from_space_id} to {username}/{to_space_name}")
         print(f"[Duplicate] Parameters: {list(duplicate_params.keys())}")
-        duplicated_repo = duplicate_space(**duplicate_params)
+        
+        try:
+            duplicated_repo = duplicate_space(**duplicate_params)
+        except Exception as dup_error:
+            # Check if it's a zero-gpu hardware error
+            error_str = str(dup_error).lower()
+            if 'zero' in error_str or 'hardware' in error_str:
+                print(f"[Duplicate] Hardware error detected (likely zero-gpu issue): {dup_error}")
+                print(f"[Duplicate] Retrying with cpu-basic hardware...")
+                
+                # Retry with cpu-basic hardware
+                duplicate_params["hardware"] = "cpu-basic"
+                try:
+                    duplicated_repo = duplicate_space(**duplicate_params)
+                    print(f"[Duplicate] ✅ Successfully duplicated with cpu-basic hardware")
+                except Exception as retry_error:
+                    print(f"[Duplicate] Retry with cpu-basic also failed: {retry_error}")
+                    raise retry_error
+            else:
+                # Not a hardware error, re-raise
+                raise dup_error
         
         # Extract space URL
         space_url = f"https://huggingface.co/spaces/{to_space_id}"
