@@ -119,7 +119,7 @@ app = FastAPI(title="AnyCoder API", version="1.0.0")
 # OAuth and environment configuration (must be before CORS)
 OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "")
 OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "")
-OAUTH_SCOPES = os.getenv("OAUTH_SCOPES", "openid profile manage-repos")
+OAUTH_SCOPES = os.getenv("OAUTH_SCOPES", "openid profile manage-repos write-discussions")
 OPENID_PROVIDER_URL = os.getenv("OPENID_PROVIDER_URL", "https://huggingface.co")
 SPACE_HOST = os.getenv("SPACE_HOST", "localhost:7860")
 

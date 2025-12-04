@@ -11,6 +11,7 @@ hf_oauth: true
 hf_oauth_expiration_minutes: 43200
 hf_oauth_scopes:
 - manage-repos
+- write-discussions
 ---
 
 > **Note:** This is the Docker Space configuration for the React frontend version.  
