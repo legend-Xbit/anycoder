@@ -43,13 +43,17 @@ try:
         STREAMLIT_SYSTEM_PROMPT,
         REACT_SYSTEM_PROMPT,
         get_gradio_system_prompt,  # Import the function to get dynamic prompt
+        get_comfyui_system_prompt,  # Import the function to get dynamic ComfyUI prompt
         JSON_SYSTEM_PROMPT,
         GENERIC_SYSTEM_PROMPT
     )
     # Get the Gradio system prompt (includes full Gradio 6 documentation)
     GRADIO_SYSTEM_PROMPT = get_gradio_system_prompt()
+    # Get the ComfyUI system prompt (includes full ComfyUI documentation)
+    COMFYUI_SYSTEM_PROMPT = get_comfyui_system_prompt()
     print("[Startup] ✅ All system prompts loaded successfully from backend_prompts.py")
     print(f"[Startup] 📚 Gradio system prompt loaded with full documentation ({len(GRADIO_SYSTEM_PROMPT)} chars)")
+    print(f"[Startup] 📚 ComfyUI system prompt loaded with full documentation ({len(COMFYUI_SYSTEM_PROMPT)} chars)")
 except Exception as e:
     import traceback
     print(f"[Startup] ❌ ERROR: Could not import from backend_prompts: {e}")
@@ -62,6 +66,7 @@ except Exception as e:
     STREAMLIT_SYSTEM_PROMPT = "You are an expert Streamlit developer. Create complete Streamlit applications."
     REACT_SYSTEM_PROMPT = "You are an expert React developer. Create complete React applications with Next.js."
     GRADIO_SYSTEM_PROMPT = "You are an expert Gradio developer. Create complete, working Gradio applications."
+    COMFYUI_SYSTEM_PROMPT = "You are an expert ComfyUI developer. Generate clean, valid JSON workflows for ComfyUI based on the user's request. READ THE USER'S REQUEST CAREFULLY and create a workflow that matches their specific needs."
     JSON_SYSTEM_PROMPT = "You are an expert at generating JSON configurations. Create valid, well-structured JSON."
     GENERIC_SYSTEM_PROMPT = "You are an expert {language} developer. Create complete, working {language} applications."
 
@@ -74,7 +79,7 @@ SYSTEM_PROMPT_CACHE = {
     "streamlit": STREAMLIT_SYSTEM_PROMPT,
     "transformers.js": TRANSFORMERS_JS_SYSTEM_PROMPT,
     "react": REACT_SYSTEM_PROMPT,
-    "comfyui": JSON_SYSTEM_PROMPT,
+    "comfyui": COMFYUI_SYSTEM_PROMPT,  # Use ComfyUI-specific prompt with documentation
 }
 
 # Client connection pool for reuse (thread-safe)

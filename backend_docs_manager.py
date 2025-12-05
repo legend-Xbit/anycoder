@@ -24,6 +24,10 @@ TRANSFORMERSJS_DOCS_URL = "https://huggingface.co/docs/transformers.js/llms.txt"
 TRANSFORMERSJS_DOCS_CACHE_FILE = ".backend_transformersjs_docs_cache.txt"
 TRANSFORMERSJS_DOCS_LAST_UPDATE_FILE = ".backend_transformersjs_docs_last_update.txt"
 
+COMFYUI_LLMS_TXT_URL = "https://docs.comfy.org/llms.txt"
+COMFYUI_DOCS_CACHE_FILE = ".backend_comfyui_docs_cache.txt"
+COMFYUI_DOCS_LAST_UPDATE_FILE = ".backend_comfyui_docs_last_update.txt"
+
 # Global variable to store the current Gradio documentation
 _gradio_docs_content: Optional[str] = None
 _gradio_docs_last_fetched: Optional[datetime] = None
@@ -31,6 +35,10 @@ _gradio_docs_last_fetched: Optional[datetime] = None
 # Global variable to store the current transformers.js documentation
 _transformersjs_docs_content: Optional[str] = None
 _transformersjs_docs_last_fetched: Optional[datetime] = None
+
+# Global variable to store the current ComfyUI documentation
+_comfyui_docs_content: Optional[str] = None
+_comfyui_docs_last_fetched: Optional[datetime] = None
 
 def fetch_gradio_docs() -> Optional[str]:
     """Fetch the latest Gradio documentation from llms.txt"""
@@ -56,6 +64,19 @@ def fetch_transformersjs_docs() -> Optional[str]:
         return response.text
     except Exception as e:
         print(f"Warning: Failed to fetch transformers.js docs from {TRANSFORMERSJS_DOCS_URL}: {e}")
+        return None
+
+def fetch_comfyui_docs() -> Optional[str]:
+    """Fetch the latest ComfyUI documentation from llms.txt"""
+    if not HAS_REQUESTS:
+        return None
+    
+    try:
+        response = requests.get(COMFYUI_LLMS_TXT_URL, timeout=10)
+        response.raise_for_status()
+        return response.text
+    except Exception as e:
+        print(f"Warning: Failed to fetch ComfyUI docs from {COMFYUI_LLMS_TXT_URL}: {e}")
         return None
 
 def filter_problematic_instructions(content: str) -> str:
@@ -139,6 +160,31 @@ def should_update_transformersjs_docs() -> bool:
     """Check if transformers.js documentation should be updated"""
     # Only update if we don't have cached content (first run or cache deleted)
     return not os.path.exists(TRANSFORMERSJS_DOCS_CACHE_FILE)
+
+def load_cached_comfyui_docs() -> Optional[str]:
+    """Load cached ComfyUI documentation from file"""
+    try:
+        if os.path.exists(COMFYUI_DOCS_CACHE_FILE):
+            with open(COMFYUI_DOCS_CACHE_FILE, 'r', encoding='utf-8') as f:
+                return f.read()
+    except Exception as e:
+        print(f"Warning: Failed to load cached ComfyUI docs: {e}")
+    return None
+
+def save_comfyui_docs_cache(content: str):
+    """Save ComfyUI documentation to cache file"""
+    try:
+        with open(COMFYUI_DOCS_CACHE_FILE, 'w', encoding='utf-8') as f:
+            f.write(content)
+        with open(COMFYUI_DOCS_LAST_UPDATE_FILE, 'w', encoding='utf-8') as f:
+            f.write(datetime.now().isoformat())
+    except Exception as e:
+        print(f"Warning: Failed to save ComfyUI docs cache: {e}")
+
+def should_update_comfyui_docs() -> bool:
+    """Check if ComfyUI documentation should be updated"""
+    # Only update if we don't have cached content (first run or cache deleted)
+    return not os.path.exists(COMFYUI_DOCS_CACHE_FILE)
 
 def get_gradio_docs_content() -> str:
     """Get the current Gradio documentation content, updating if necessary"""
@@ -241,6 +287,51 @@ For the latest documentation, visit: https://huggingface.co/docs/transformers.js
                 print("❌ Using minimal fallback transformers.js documentation")
     
     return _transformersjs_docs_content or ""
+
+def get_comfyui_docs_content() -> str:
+    """Get the current ComfyUI documentation content, updating if necessary"""
+    global _comfyui_docs_content, _comfyui_docs_last_fetched
+    
+    # Check if we need to update
+    if (_comfyui_docs_content is None or 
+        _comfyui_docs_last_fetched is None or 
+        should_update_comfyui_docs()):
+        
+        print("📚 Loading ComfyUI documentation...")
+        
+        # Try to fetch latest content
+        latest_content = fetch_comfyui_docs()
+        
+        if latest_content:
+            # Filter out problematic instructions that cause early termination
+            filtered_content = filter_problematic_instructions(latest_content)
+            _comfyui_docs_content = filtered_content
+            _comfyui_docs_last_fetched = datetime.now()
+            save_comfyui_docs_cache(filtered_content)
+            print(f"✅ ComfyUI documentation loaded successfully ({len(filtered_content)} chars)")
+        else:
+            # Fallback to cached content
+            cached_content = load_cached_comfyui_docs()
+            if cached_content:
+                _comfyui_docs_content = cached_content
+                _comfyui_docs_last_fetched = datetime.now()
+                print(f"⚠️ Using cached ComfyUI documentation (network fetch failed) ({len(cached_content)} chars)")
+            else:
+                # Fallback to minimal content
+                _comfyui_docs_content = """
+# ComfyUI API Reference (Offline Fallback)
+
+This is a minimal fallback when documentation cannot be fetched.
+Please check your internet connection for the latest API reference.
+
+Basic ComfyUI workflow structure: nodes, connections, inputs, outputs.
+Use CheckpointLoaderSimple, CLIPTextEncode, KSampler for basic workflows.
+
+For the latest documentation, visit: https://docs.comfy.org/llms.txt
+"""
+                print("❌ Using minimal fallback ComfyUI documentation")
+    
+    return _comfyui_docs_content or ""
 
 def build_gradio_system_prompt() -> str:
     """Build the complete Gradio system prompt with full documentation"""
@@ -513,6 +604,73 @@ Below is the complete, official transformers.js documentation automatically sync
     
     return full_prompt + final_instructions
 
+def build_comfyui_system_prompt() -> str:
+    """Build the complete ComfyUI system prompt with full documentation"""
+    
+    # Get the full ComfyUI documentation
+    docs_content = get_comfyui_docs_content()
+    
+    # Base system prompt with anycoder-specific instructions
+    base_prompt = """You are an expert ComfyUI developer. Generate clean, valid JSON workflows for ComfyUI based on the user's request.
+
+🚨 CRITICAL: READ THE USER'S REQUEST CAREFULLY AND GENERATE A WORKFLOW THAT MATCHES THEIR SPECIFIC NEEDS.
+
+ComfyUI workflows are JSON structures that define:
+- Nodes: Individual processing units with specific functions (e.g., CheckpointLoaderSimple, CLIPTextEncode, KSampler, VAEDecode, SaveImage)
+- Connections: Links between nodes that define data flow
+- Parameters: Configuration values for each node (prompts, steps, cfg, sampler_name, etc.)
+- Inputs/Outputs: Data flow between nodes using numbered inputs/outputs
+
+**🚨 YOUR PRIMARY TASK:**
+1. **UNDERSTAND what the user is asking for** in their message
+2. **CREATE a ComfyUI workflow** that accomplishes their goal
+3. **GENERATE ONLY the JSON workflow** - no HTML, no applications, no explanations outside the JSON
+
+**JSON Syntax Rules:**
+- Use double quotes for strings
+- No trailing commas
+- Proper nesting and structure
+- Valid data types (string, number, boolean, null, object, array)
+
+**Output Requirements:**
+- Generate ONLY the ComfyUI workflow JSON
+- The output should be pure, valid JSON that can be loaded directly into ComfyUI
+- Do NOT wrap in markdown code fences (no ```json```)
+- Do NOT add explanatory text before or after the JSON
+- The JSON should be complete and functional
+
+---
+
+## Complete ComfyUI Documentation
+
+Below is the complete, official ComfyUI documentation automatically synced from https://docs.comfy.org/llms.txt:
+
+"""
+    
+    # Combine base prompt with full documentation
+    full_prompt = base_prompt + docs_content
+    
+    # Add final instructions
+    final_instructions = """
+
+---
+
+## Final Instructions
+
+- Always use the exact node types, parameters, and workflow structures from the ComfyUI documentation above
+- Pay close attention to the user's specific request and generate a workflow that fulfills it
+- Use appropriate nodes for the task (CheckpointLoader, KSampler, VAEDecode, SaveImage, etc.)
+- Ensure all node connections are properly defined
+- Generate production-ready JSON that can be loaded directly into ComfyUI
+- Do NOT generate random or example workflows - create workflows based on the user's actual request
+- Always include "Built with anycoder - https://huggingface.co/spaces/akhaliq/anycoder" as a comment in workflow metadata if possible
+
+🚨 REMINDER: Your workflow should directly address what the user asked for. Don't ignore their message!
+
+"""
+    
+    return full_prompt + final_instructions
+
 def initialize_backend_docs():
     """Initialize backend documentation system on startup"""
     try:
@@ -529,6 +687,13 @@ def initialize_backend_docs():
             print(f"🚀 transformers.js documentation initialized ({len(transformersjs_docs)} chars loaded)")
         else:
             print("⚠️ transformers.js documentation initialized with fallback content")
+        
+        # Pre-load the ComfyUI documentation
+        comfyui_docs = get_comfyui_docs_content()
+        if comfyui_docs:
+            print(f"🚀 ComfyUI documentation initialized ({len(comfyui_docs)} chars loaded)")
+        else:
+            print("⚠️ ComfyUI documentation initialized with fallback content")
             
     except Exception as e:
         print(f"Warning: Failed to initialize backend documentation: {e}")
