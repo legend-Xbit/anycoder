@@ -695,7 +695,7 @@ export default function Home() {
   };
 
   const handleClear = () => {
-    if (confirm('Clear all messages and code?')) {
+    if (confirm('Start a new chat? This will clear all messages and code.')) {
       setMessages([]);
       setGeneratedCode('');
       setShowLandingPage(true);
@@ -985,7 +985,6 @@ export default function Home() {
             onLanguageChange={setSelectedLanguage}
             onModelChange={setSelectedModel}
             onClear={handleClear}
-            onImport={handleImport}
             isGenerating={isGenerating}
           />
         </div>

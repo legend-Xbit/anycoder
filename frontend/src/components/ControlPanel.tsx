@@ -10,7 +10,6 @@ interface ControlPanelProps {
   onLanguageChange: (language: Language) => void;
   onModelChange: (modelId: string) => void;
   onClear: () => void;
-  onImport?: (code: string, language: Language, importUrl?: string) => void;
   isGenerating: boolean;
 }
 
@@ -20,16 +19,11 @@ export default function ControlPanel({
   onLanguageChange,
   onModelChange,
   onClear,
-  onImport,
   isGenerating,
 }: ControlPanelProps) {
   const [models, setModels] = useState<Model[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importUrl, setImportUrl] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
   
   // Dropdown states
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
@@ -83,42 +77,6 @@ export default function ControlPanel({
       setLanguages(languagesList);
     } catch (error) {
       console.error('Failed to load languages:', error);
-    }
-  };
-
-  const handleImport = async () => {
-    if (!importUrl.trim()) {
-      setImportError('Please enter a valid URL');
-      return;
-    }
-
-    setIsImporting(true);
-    setImportError(null);
-
-    try {
-      console.log('Importing from:', importUrl);
-      const result = await apiClient.importProject(importUrl);
-      
-      if (result.status === 'success') {
-        console.log('Import successful:', result);
-        
-        // Call the onImport callback if provided
-        if (onImport && result.code) {
-          onImport(result.code, result.language || 'html', importUrl);
-        }
-        
-        // Close modal and reset
-        setShowImportModal(false);
-        setImportUrl('');
-        setImportError(null);
-      } else {
-        setImportError(result.message || 'Import failed');
-      }
-    } catch (error: any) {
-      console.error('Import error:', error);
-      setImportError(error.response?.data?.message || error.message || 'Failed to import project');
-    } finally {
-      setIsImporting(false);
     }
   };
 
@@ -261,77 +219,14 @@ export default function ControlPanel({
       {/* Action Buttons */}
       <div className="flex flex-col space-y-2">
         <button
-          onClick={() => setShowImportModal(true)}
-          disabled={isGenerating}
-          className="w-full px-3 py-2.5 bg-white text-black text-sm rounded-full hover:bg-[#f5f5f7] disabled:opacity-30 disabled:cursor-not-allowed transition-all font-medium flex items-center justify-center active:scale-95"
-        >
-          Import Project
-        </button>
-        <button
           onClick={onClear}
           disabled={isGenerating}
           className="w-full px-3 py-2.5 bg-[#1d1d1f] text-[#f5f5f7] text-sm rounded-full hover:bg-[#2d2d2f] disabled:opacity-30 disabled:cursor-not-allowed transition-all font-medium border border-[#424245]/50 flex items-center justify-center active:scale-95"
         >
-          Clear
+          New Chat
         </button>
       </div>
       </div>
-
-      {/* Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1d1d1f] border border-[#424245] rounded-2xl p-5 max-w-md w-full shadow-2xl">
-            <h3 className="text-base font-medium text-[#f5f5f7] mb-4">Import Project</h3>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-[#f5f5f7] mb-2">
-                  Project URL
-                </label>
-                <input
-                  type="text"
-                  value={importUrl}
-                  onChange={(e) => setImportUrl(e.target.value)}
-                  placeholder="https://huggingface.co/spaces/..."
-                  disabled={isImporting}
-                  className="w-full px-3 py-2.5 bg-[#000000] text-[#f5f5f7] text-sm border border-[#424245] rounded-lg focus:outline-none focus:border-[#424245] disabled:opacity-40 placeholder-[#86868b]"
-                  onKeyDown={(e) => e.key === 'Enter' && handleImport()}
-                />
-                <p className="text-[10px] text-[#86868b] mt-1.5">
-                  Supported: HF Spaces, HF Models, GitHub repos
-                </p>
-              </div>
-
-              {importError && (
-                <div className="p-2.5 bg-[#ff3b30]/10 border border-[#ff3b30]/50 rounded-lg">
-                  <p className="text-xs text-[#ff3b30]">{importError}</p>
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={handleImport}
-                  disabled={isImporting || !importUrl.trim()}
-                  className="flex-1 px-3 py-2.5 bg-white text-black text-sm rounded-full hover:bg-[#f5f5f7] disabled:opacity-30 disabled:cursor-not-allowed transition-all font-medium active:scale-95"
-                >
-                  {isImporting ? '⏳ Importing...' : '✓ Import'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowImportModal(false);
-                    setImportUrl('');
-                    setImportError(null);
-                  }}
-                  disabled={isImporting}
-                  className="flex-1 px-3 py-2.5 bg-[#000000] text-[#f5f5f7] text-sm rounded-full hover:bg-[#2d2d2f] disabled:opacity-30 disabled:cursor-not-allowed transition-all font-medium border border-[#424245] active:scale-95"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
