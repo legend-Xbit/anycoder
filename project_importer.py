@@ -110,7 +110,7 @@ class ProjectImporter:
             
             if files:
                 code = self._format_multi_file_content(files, username, project_name, space_info.sdk)
-                language = self._detect_language_from_sdk(space_info.sdk)
+                language = self._detect_language_from_sdk(space_info.sdk, files)  # Pass files for detection
                 
                 return {
                     "status": "success",
@@ -513,8 +513,16 @@ Files: {len(files)}
         
         return patterns.get(sdk, ["app.py", "main.py", "index.html"])
     
-    def _detect_language_from_sdk(self, sdk: str) -> str:
-        """Detect language/framework from SDK"""
+    def _detect_language_from_sdk(self, sdk: str, files: Optional[Dict[str, str]] = None) -> str:
+        """Detect language/framework from SDK and optionally file contents"""
+        # For static SDK, check if it's a transformers.js space by examining files
+        if sdk == "static" and files:
+            # Check if any JS file contains transformers.js imports
+            for filename, content in files.items():
+                if filename.endswith(('.js', '.mjs')) or filename == 'index.html':
+                    if content and ('@xenova/transformers' in content or '@huggingface/transformers' in content):
+                        return "transformers.js"
+        
         sdk_map = {
             "gradio": "gradio",
             "streamlit": "streamlit",
