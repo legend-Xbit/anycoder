@@ -1,6 +1,6 @@
 ---
 title: AnyCoder
-emoji: 📈
+emoji: 🏆
 colorFrom: blue
 colorTo: purple
 sdk: docker
