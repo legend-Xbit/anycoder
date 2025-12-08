@@ -42,6 +42,7 @@ try:
         TRANSFORMERS_JS_SYSTEM_PROMPT,
         STREAMLIT_SYSTEM_PROMPT,
         REACT_SYSTEM_PROMPT,
+        REACT_FOLLOW_UP_SYSTEM_PROMPT,  # Import React followup prompt
         get_gradio_system_prompt,  # Import the function to get dynamic prompt
         get_comfyui_system_prompt,  # Import the function to get dynamic ComfyUI prompt
         JSON_SYSTEM_PROMPT,
@@ -773,6 +774,32 @@ async def generate_code(
             if not system_prompt:
                 # Format generic prompt only if needed
                 system_prompt = GENERIC_SYSTEM_PROMPT.format(language=language)
+            
+            # Detect if this is a followup request for React apps
+            # Check if there's existing code in the conversation history
+            is_followup = False
+            if language == "react" and request.history:
+                # Check if there's any previous assistant message with code (indicating a followup)
+                for msg in request.history:
+                    if isinstance(msg, dict):
+                        role = msg.get('role', '')
+                        content = msg.get('content', '')
+                    elif isinstance(msg, list) and len(msg) >= 2:
+                        role = msg[0]
+                        content = msg[1]
+                    else:
+                        continue
+                    
+                    # If we find previous code from assistant, this is a followup
+                    if role == 'assistant' and ('===' in content or 'Dockerfile' in content or 'package.json' in content):
+                        is_followup = True
+                        print(f"[Generate] Detected React followup request")
+                        break
+            
+            # Use followup prompt for React if detected
+            if is_followup and language == "react":
+                system_prompt = REACT_FOLLOW_UP_SYSTEM_PROMPT
+                print(f"[Generate] Using React followup system prompt for targeted fixes")
             
             # Get cached client (reuses connections)
             client = get_cached_client(selected_model_id, provider)
