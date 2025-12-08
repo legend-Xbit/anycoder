@@ -19,6 +19,7 @@ from backend_parsers import (
     parse_html_code,
     parse_python_requirements,
     parse_multi_file_python_output,
+    parse_react_output,
     strip_tool_call_markers,
     remove_code_block,
     extract_import_statements,
@@ -772,8 +773,8 @@ def deploy_to_huggingface_space(
                     use_individual_uploads = True  # Streamlit uses individual file uploads
                 
             elif language == "react":
-                # Parse React output to get all files (uses same multi-file format as Python)
-                files = parse_multi_file_python_output(code)
+                # Parse React output to get all files (uses === filename === markers)
+                files = parse_react_output(code)
                 
                 if not files:
                     return False, "Error: Could not parse React output", None

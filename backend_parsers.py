@@ -302,6 +302,68 @@ def extract_import_statements(code):
     return list(set(import_statements))  # Remove duplicates
 
 
+def parse_multipage_html_output(text: str) -> Dict[str, str]:
+    """Parse multi-page HTML output formatted as repeated "=== filename ===" sections.
+
+    Returns a mapping of filename → file content. Supports nested paths like assets/css/styles.css.
+    If HTML content appears before the first === marker, it's treated as index.html.
+    """
+    if not text:
+        return {}
+    # First, strip any markdown fences
+    cleaned = remove_code_block(text)
+    files: Dict[str, str] = {}
+    
+    # Check if there's content before the first === marker
+    first_marker_match = re.search(r"^===\s*([^=\n]+?)\s*===", cleaned, re.MULTILINE)
+    if first_marker_match:
+        # There's content before the first marker
+        first_marker_pos = first_marker_match.start()
+        if first_marker_pos > 0:
+            leading_content = cleaned[:first_marker_pos].strip()
+            # Check if it looks like HTML content
+            if leading_content and ('<!DOCTYPE' in leading_content or '<html' in leading_content or leading_content.startswith('<')):
+                files['index.html'] = leading_content
+        
+        # Now parse the rest with === markers
+        remaining_text = cleaned[first_marker_pos:] if first_marker_pos > 0 else cleaned
+        pattern = re.compile(r"^===\s*([^=\n]+?)\s*===\s*\n([\s\S]*?)(?=\n===\s*[^=\n]+?\s*===|\Z)", re.MULTILINE)
+        for m in pattern.finditer(remaining_text):
+            name = m.group(1).strip()
+            content = m.group(2).strip()
+            # Remove accidental trailing fences if present
+            content = re.sub(r"^```\w*\s*\n|\n```\s*$", "", content)
+            files[name] = content
+    else:
+        # No === markers found, try standard pattern matching
+        pattern = re.compile(r"^===\s*([^=\n]+?)\s*===\s*\n([\s\S]*?)(?=\n===\s*[^=\n]+?\s*===|\Z)", re.MULTILINE)
+        for m in pattern.finditer(cleaned):
+            name = m.group(1).strip()
+            content = m.group(2).strip()
+            # Remove accidental trailing fences if present
+            content = re.sub(r"^```\w*\s*\n|\n```\s*$", "", content)
+            files[name] = content
+    
+    return files
+
+
+def parse_react_output(text: str) -> Dict[str, str]:
+    """Parse React/Next.js output to extract individual files.
+
+    Supports multi-file sections using === filename === sections.
+    """
+    if not text:
+        return {}
+
+    # Use the generic multipage parser
+    try:
+        files = parse_multipage_html_output(text) or {}
+    except Exception:
+        files = {}
+
+    return files if isinstance(files, dict) and files else {}
+
+
 def generate_requirements_txt_with_llm(import_statements):
     """Generate requirements.txt content using LLM based on import statements."""
     if not import_statements:
