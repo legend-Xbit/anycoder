@@ -4,12 +4,14 @@ export interface Model {
   name: string;
   id: string;
   description: string;
+  supports_images?: boolean;
 }
 
 export interface Message {
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp?: string;
+  image_url?: string;  // For vision models
 }
 
 export interface CodeGenerationRequest {
@@ -21,6 +23,7 @@ export interface CodeGenerationRequest {
   agent_mode: boolean;
   existing_repo_id?: string;  // For auto-deploy to update existing space
   skip_auto_deploy?: boolean;  // Skip auto-deploy (for PR creation)
+  image_url?: string;  // For vision models like GLM-4.6V
 }
 
 export interface CodeGenerationResponse {

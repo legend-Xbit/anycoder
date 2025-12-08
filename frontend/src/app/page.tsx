@@ -9,7 +9,7 @@ import CodeEditor from '@/components/CodeEditor';
 import ControlPanel from '@/components/ControlPanel';
 import { apiClient } from '@/lib/api';
 import { isAuthenticated as checkIsAuthenticated, getStoredToken } from '@/lib/auth';
-import type { Message, Language, CodeGenerationRequest } from '@/types';
+import type { Message, Language, CodeGenerationRequest, Model } from '@/types';
 
 export default function Home() {
   // Initialize messages as empty array (will load from localStorage in useEffect)
@@ -17,7 +17,8 @@ export default function Home() {
   
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('deepseek-ai/DeepSeek-V3.2-Exp');
+  const [selectedModel, setSelectedModel] = useState('zai-org/GLM-4.6V:zai-org');
+  const [models, setModels] = useState<Model[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRepoId, setCurrentRepoId] = useState<string | null>(null);  // Track imported/deployed space
@@ -43,14 +44,29 @@ export default function Home() {
     console.log('[App] 🔵 currentRepoId changed to:', currentRepoId);
   }, [currentRepoId]);
 
-  // Clear cache on app startup to ensure fresh data
+  // Clear cache on app startup to ensure fresh data and load models
   useEffect(() => {
     if (typeof window !== 'undefined') {
       console.log('[Cache] Clearing models and languages cache on app startup');
       localStorage.removeItem('anycoder_models');
       localStorage.removeItem('anycoder_languages');
+      
+      // Load models for checking image support
+      loadModels();
     }
   }, []); // Run once on mount
+  
+  const loadModels = async () => {
+    try {
+      const modelsList = await apiClient.getModels();
+      setModels(modelsList);
+    } catch (error) {
+      console.error('Failed to load models:', error);
+    }
+  };
+  
+  // Check if current model supports images
+  const currentModelSupportsImages = models.find(m => m.id === selectedModel)?.supports_images || false;
 
   // Load messages from localStorage on mount (client-side only to avoid hydration issues)
   useEffect(() => {
@@ -239,7 +255,7 @@ export default function Home() {
     }
   };
 
-  const handleSendMessage = async (message: string, overrideLanguage?: Language, overrideModel?: string, overrideRepoId?: string, shouldCreatePR?: boolean) => {
+  const handleSendMessage = async (message: string, imageUrl?: string, overrideLanguage?: Language, overrideModel?: string, overrideRepoId?: string, shouldCreatePR?: boolean) => {
     if (!isAuthenticated) {
       alert('Please sign in with HuggingFace first! Click the "Sign in with Hugging Face" button in the header.');
       return;
@@ -277,6 +293,7 @@ export default function Home() {
       role: 'user',
       content: message,
       timestamp: new Date().toISOString(),
+      image_url: imageUrl,
     };
     setMessages((prev) => [...prev, userMessage]);
     setIsGenerating(true);
@@ -303,6 +320,7 @@ export default function Home() {
       agent_mode: false,
       existing_repo_id: effectiveRepoId,  // Pass duplicated/imported space ID for auto-deploy
       skip_auto_deploy: !!shouldCreatePR, // Skip auto-deploy if creating PR
+      image_url: imageUrl,  // For vision models like GLM-4.6V
     };
 
     const assistantMessage: Message = {
@@ -798,7 +816,7 @@ export default function Home() {
     
     // Send the message with the selected language and model
     // Don't pass repoId to handleSendMessage when creating PR (we want to generate code first, then create PR)
-    await handleSendMessage(prompt, language, modelId, shouldCreatePR ? undefined : repoId, shouldCreatePR);
+    await handleSendMessage(prompt, undefined, language, modelId, shouldCreatePR ? undefined : repoId, shouldCreatePR);
   };
 
   // Resize handlers for chat sidebar (desktop only)
@@ -906,6 +924,7 @@ export default function Home() {
               onSendMessage={handleSendMessage}
               isGenerating={isGenerating}
               isAuthenticated={isAuthenticated}
+              supportsImages={currentModelSupportsImages}
             />
           </div>
         </div>

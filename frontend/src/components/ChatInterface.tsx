@@ -4,16 +4,21 @@ import { useState, useRef, useEffect } from 'react';
 import type { Message } from '@/types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Image from 'next/image';
 
 interface ChatInterfaceProps {
   messages: Message[];
-  onSendMessage: (message: string) => void;
+  onSendMessage: (message: string, imageUrl?: string) => void;
   isGenerating: boolean;
   isAuthenticated?: boolean;
+  supportsImages?: boolean;
 }
 
-export default function ChatInterface({ messages, onSendMessage, isGenerating, isAuthenticated = false }: ChatInterfaceProps) {
+export default function ChatInterface({ messages, onSendMessage, isGenerating, isAuthenticated = false, supportsImages = false }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -27,8 +32,32 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && !isGenerating) {
-      onSendMessage(input);
+      onSendMessage(input, uploadedImageUrl || undefined);
       setInput('');
+      setUploadedImageUrl(null);
+      setUploadedImageFile(null);
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Create a data URL for the image
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const imageUrl = event.target?.result as string;
+        setUploadedImageUrl(imageUrl);
+        setUploadedImageFile(file);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setUploadedImageUrl(null);
+    setUploadedImageFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -63,6 +92,18 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
                     : 'bg-[#2d2d2f] text-[#f5f5f7]'
                 }`}
               >
+                {message.image_url && message.role === 'user' && (
+                  <div className="mb-2">
+                    <Image 
+                      src={message.image_url} 
+                      alt="Uploaded image" 
+                      width={200} 
+                      height={200} 
+                      className="rounded-lg object-cover max-w-full h-auto"
+                      unoptimized
+                    />
+                  </div>
+                )}
                 <div className="text-sm leading-relaxed">
                   {message.role === 'assistant' ? (
                     <ReactMarkdown 
@@ -92,6 +133,27 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
 
       {/* Input */}
       <div className="border-t border-[#424245]/30 p-3 bg-[#000000]">
+        {/* Image Preview */}
+        {uploadedImageUrl && (
+          <div className="mb-2 relative inline-block">
+            <Image 
+              src={uploadedImageUrl} 
+              alt="Upload preview" 
+              width={120} 
+              height={120} 
+              className="rounded-lg object-cover"
+              unoptimized
+            />
+            <button
+              type="button"
+              onClick={removeImage}
+              className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all flex items-center justify-center text-xs font-bold"
+            >
+              ×
+            </button>
+          </div>
+        )}
+        
         <form onSubmit={handleSubmit} className="flex items-center gap-2">
           <input
             type="text"
@@ -101,6 +163,32 @@ export default function ChatInterface({ messages, onSendMessage, isGenerating, i
             disabled={isGenerating || !isAuthenticated}
             className="flex-1 px-4 py-2.5 bg-[#2d2d2f] text-[#f5f5f7] text-sm border border-[#424245]/50 rounded-full focus:outline-none focus:border-[#424245] disabled:opacity-40 disabled:cursor-not-allowed placeholder-[#86868b]"
           />
+          
+          {/* Image Upload Button (only show if model supports images) */}
+          {supportsImages && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                disabled={isGenerating || !isAuthenticated}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isGenerating || !isAuthenticated}
+                className="p-2.5 bg-[#2d2d2f] text-[#f5f5f7] rounded-full hover:bg-[#424245] disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 flex-shrink-0"
+                title="Upload image"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                </svg>
+              </button>
+            </>
+          )}
+          
           <button
             type="submit"
             disabled={isGenerating || !input.trim() || !isAuthenticated}

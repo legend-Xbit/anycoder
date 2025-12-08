@@ -98,19 +98,20 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
-    {"name": "DeepSeek V3.2", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental - Default model for code generation via HuggingFace Router with Novita provider"},
-    {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation"},
-    {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning"},
-    {"name": "Grok 4.1 Fast", "id": "x-ai/grok-4.1-fast", "description": "Grok 4.1 Fast model via OpenRouter (20 req/min on free tier)"},
-    {"name": "MiniMax M2", "id": "MiniMaxAI/MiniMax-M2", "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider"},
-    {"name": "GPT-5.1", "id": "gpt-5.1", "description": "OpenAI GPT-5.1 model via Poe for advanced code generation and general tasks"},
-    {"name": "GPT-5.1 Instant", "id": "gpt-5.1-instant", "description": "OpenAI GPT-5.1 Instant model via Poe for fast responses"},
-    {"name": "GPT-5.1 Codex", "id": "gpt-5.1-codex", "description": "OpenAI GPT-5.1 Codex model via Poe optimized for code generation"},
-    {"name": "Claude-Opus-4.5", "id": "claude-opus-4.5", "description": "Anthropic Claude Opus 4.5 via Poe (OpenAI-compatible)"},
-    {"name": "Claude-Sonnet-4.5", "id": "claude-sonnet-4.5", "description": "Anthropic Claude Sonnet 4.5 via Poe (OpenAI-compatible)"},
-    {"name": "Claude-Haiku-4.5", "id": "claude-haiku-4.5", "description": "Anthropic Claude Haiku 4.5 via Poe (OpenAI-compatible)"},
-    {"name": "Kimi K2 Thinking", "id": "moonshotai/Kimi-K2-Thinking", "description": "Moonshot Kimi K2 Thinking model via HuggingFace with Together AI provider"},
-    {"name": "GLM-4.6", "id": "zai-org/GLM-4.6", "description": "GLM-4.6 model via HuggingFace with Cerebras provider"},
+    {"name": "GLM-4.6V 👁️", "id": "zai-org/GLM-4.6V:zai-org", "description": "GLM-4.6V vision model - supports image uploads for visual understanding (Default)", "supports_images": True},
+    {"name": "DeepSeek V3.2", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental - Fast model for code generation via HuggingFace Router with Novita provider", "supports_images": False},
+    {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation", "supports_images": False},
+    {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning", "supports_images": False},
+    {"name": "Grok 4.1 Fast", "id": "x-ai/grok-4.1-fast", "description": "Grok 4.1 Fast model via OpenRouter (20 req/min on free tier)", "supports_images": False},
+    {"name": "MiniMax M2", "id": "MiniMaxAI/MiniMax-M2", "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider", "supports_images": False},
+    {"name": "GPT-5.1", "id": "gpt-5.1", "description": "OpenAI GPT-5.1 model via Poe for advanced code generation and general tasks", "supports_images": False},
+    {"name": "GPT-5.1 Instant", "id": "gpt-5.1-instant", "description": "OpenAI GPT-5.1 Instant model via Poe for fast responses", "supports_images": False},
+    {"name": "GPT-5.1 Codex", "id": "gpt-5.1-codex", "description": "OpenAI GPT-5.1 Codex model via Poe optimized for code generation", "supports_images": False},
+    {"name": "Claude-Opus-4.5", "id": "claude-opus-4.5", "description": "Anthropic Claude Opus 4.5 via Poe (OpenAI-compatible)", "supports_images": False},
+    {"name": "Claude-Sonnet-4.5", "id": "claude-sonnet-4.5", "description": "Anthropic Claude Sonnet 4.5 via Poe (OpenAI-compatible)", "supports_images": False},
+    {"name": "Claude-Haiku-4.5", "id": "claude-haiku-4.5", "description": "Anthropic Claude Haiku 4.5 via Poe (OpenAI-compatible)", "supports_images": False},
+    {"name": "Kimi K2 Thinking", "id": "moonshotai/Kimi-K2-Thinking", "description": "Moonshot Kimi K2 Thinking model via HuggingFace with Together AI provider", "supports_images": False},
+    {"name": "GLM-4.6", "id": "zai-org/GLM-4.6", "description": "GLM-4.6 model via HuggingFace with Cerebras provider", "supports_images": False},
 ]
 
 # Cache model lookup for faster access (built after AVAILABLE_MODELS is defined)
@@ -197,12 +198,13 @@ async def startup_event():
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "claude-opus-4.5"
+    model_id: str = "zai-org/GLM-4.6V:zai-org"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False
     existing_repo_id: Optional[str] = None  # For auto-deploy to update existing space
     skip_auto_deploy: bool = False  # Skip auto-deploy (for PR creation)
+    image_url: Optional[str] = None  # For vision models like GLM-4.6V
 
 
 class DeploymentRequest(BaseModel):
@@ -779,11 +781,32 @@ async def generate_code(
             actual_model_id = get_real_model_id(selected_model_id)
             
             # Prepare messages (optimized - no string concatenation in hot path)
-            user_content = f"Generate a {language} application: {query}"
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
-            ]
+            # Check if this is a vision model and we have an image
+            if request.image_url and selected_model_id == "zai-org/GLM-4.6V:zai-org":
+                # Vision model with image - use multi-modal format
+                user_content = [
+                    {
+                        "type": "text",
+                        "text": f"Generate a {language} application: {query}"
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": request.image_url
+                        }
+                    }
+                ]
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ]
+            else:
+                # Regular text-only model
+                user_content = f"Generate a {language} application: {query}"
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ]
             
             # Stream the response
             try:
