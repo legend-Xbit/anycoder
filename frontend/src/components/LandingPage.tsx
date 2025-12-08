@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { apiClient } from '@/lib/api';
 import { 
   initializeOAuth, 
@@ -30,7 +31,7 @@ export default function LandingPage({
   onImport,
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'deepseek-ai/DeepSeek-V3.2-Exp',
+  initialModel = 'zai-org/GLM-4.6V:zai-org',
   onAuthChange,
   setPendingPR,
   pendingPRRef
@@ -74,6 +75,10 @@ export default function LandingPage({
   const [isRedesigning, setIsRedesigning] = useState(false);
   const [redesignError, setRedesignError] = useState('');
   const [createPR, setCreatePR] = useState(false); // Default to normal redesign (not PR)
+  
+  // Image upload state
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Debug effect for dropdown state
   useEffect(() => {
@@ -211,6 +216,9 @@ export default function LandingPage({
       console.error('Failed to load languages:', error);
     }
   };
+  
+  // Check if current model supports images
+  const currentModelSupportsImages = models.find(m => m.id === selectedModel)?.supports_images || false;
 
   const loadTrendingApps = async () => {
     try {
@@ -225,8 +233,29 @@ export default function LandingPage({
     e.preventDefault();
     if (prompt.trim() && isAuthenticated) {
       onStart(prompt.trim(), selectedLanguage, selectedModel);
+      // Clear image after sending
+      setUploadedImageUrl(null);
     } else if (!isAuthenticated) {
       alert('Please sign in with HuggingFace first!');
+    }
+  };
+  
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const imageUrl = event.target?.result as string;
+        setUploadedImageUrl(imageUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+  
+  const removeImage = () => {
+    setUploadedImageUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -645,6 +674,29 @@ Note: After generating the redesign, I will create a Pull Request on the origina
           {/* Simple prompt form */}
           <form onSubmit={handleSubmit} className="relative w-full mb-8">
             <div className="relative bg-[#2d2d30] rounded-2xl border border-[#424245] shadow-2xl">
+              {/* Image Preview */}
+              {uploadedImageUrl && (
+                <div className="px-4 pt-3">
+                  <div className="relative inline-block">
+                    <Image 
+                      src={uploadedImageUrl} 
+                      alt="Upload preview" 
+                      width={120} 
+                      height={120} 
+                      className="rounded-lg object-cover"
+                      unoptimized
+                    />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all flex items-center justify-center text-xs font-bold"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               {/* Textarea */}
               <textarea
                 value={prompt}
@@ -1012,6 +1064,31 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                   </div>
                 </div>
 
+                {/* Image Upload Button (only if model supports images) */}
+                {currentModelSupportsImages && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                      disabled={!isAuthenticated}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={!isAuthenticated}
+                      className="p-2 bg-[#1d1d1f] text-[#f5f5f7] rounded-full hover:bg-[#424245] disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+                      title="Upload image"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                      </svg>
+                    </button>
+                  </>
+                )}
+                
                 {/* Send button on the right - Apple style */}
                 <button
                   type="submit"

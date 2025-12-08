@@ -59,6 +59,7 @@ export default function Home() {
   const loadModels = async () => {
     try {
       const modelsList = await apiClient.getModels();
+      console.log('[Models] Loaded models:', modelsList);
       setModels(modelsList);
     } catch (error) {
       console.error('Failed to load models:', error);
@@ -67,6 +68,13 @@ export default function Home() {
   
   // Check if current model supports images
   const currentModelSupportsImages = models.find(m => m.id === selectedModel)?.supports_images || false;
+  
+  // Debug log for image support
+  useEffect(() => {
+    console.log('[Image Support] Selected model:', selectedModel);
+    console.log('[Image Support] Models loaded:', models.length);
+    console.log('[Image Support] Supports images:', currentModelSupportsImages);
+  }, [selectedModel, models, currentModelSupportsImages]);
 
   // Load messages from localStorage on mount (client-side only to avoid hydration issues)
   useEffect(() => {
