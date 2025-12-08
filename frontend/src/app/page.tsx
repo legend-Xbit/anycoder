@@ -67,7 +67,11 @@ export default function Home() {
   };
   
   // Check if current model supports images
-  const currentModelSupportsImages = models.find(m => m.id === selectedModel)?.supports_images || false;
+  // Show immediately for GLM-4.6V even before models load
+  const currentModelSupportsImages = 
+    selectedModel === 'zai-org/GLM-4.6V:zai-org' || 
+    models.find(m => m.id === selectedModel)?.supports_images || 
+    false;
   
   // Debug log for image support
   useEffect(() => {

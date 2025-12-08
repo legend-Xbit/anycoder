@@ -218,7 +218,18 @@ export default function LandingPage({
   };
   
   // Check if current model supports images
-  const currentModelSupportsImages = models.find(m => m.id === selectedModel)?.supports_images || false;
+  // Show immediately for GLM-4.6V even before models load
+  const currentModelSupportsImages = 
+    selectedModel === 'zai-org/GLM-4.6V:zai-org' || 
+    models.find(m => m.id === selectedModel)?.supports_images || 
+    false;
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('[LandingPage] Selected model:', selectedModel);
+    console.log('[LandingPage] Models loaded:', models.length);
+    console.log('[LandingPage] Supports images:', currentModelSupportsImages);
+  }, [selectedModel, models, currentModelSupportsImages]);
 
   const loadTrendingApps = async () => {
     try {
@@ -819,7 +830,14 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                                   : 'hover:bg-[#2d2d2f]'
                               }`}
                             >
-                              <div className="text-xs font-medium text-[#f5f5f7]">{model.name}</div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-medium text-[#f5f5f7]">{model.name}</span>
+                                {model.id === 'zai-org/GLM-4.6V:zai-org' && (
+                                  <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase">
+                                    NEW
+                                  </span>
+                                )}
+                              </div>
                             </button>
                           ))}
                         </div>
@@ -1064,42 +1082,45 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                   </div>
                 </div>
 
-                {/* Image Upload Button (only if model supports images) */}
-                {currentModelSupportsImages && (
-                  <>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                      disabled={!isAuthenticated}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={!isAuthenticated}
-                      className="p-2 bg-[#1d1d1f] text-[#f5f5f7] rounded-full hover:bg-[#424245] disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
-                      title="Upload image"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-                      </svg>
-                    </button>
-                  </>
-                )}
-                
-                {/* Send button on the right - Apple style */}
-                <button
-                  type="submit"
-                  disabled={!prompt.trim() || !isAuthenticated}
-                  className="p-2 bg-white text-[#1d1d1f] rounded-full hover:bg-[#f5f5f7] disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg"
-                  title="Send"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-                  </svg>
-                </button>
+                {/* Right side - Image upload + Send button group */}
+                <div className="flex items-center gap-2">
+                  {/* Image Upload Button (only if model supports images) */}
+                  {currentModelSupportsImages && (
+                    <>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        disabled={!isAuthenticated}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={!isAuthenticated}
+                        className="p-2 bg-[#1d1d1f] text-[#f5f5f7] rounded-full hover:bg-[#424245] disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+                        title="Upload image"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                        </svg>
+                      </button>
+                    </>
+                  )}
+                  
+                  {/* Send button - Apple style */}
+                  <button
+                    type="submit"
+                    disabled={!prompt.trim() || !isAuthenticated}
+                    className="p-2 bg-white text-[#1d1d1f] rounded-full hover:bg-[#f5f5f7] disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg"
+                    title="Send"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
             
