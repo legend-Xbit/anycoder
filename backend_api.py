@@ -239,6 +239,7 @@ class CodeGenerationResponse(BaseModel):
 class ImportRequest(BaseModel):
     url: str
     prefer_local: bool = False
+    username: Optional[str] = None  # Username of authenticated user for ownership check
 
 
 class ImportResponse(BaseModel):
@@ -248,6 +249,8 @@ class ImportResponse(BaseModel):
     language: str
     url: str
     metadata: Dict
+    owned_by_user: bool = False  # True if user owns the imported repo
+    repo_id: Optional[str] = None  # The repo ID (username/repo-name) if applicable
 
 
 class PullRequestRequest(BaseModel):
@@ -1554,6 +1557,27 @@ async def import_project(request: ImportRequest):
                 result['metadata']['code_type'] = 'local'
                 result['message'] = result['message'].replace('inference', 'local')
         
+        # Check if user owns this repo (for HuggingFace Spaces)
+        owned_by_user = False
+        repo_id = None
+        
+        if request.username and result['status'] == 'success':
+            # Extract repo_id from URL
+            url = result.get('url', '')
+            if 'huggingface.co/spaces/' in url:
+                # Extract username/repo from URL
+                match = re.search(r'huggingface\.co/spaces/([^/]+/[^/?#]+)', url)
+                if match:
+                    repo_id = match.group(1)
+                    # Check if user owns this space
+                    if repo_id.startswith(f"{request.username}/"):
+                        owned_by_user = True
+                        print(f"[Import] User {request.username} owns the imported space: {repo_id}")
+        
+        # Add ownership info to response
+        result['owned_by_user'] = owned_by_user
+        result['repo_id'] = repo_id
+        
         return ImportResponse(**result)
     
     except Exception as e:
@@ -1563,7 +1587,9 @@ async def import_project(request: ImportRequest):
             code="",
             language="unknown",
             url=request.url,
-            metadata={}
+            metadata={},
+            owned_by_user=False,
+            repo_id=None
         )
 
 
