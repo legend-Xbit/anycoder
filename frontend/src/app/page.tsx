@@ -301,6 +301,9 @@ export default function Home() {
     }
 
     // Add user message (show original message to user, but send enhanced to API)
+    console.log('[handleSendMessage] Received imageUrl:', imageUrl ? 'Yes' : 'No');
+    console.log('[handleSendMessage] Image URL length:', imageUrl?.length || 0);
+    
     const userMessage: Message = {
       role: 'user',
       content: message,
@@ -322,6 +325,9 @@ export default function Home() {
     console.log('[SendMessage] currentRepoId:', currentRepoId);
     console.log('[SendMessage] effectiveRepoId (will use):', effectiveRepoId);
     console.log('[SendMessage] ==========================================');
+    
+    console.log('[Request] Building request with imageUrl:', imageUrl ? 'Yes' : 'No');
+    console.log('[Request] Image URL:', imageUrl?.substring(0, 50) + '...');
     
     const request: CodeGenerationRequest = {
       query: enhancedMessage,
@@ -814,7 +820,10 @@ export default function Home() {
   };
 
   // Handle landing page prompt submission
-  const handleLandingPageStart = async (prompt: string, language: Language, modelId: string, repoId?: string, shouldCreatePR?: boolean) => {
+  const handleLandingPageStart = async (prompt: string, language: Language, modelId: string, imageUrl?: string, repoId?: string, shouldCreatePR?: boolean) => {
+    console.log('[LandingPageStart] Received imageUrl:', imageUrl ? 'Yes' : 'No');
+    console.log('[LandingPageStart] Image URL length:', imageUrl?.length || 0);
+    
     // Hide landing page immediately for smooth transition
     setShowLandingPage(false);
     
@@ -826,9 +835,9 @@ export default function Home() {
       pendingPRRef.current = prInfo;  // Set ref immediately for synchronous access
     }
     
-    // Send the message with the selected language and model
+    // Send the message with the selected language, model, and image
     // Don't pass repoId to handleSendMessage when creating PR (we want to generate code first, then create PR)
-    await handleSendMessage(prompt, undefined, language, modelId, shouldCreatePR ? undefined : repoId, shouldCreatePR);
+    await handleSendMessage(prompt, imageUrl, language, modelId, shouldCreatePR ? undefined : repoId, shouldCreatePR);
   };
 
   // Resize handlers for chat sidebar (desktop only)

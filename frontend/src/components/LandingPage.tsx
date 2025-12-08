@@ -16,7 +16,7 @@ import type { Model, Language } from '@/types';
 import type { OAuthUserInfo } from '@/lib/auth';
 
 interface LandingPageProps {
-  onStart: (prompt: string, language: Language, modelId: string, repoId?: string, shouldCreatePR?: boolean) => void;
+  onStart: (prompt: string, language: Language, modelId: string, imageUrl?: string, repoId?: string, shouldCreatePR?: boolean) => void;
   onImport?: (code: string, language: Language, importUrl?: string) => void;
   isAuthenticated: boolean;
   initialLanguage?: Language;
@@ -243,8 +243,11 @@ export default function LandingPage({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (prompt.trim() && isAuthenticated) {
-      onStart(prompt.trim(), selectedLanguage, selectedModel);
-      // Clear image after sending
+      console.log('[LandingPage Submit] Sending with image:', uploadedImageUrl ? 'Yes' : 'No');
+      console.log('[LandingPage Submit] Image URL length:', uploadedImageUrl?.length || 0);
+      onStart(prompt.trim(), selectedLanguage, selectedModel, uploadedImageUrl || undefined);
+      // Clear prompt and image after sending
+      setPrompt('');
       setUploadedImageUrl(null);
     } else if (!isAuthenticated) {
       alert('Please sign in with HuggingFace first!');
@@ -414,7 +417,7 @@ export default function LandingPage({
             onImport(result.code, result.language || 'html', importUrl);
           } else {
             const importMessage = `Imported from ${importUrl}`;
-            onStart(importMessage, result.language || 'html', selectedModel);
+            onStart(importMessage, result.language || 'html', selectedModel, undefined);
           }
           
           setShowImportDialog(false);
@@ -511,7 +514,7 @@ ${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, 
                 // Pass duplicated space ID so auto-deploy updates it
                 console.log('[Redesign] Calling onStart with duplicated repo ID:', duplicatedRepoId);
                 console.log('[Redesign] Using Claude-Sonnet-4.5 for redesign');
-                onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', duplicatedRepoId);
+                onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', undefined, duplicatedRepoId);
               }
             }, 100);
             
@@ -556,7 +559,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
             if (onStart) {
               console.log('[Redesign] Will create PR - not passing repo ID');
               console.log('[Redesign] Using Claude-Sonnet-4.5 for redesign');
-              onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', repoId, true); // Pass true for shouldCreatePR
+              onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', undefined, repoId, true); // Pass true for shouldCreatePR
             }
             
             console.log('[Redesign] Will create PR after code generation completes');
