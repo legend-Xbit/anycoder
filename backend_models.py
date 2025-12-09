@@ -149,7 +149,7 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             base_url="https://api.stepfun.com/v1"
         )
     
-    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508":
+    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508" or model_id == "devstral-medium-2512":
         # Use Mistral client for Mistral models
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
     
@@ -327,5 +327,5 @@ def is_native_sdk_model(model_id: str) -> bool:
 
 def is_mistral_model(model_id: str) -> bool:
     """Check if model uses Mistral SDK"""
-    return model_id in ["codestral-2508", "mistral-medium-2508"]
+    return model_id in ["codestral-2508", "mistral-medium-2508", "devstral-medium-2512"]
 

@@ -555,6 +555,123 @@ def deploy_to_huggingface_space(
         print(f"[Deploy] language: {language}")
         print(f"[Deploy] ============================================")
         
+        # For React space updates (followup changes), handle SEARCH/REPLACE blocks
+        if is_update and language == "react":
+            print(f"[Deploy] React space update - checking for search/replace blocks")
+            
+            # Import search/replace utilities
+            from backend_search_replace import has_search_replace_blocks, parse_file_specific_changes, apply_search_replace_changes
+            from huggingface_hub import hf_hub_download
+            
+            # Check if code contains search/replace blocks
+            if has_search_replace_blocks(code):
+                print(f"[Deploy] Detected SEARCH/REPLACE blocks - applying targeted changes")
+                
+                # Parse file-specific changes from code
+                file_changes = parse_file_specific_changes(code)
+                
+                # Download existing files from the space
+                try:
+                    print(f"[Deploy] Downloading existing files from space: {existing_repo_id}")
+                    
+                    # Get list of files in the space
+                    space_files = api.list_repo_files(repo_id=existing_repo_id, repo_type="space")
+                    print(f"[Deploy] Found {len(space_files)} files in space: {space_files}")
+                    
+                    # Download relevant files (React/Next.js files)
+                    react_file_patterns = ['.js', '.jsx', '.ts', '.tsx', '.css', '.json', 'Dockerfile']
+                    existing_files = {}
+                    
+                    for file_path in space_files:
+                        # Skip non-code files
+                        if any(file_path.endswith(ext) or ext in file_path for ext in react_file_patterns):
+                            try:
+                                downloaded_path = hf_hub_download(
+                                    repo_id=existing_repo_id,
+                                    filename=file_path,
+                                    repo_type="space",
+                                    token=token
+                                )
+                                with open(downloaded_path, 'r', encoding='utf-8') as f:
+                                    existing_files[file_path] = f.read()
+                                print(f"[Deploy] Downloaded: {file_path} ({len(existing_files[file_path])} chars)")
+                            except Exception as e:
+                                print(f"[Deploy] Warning: Could not download {file_path}: {e}")
+                    
+                    if not existing_files:
+                        print(f"[Deploy] Warning: No React files found in space, falling back to full deployment")
+                    else:
+                        # Apply search/replace changes to the appropriate files
+                        updated_files = []
+                        
+                        # Check if changes are file-specific or global
+                        if "__all__" in file_changes:
+                            # Global changes - try to apply to all files
+                            changes_text = file_changes["__all__"]
+                            print(f"[Deploy] Applying global search/replace changes")
+                            
+                            # Try to apply to each file
+                            for file_path, original_content in existing_files.items():
+                                modified_content = apply_search_replace_changes(original_content, changes_text)
+                                if modified_content != original_content:
+                                    print(f"[Deploy] Modified {file_path}")
+                                    success, msg = update_space_file(
+                                        repo_id=existing_repo_id,
+                                        file_path=file_path,
+                                        content=modified_content,
+                                        token=token,
+                                        commit_message=commit_message or f"Update {file_path} from anycoder"
+                                    )
+                                    if success:
+                                        updated_files.append(file_path)
+                                    else:
+                                        print(f"[Deploy] Warning: Failed to update {file_path}: {msg}")
+                        else:
+                            # File-specific changes
+                            for filename, changes_text in file_changes.items():
+                                # Find the file in existing files (handle both with/without directory prefix)
+                                matching_file = None
+                                for file_path in existing_files.keys():
+                                    if file_path == filename or file_path.endswith('/' + filename):
+                                        matching_file = file_path
+                                        break
+                                
+                                if matching_file:
+                                    original_content = existing_files[matching_file]
+                                    modified_content = apply_search_replace_changes(original_content, changes_text)
+                                    
+                                    print(f"[Deploy] Applying changes to {matching_file}")
+                                    success, msg = update_space_file(
+                                        repo_id=existing_repo_id,
+                                        file_path=matching_file,
+                                        content=modified_content,
+                                        token=token,
+                                        commit_message=commit_message or f"Update {matching_file} from anycoder"
+                                    )
+                                    
+                                    if success:
+                                        updated_files.append(matching_file)
+                                    else:
+                                        print(f"[Deploy] Warning: Failed to update {matching_file}: {msg}")
+                                else:
+                                    print(f"[Deploy] Warning: File {filename} not found in space")
+                        
+                        if updated_files:
+                            space_url = f"https://huggingface.co/spaces/{existing_repo_id}"
+                            files_list = ", ".join(updated_files)
+                            return True, f"✅ Updated {len(updated_files)} file(s): {files_list}! View at: {space_url}", space_url
+                        else:
+                            return False, "No files were updated", None
+                    
+                except Exception as e:
+                    print(f"[Deploy] Error applying search/replace changes: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Fall through to normal deployment
+            else:
+                print(f"[Deploy] No SEARCH/REPLACE blocks detected, proceeding with full file update")
+                # Fall through to normal React deployment below
+        
         # For Gradio space updates (import/redesign), update .py files and upload all new files
         if is_update and language == "gradio":
             print(f"[Deploy] Gradio space update - updating .py files and uploading any new files")

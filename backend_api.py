@@ -99,7 +99,8 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
-    {"name": "GLM-4.6V 👁️", "id": "zai-org/GLM-4.6V:zai-org", "description": "GLM-4.6V vision model - supports image uploads for visual understanding (Default)", "supports_images": True},
+    {"name": "Devstral Medium 2512", "id": "devstral-medium-2512", "description": "Mistral Devstral Medium 2512 - Expert code generation model via Mistral Conversations API (Default)", "supports_images": False},
+    {"name": "GLM-4.6V 👁️", "id": "zai-org/GLM-4.6V:zai-org", "description": "GLM-4.6V vision model - supports image uploads for visual understanding", "supports_images": True},
     {"name": "DeepSeek V3.2", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental - Fast model for code generation via HuggingFace Router with Novita provider", "supports_images": False},
     {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation", "supports_images": False},
     {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning", "supports_images": False},
@@ -199,7 +200,7 @@ async def startup_event():
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "zai-org/GLM-4.6V:zai-org"
+    model_id: str = "devstral-medium-2512"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False
@@ -842,12 +843,63 @@ async def generate_code(
             try:
                 # Handle Mistral models with different API
                 if is_mistral_model(selected_model_id):
-                    print("[Generate] Using Mistral SDK")
-                    stream = client.chat.stream(
-                        model=actual_model_id,
-                        messages=messages,
-                        max_tokens=10000
-                    )
+                    print(f"[Generate] Using Mistral SDK for {selected_model_id}")
+                    
+                    # devstral-medium-2512 uses the beta Conversations API
+                    if selected_model_id == "devstral-medium-2512":
+                        # Convert messages to inputs format for Conversations API
+                        # Extract system instruction from messages
+                        instructions = ""
+                        inputs = []
+                        for msg in messages:
+                            if msg["role"] == "system":
+                                instructions = msg["content"]
+                            else:
+                                inputs.append({
+                                    "role": msg["role"],
+                                    "content": msg["content"]
+                                })
+                        
+                        # Use beta Conversations API
+                        response = client.beta.conversations.start(
+                            inputs=inputs,
+                            model=actual_model_id,
+                            instructions=instructions,
+                            completion_args={
+                                "temperature": 0.7,
+                                "max_tokens": 10000,
+                                "top_p": 1
+                            },
+                            tools=[],
+                        )
+                        
+                        # For non-streaming response, yield the complete content
+                        # Note: Conversations API might not support streaming in the same way
+                        # We'll yield the complete response as chunks for consistency
+                        full_response = str(response)
+                        generated_code = full_response
+                        
+                        # Yield in chunks to maintain consistency with streaming API
+                        chunk_size = 100
+                        for i in range(0, len(full_response), chunk_size):
+                            chunk_content = full_response[i:i+chunk_size]
+                            event_data = json.dumps({
+                                "type": "chunk",
+                                "content": chunk_content
+                            })
+                            yield f"data: {event_data}\\n\\n"
+                            await asyncio.sleep(0)
+                        
+                        # Skip the normal streaming loop
+                        stream = None
+                    else:
+                        # Other Mistral models use the standard chat.stream API
+                        stream = client.chat.stream(
+                            model=actual_model_id,
+                            messages=messages,
+                            max_tokens=10000
+                        )
+                
                 
                 # All other models use OpenAI-compatible API
                 else:
@@ -862,40 +914,42 @@ async def generate_code(
                 chunk_count = 0
                 is_mistral = is_mistral_model(selected_model_id)
                 
-                # Optimized chunk processing - reduce attribute lookups
-                for chunk in stream:
-                    chunk_content = None
-                    
-                    if is_mistral:
-                        # Mistral format: chunk.data.choices[0].delta.content
-                        try:
-                            if chunk.data and chunk.data.choices and chunk.data.choices[0].delta.content:
-                                chunk_content = chunk.data.choices[0].delta.content
-                        except (AttributeError, IndexError):
-                            continue
-                    else:
-                        # OpenAI format: chunk.choices[0].delta.content
-                        try:
-                            if chunk.choices and chunk.choices[0].delta.content:
-                                chunk_content = chunk.choices[0].delta.content
-                        except (AttributeError, IndexError):
-                            continue
-                    
-                    if chunk_content:
-                        generated_code += chunk_content
-                        chunk_count += 1
+                # Only process stream if it exists (not None for Conversations API)
+                if stream:
+                    # Optimized chunk processing - reduce attribute lookups
+                    for chunk in stream:
+                        chunk_content = None
                         
-                        # Send chunk immediately - optimized JSON serialization
-                        # Only yield control every 5 chunks to reduce overhead
-                        if chunk_count % 5 == 0:
-                            await asyncio.sleep(0)
+                        if is_mistral:
+                            # Mistral format: chunk.data.choices[0].delta.content
+                            try:
+                                if chunk.data and chunk.data.choices and chunk.data.choices[0].delta.content:
+                                    chunk_content = chunk.data.choices[0].delta.content
+                            except (AttributeError, IndexError):
+                                continue
+                        else:
+                            # OpenAI format: chunk.choices[0].delta.content
+                            try:
+                                if chunk.choices and chunk.choices[0].delta.content:
+                                    chunk_content = chunk.choices[0].delta.content
+                            except (AttributeError, IndexError):
+                                continue
                         
-                        # Build event data efficiently
-                        event_data = json.dumps({
-                            "type": "chunk",
-                            "content": chunk_content
-                        })
-                        yield f"data: {event_data}\n\n"
+                        if chunk_content:
+                            generated_code += chunk_content
+                            chunk_count += 1
+                            
+                            # Send chunk immediately - optimized JSON serialization
+                            # Only yield control every 5 chunks to reduce overhead
+                            if chunk_count % 5 == 0:
+                                await asyncio.sleep(0)
+                            
+                            # Build event data efficiently
+                            event_data = json.dumps({
+                                "type": "chunk",
+                                "content": chunk_content
+                            })
+                            yield f"data: {event_data}\n\n"
                 
                 # Clean up generated code (remove LLM explanatory text and markdown)
                 generated_code = cleanup_generated_code(generated_code, language)
