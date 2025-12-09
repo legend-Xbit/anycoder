@@ -3,14 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { apiClient } from '@/lib/api';
-import { 
-  initializeOAuth, 
-  loginWithHuggingFace, 
+import {
+  initializeOAuth,
+  loginWithHuggingFace,
   loginDevMode,
-  logout, 
-  getStoredUserInfo, 
+  logout,
+  getStoredUserInfo,
   isAuthenticated as checkIsAuthenticated,
-  isDevelopmentMode 
+  isDevelopmentMode
 } from '@/lib/auth';
 import type { Model, Language } from '@/types';
 import type { OAuthUserInfo } from '@/lib/auth';
@@ -26,12 +26,12 @@ interface LandingPageProps {
   pendingPRRef?: React.MutableRefObject<{ repoId: string; language: Language } | null>;
 }
 
-export default function LandingPage({ 
-  onStart, 
+export default function LandingPage({
+  onStart,
   onImport,
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'zai-org/GLM-4.6V:zai-org',
+  initialModel = 'devstral-medium-2512',
   onAuthChange,
   setPendingPR,
   pendingPRRef
@@ -42,14 +42,14 @@ export default function LandingPage({
   const [models, setModels] = useState<Model[]>([]);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Auth states
   const [userInfo, setUserInfo] = useState<OAuthUserInfo | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [showDevLogin, setShowDevLogin] = useState(false);
   const [devUsername, setDevUsername] = useState('');
   const isDevMode = isDevelopmentMode();
-  
+
   // Dropdown states
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [showModelDropdown, setShowModelDropdown] = useState(false);
@@ -59,23 +59,23 @@ export default function LandingPage({
   const modelDropdownRef = useRef<HTMLDivElement>(null);
   const importDialogRef = useRef<HTMLDivElement>(null);
   const redesignDialogRef = useRef<HTMLDivElement>(null);
-  
+
   // Trending apps state
   const [trendingApps, setTrendingApps] = useState<any[]>([]);
-  
+
   // Import project state
   const [importUrl, setImportUrl] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState('');
   const [importAction, setImportAction] = useState<'duplicate' | 'update' | 'pr'>('duplicate'); // Default to duplicate
   const [isSpaceOwner, setIsSpaceOwner] = useState(false); // Track if user owns the space
-  
+
   // Redesign project state
   const [redesignUrl, setRedesignUrl] = useState('');
   const [isRedesigning, setIsRedesigning] = useState(false);
   const [redesignError, setRedesignError] = useState('');
   const [createPR, setCreatePR] = useState(false); // Default to normal redesign (not PR)
-  
+
   // Image upload state
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,7 +109,7 @@ export default function LandingPage({
     setIsAuthLoading(true);
     try {
       const oauthResult = await initializeOAuth();
-      
+
       if (oauthResult) {
         setUserInfo(oauthResult.userInfo);
         apiClient.setToken(oauthResult.accessToken);
@@ -149,7 +149,7 @@ export default function LandingPage({
       alert('Please enter a username');
       return;
     }
-    
+
     try {
       const result = loginDevMode(devUsername);
       setUserInfo(result.userInfo);
@@ -216,14 +216,14 @@ export default function LandingPage({
       console.error('Failed to load languages:', error);
     }
   };
-  
+
   // Check if current model supports images
   // Show immediately for GLM-4.6V even before models load
-  const currentModelSupportsImages = 
-    selectedModel === 'zai-org/GLM-4.6V:zai-org' || 
-    models.find(m => m.id === selectedModel)?.supports_images || 
+  const currentModelSupportsImages =
+    selectedModel === 'zai-org/GLM-4.6V:zai-org' ||
+    models.find(m => m.id === selectedModel)?.supports_images ||
     false;
-  
+
   // Debug logging
   useEffect(() => {
     console.log('[LandingPage] Selected model:', selectedModel);
@@ -253,7 +253,7 @@ export default function LandingPage({
       alert('Please sign in with HuggingFace first!');
     }
   };
-  
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -265,7 +265,7 @@ export default function LandingPage({
       reader.readAsDataURL(file);
     }
   };
-  
+
   const removeImage = () => {
     setUploadedImageUrl(null);
     if (fileInputRef.current) {
@@ -286,14 +286,14 @@ export default function LandingPage({
       setIsSpaceOwner(false);
       return;
     }
-    
+
     const spaceMatch = url.match(/huggingface\.co\/spaces\/([^\/\s\)]+)\/[^\/\s\)]+/);
     if (spaceMatch) {
       const spaceOwner = spaceMatch[1];
       const isOwner = spaceOwner === userInfo.preferred_username;
       setIsSpaceOwner(isOwner);
       console.log('[Import] Space owner:', spaceOwner, '| Current user:', userInfo.preferred_username, '| Is owner:', isOwner);
-      
+
       // Auto-select update mode if owner, otherwise duplicate
       if (isOwner) {
         setImportAction('update');
@@ -323,47 +323,47 @@ export default function LandingPage({
       console.log('[Import] ========== STARTING IMPORT ==========');
       console.log('[Import] Import URL:', importUrl);
       console.log('[Import] Action:', importAction);
-      
+
       // Extract space ID from URL
       const spaceMatch = importUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
       console.log('[Import] Space regex match result:', spaceMatch);
-      
+
       if (spaceMatch) {
         const fromSpaceId = spaceMatch[1];
         console.log('[Import] ✅ Detected HF Space:', fromSpaceId);
-        
+
         // Import the code first (always needed to load in editor)
         const importResult = await apiClient.importProject(importUrl);
-        
+
         if (importResult.status !== 'success') {
           setImportError(importResult.message || 'Failed to import project');
           setIsImporting(false);
           return;
         }
-        
+
         // Handle different import actions
         if (importAction === 'update' && isSpaceOwner) {
           // Option 1: Update existing space directly (for owners)
           console.log('[Import] Owner update - loading code for direct update to:', fromSpaceId);
-          
+
           if (onImport && importResult.code) {
             // Pass the original space URL so future deployments update it
             onImport(importResult.code, importResult.language || 'html', importUrl);
-            
+
             alert(`✅ Code loaded!\n\nYou can now make changes and deploy them directly to: ${importUrl}\n\nThe code has been loaded in the editor.`);
           }
-          
+
           setShowImportDialog(false);
           setImportUrl('');
-          
+
         } else if (importAction === 'pr') {
           // Option 2: Create Pull Request
           console.log('[Import] PR mode - loading code to create PR to:', fromSpaceId);
-          
+
           if (onImport && importResult.code) {
             // Load code in editor with the original space for PR tracking
             onImport(importResult.code, importResult.language || 'html', importUrl);
-            
+
             // Set pending PR state so any future code generation creates a PR
             if (setPendingPR && pendingPRRef) {
               const prInfo = { repoId: fromSpaceId, language: (importResult.language || 'html') as Language };
@@ -371,36 +371,36 @@ export default function LandingPage({
               pendingPRRef.current = prInfo;
               console.log('[Import PR] Set pending PR:', prInfo);
             }
-            
+
             // Show success message
             alert(`✅ Code loaded in PR mode!\n\nYou can now:\n• Make manual edits in the editor\n• Generate new features with AI\n\nWhen you deploy, a Pull Request will be created to: ${fromSpaceId}`);
           }
-          
+
           setShowImportDialog(false);
           setImportUrl('');
-          
+
         } else {
           // Option 3: Duplicate space (default)
           console.log('[Import] Duplicate mode - will duplicate:', fromSpaceId);
-          
+
           const duplicateResult = await apiClient.duplicateSpace(fromSpaceId);
           console.log('[Import] Duplicate API response:', duplicateResult);
-          
+
           if (duplicateResult.success) {
             console.log('[Import] ========== DUPLICATE SUCCESS ==========');
             console.log('[Import] Duplicated space URL:', duplicateResult.space_url);
             console.log('[Import] Duplicated space ID:', duplicateResult.space_id);
             console.log('[Import] ==========================================');
-            
+
             if (onImport && importResult.code) {
               console.log('[Import] Calling onImport with duplicated space URL:', duplicateResult.space_url);
               // Pass the duplicated space URL so it's tracked for future deployments
               onImport(importResult.code, importResult.language || 'html', duplicateResult.space_url);
-              
+
               // Show success message with link to duplicated space
               alert(`✅ Space duplicated successfully!\n\nYour space: ${duplicateResult.space_url}\n\nThe code has been loaded in the editor. Any changes you deploy will update this duplicated space.`);
             }
-            
+
             setShowImportDialog(false);
             setImportUrl('');
           } else {
@@ -411,7 +411,7 @@ export default function LandingPage({
         // Not a Space URL - fall back to regular import
         console.log('[Import] ❌ Not a HF Space URL - using regular import');
         const result = await apiClient.importProject(importUrl);
-        
+
         if (result.status === 'success') {
           if (onImport && result.code) {
             onImport(result.code, result.language || 'html', importUrl);
@@ -419,7 +419,7 @@ export default function LandingPage({
             const importMessage = `Imported from ${importUrl}`;
             onStart(importMessage, result.language || 'html', selectedModel, undefined);
           }
-          
+
           setShowImportDialog(false);
           setImportUrl('');
         } else {
@@ -452,47 +452,47 @@ export default function LandingPage({
       // Extract space ID from URL
       const spaceMatch = redesignUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
       const repoId = spaceMatch ? spaceMatch[1] : null;
-      
+
       if (!repoId) {
         setRedesignError('Please enter a valid HuggingFace Space URL');
         setIsRedesigning(false);
         return;
       }
-      
+
       // Import the code first
       const result = await apiClient.importProject(redesignUrl);
-      
+
       if (result.status !== 'success') {
         setRedesignError(result.message || 'Failed to import project for redesign');
         setIsRedesigning(false);
         return;
       }
-      
+
       if (!createPR) {
         // Option 1: Redesign WITHOUT PR - Duplicate space first, then generate redesign
         console.log('[Redesign] Duplicating space first:', repoId);
-        
+
         try {
           const duplicateResult = await apiClient.duplicateSpace(repoId);
           console.log('[Redesign] Duplicate result:', duplicateResult);
-          
+
           if (!duplicateResult.success) {
             setRedesignError(duplicateResult.message || 'Failed to duplicate space');
             setIsRedesigning(false);
             return;
           }
-          
+
           // Load code and trigger redesign
           if (onImport && onStart) {
             // Pass duplicated space URL
             onImport(result.code, result.language || 'html', duplicateResult.space_url);
-            
+
             // Extract duplicated space ID to pass to generation
             const dupSpaceMatch = duplicateResult.space_url?.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
             const duplicatedRepoId = dupSpaceMatch ? dupSpaceMatch[1] : undefined;
-            
+
             console.log('[Redesign] Duplicated space ID:', duplicatedRepoId);
-            
+
             setTimeout(() => {
               const isGradio = (result.language || 'html') === 'gradio';
               const redesignPrompt = `I have existing code in the editor from a duplicated space. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
@@ -509,7 +509,7 @@ Please redesign this with:
 - Better visual hierarchy and spacing
 
 ${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, layout, styling). Do NOT modify or output any other .py files (utils.py, models.py, etc.). Do NOT include requirements.txt or README.md.' : ''}`;
-              
+
               if (onStart) {
                 // Pass duplicated space ID so auto-deploy updates it
                 console.log('[Redesign] Calling onStart with duplicated repo ID:', duplicatedRepoId);
@@ -517,26 +517,26 @@ ${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, 
                 onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', undefined, duplicatedRepoId);
               }
             }, 100);
-            
+
             // Show success message
             alert(`✅ Space duplicated!\n\nYour space: ${duplicateResult.space_url}\n\nGenerating redesign now...`);
           }
-          
+
           setShowRedesignDialog(false);
           setRedesignUrl('');
-          
+
         } catch (dupError: any) {
           console.error('[Redesign] Duplication error:', dupError);
           setRedesignError(dupError.response?.data?.message || dupError.message || 'Failed to duplicate space');
           setIsRedesigning(false);
           return;
         }
-        
+
       } else {
         // Option 2: Redesign WITH PR - Import code and generate, then create PR
         if (onImport && onStart) {
           onImport(result.code, result.language || 'html', redesignUrl);
-          
+
           setTimeout(() => {
             const isGradio = (result.language || 'html') === 'gradio';
             const redesignPrompt = `I have existing code in the editor that I imported from ${redesignUrl}. Please redesign it to make it look better with minimal components needed, mobile friendly, and modern design.
@@ -555,16 +555,16 @@ Please redesign this with:
 ${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, layout, styling). Do NOT modify or output any other .py files (utils.py, models.py, etc.). Do NOT include requirements.txt or README.md.' : ''}
 
 Note: After generating the redesign, I will create a Pull Request on the original space.`;
-            
+
             if (onStart) {
               console.log('[Redesign] Will create PR - not passing repo ID');
               console.log('[Redesign] Using Claude-Sonnet-4.5 for redesign');
               onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', undefined, repoId, true); // Pass true for shouldCreatePR
             }
-            
+
             console.log('[Redesign] Will create PR after code generation completes');
           }, 100);
-          
+
           setShowRedesignDialog(false);
           setRedesignUrl('');
         } else {
@@ -583,15 +583,15 @@ Note: After generating the redesign, I will create a Pull Request on the origina
     <div className="h-screen flex flex-col bg-[#000000] overflow-hidden">
       {/* Header - Apple style */}
       <header className="flex items-center justify-between px-6 py-3 backdrop-blur-xl bg-[#000000]/80 border-b border-[#424245]/30 flex-shrink-0">
-        <a 
-          href="https://huggingface.co/spaces/akhaliq/anycoder" 
-          target="_blank" 
+        <a
+          href="https://huggingface.co/spaces/akhaliq/anycoder"
+          target="_blank"
           rel="noopener noreferrer"
           className="text-sm font-medium text-[#f5f5f7] hover:text-white transition-colors"
         >
           AnyCoder
         </a>
-        
+
         {/* Auth Section */}
         <div className="flex items-center space-x-3">
           {isAuthLoading ? (
@@ -599,8 +599,8 @@ Note: After generating the redesign, I will create a Pull Request on the origina
           ) : userInfo ? (
             <div className="flex items-center space-x-3">
               {userInfo.avatarUrl && (
-                <img 
-                  src={userInfo.avatarUrl} 
+                <img
+                  src={userInfo.avatarUrl}
                   alt={userInfo.name}
                   className="w-7 h-7 rounded-full"
                 />
@@ -659,7 +659,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                   <span className="text-[#86868b] text-sm">or</span>
                 </>
               )}
-              
+
               {/* OAuth Login */}
               <button
                 onClick={handleLogin}
@@ -692,11 +692,11 @@ Note: After generating the redesign, I will create a Pull Request on the origina
               {uploadedImageUrl && (
                 <div className="px-4 pt-3">
                   <div className="relative inline-block">
-                    <Image 
-                      src={uploadedImageUrl} 
-                      alt="Upload preview" 
-                      width={120} 
-                      height={120} 
+                    <Image
+                      src={uploadedImageUrl}
+                      alt="Upload preview"
+                      width={120}
+                      height={120}
                       className="rounded-lg object-cover"
                       unoptimized
                     />
@@ -710,7 +710,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                   </div>
                 </div>
               )}
-              
+
               {/* Textarea */}
               <textarea
                 value={prompt}
@@ -725,7 +725,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                   }
                 }}
               />
-              
+
               {/* Bottom controls - Apple style */}
               <div className="flex items-center justify-between px-3 pb-3 gap-2">
                 {/* Compact dropdowns on the left */}
@@ -744,20 +744,20 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                       className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all disabled:opacity-50 flex items-center gap-1.5 font-medium"
                     >
                       <span>{isLoading ? '...' : formatLanguageName(selectedLanguage)}</span>
-                      <svg 
+                      <svg
                         className={`w-3 h-3 text-[#86868b] transition-transform ${showLanguageDropdown ? 'rotate-180' : ''}`}
-                        fill="none" 
-                        stroke="currentColor" 
+                        fill="none"
+                        stroke="currentColor"
                         viewBox="0 0 24 24"
                         strokeWidth={2.5}
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    
+
                     {/* Language Dropdown Menu */}
                     {showLanguageDropdown && !isLoading && languages.length > 0 && (
-                      <div 
+                      <div
                         className="absolute bottom-full left-0 mb-2 w-48 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -770,9 +770,8 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                                 setSelectedLanguage(lang);
                                 setShowLanguageDropdown(false);
                               }}
-                              className={`w-full px-4 py-2.5 text-left text-xs text-[#f5f5f7] hover:bg-[#2d2d2f] transition-colors font-medium ${
-                                selectedLanguage === lang ? 'bg-[#2d2d2f]' : ''
-                              }`}
+                              className={`w-full px-4 py-2.5 text-left text-xs text-[#f5f5f7] hover:bg-[#2d2d2f] transition-colors font-medium ${selectedLanguage === lang ? 'bg-[#2d2d2f]' : ''
+                                }`}
                             >
                               {formatLanguageName(lang)}
                             </button>
@@ -796,25 +795,25 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                       className="px-3 py-1.5 bg-[#1d1d1f] text-[#f5f5f7] text-xs border border-[#424245] rounded-full hover:bg-[#2d2d2f] transition-all flex items-center gap-1.5 max-w-[200px] font-medium"
                     >
                       <span className="truncate">
-                        {isLoading 
-                          ? '...' 
+                        {isLoading
+                          ? '...'
                           : models.find(m => m.id === selectedModel)?.name || selectedModel || 'Model'
                         }
                       </span>
-                      <svg 
+                      <svg
                         className={`w-3 h-3 text-[#86868b] flex-shrink-0 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`}
-                        fill="none" 
-                        stroke="currentColor" 
+                        fill="none"
+                        stroke="currentColor"
                         viewBox="0 0 24 24"
                         strokeWidth={2.5}
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                       </svg>
                     </button>
-                    
+
                     {/* Model Dropdown Menu */}
                     {showModelDropdown && models.length > 0 && (
-                      <div 
+                      <div
                         className="absolute top-full left-0 mt-2 w-56 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-50"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -827,15 +826,14 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                                 setSelectedModel(model.id);
                                 setShowModelDropdown(false);
                               }}
-                              className={`w-full px-4 py-2 text-left transition-colors ${
-                                selectedModel === model.id 
-                                  ? 'bg-[#2d2d2f]' 
-                                  : 'hover:bg-[#2d2d2f]'
-                              }`}
+                              className={`w-full px-4 py-2 text-left transition-colors ${selectedModel === model.id
+                                ? 'bg-[#2d2d2f]'
+                                : 'hover:bg-[#2d2d2f]'
+                                }`}
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium text-[#f5f5f7]">{model.name}</span>
-                                {model.id === 'zai-org/GLM-4.6V:zai-org' && (
+                                {model.id === 'devstral-medium-2512' && (
                                   <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase">
                                     NEW
                                   </span>
@@ -867,10 +865,10 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                       </svg>
                       <span>Import</span>
                     </button>
-                    
+
                     {/* Import Dialog */}
                     {showImportDialog && (
-                      <div 
+                      <div
                         className="absolute top-full left-0 mt-2 w-80 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-50"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -888,12 +886,12 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                             className="w-full px-3 py-2 rounded-lg text-xs bg-[#2d2d30] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 font-normal mb-3"
                             disabled={isImporting}
                           />
-                          
+
                           {/* Import Action Options */}
                           {importUrl.includes('huggingface.co/spaces/') && (
                             <div className="mb-3 space-y-2">
                               <p className="text-[10px] font-medium text-[#86868b] mb-2">Import Mode:</p>
-                              
+
                               {/* Update Space (only for owners) */}
                               {isSpaceOwner && (
                                 <label className="flex items-start gap-2 cursor-pointer group">
@@ -912,7 +910,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                                   </div>
                                 </label>
                               )}
-                              
+
                               {/* Duplicate Space */}
                               <label className="flex items-start gap-2 cursor-pointer group">
                                 <input
@@ -929,7 +927,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                                   </p>
                                 </div>
                               </label>
-                              
+
                               {/* Create PR */}
                               <label className="flex items-start gap-2 cursor-pointer group">
                                 <input
@@ -946,7 +944,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                                   </p>
                                 </div>
                               </label>
-                              
+
                               {importAction === 'pr' && (
                                 <p className="text-[10px] text-[#86868b] ml-6 mt-1">
                                   ⚠️ Requires space owner to enable PRs
@@ -954,11 +952,11 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                               )}
                             </div>
                           )}
-                          
+
                           {importError && (
                             <p className="text-xs text-red-400 mb-2">{importError}</p>
                           )}
-                          
+
                           <div className="flex gap-2">
                             <button
                               onClick={handleImportProject}
@@ -1013,10 +1011,10 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                         <span className="absolute inset-0 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-full blur-sm opacity-75 animate-pulse"></span>
                       </span>
                     </button>
-                    
+
                     {/* Redesign Dialog */}
                     {showRedesignDialog && (
-                      <div 
+                      <div
                         className="absolute top-full left-0 mt-2 w-80 bg-[#1d1d1f] border border-[#424245] rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl z-50"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -1031,7 +1029,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                             className="w-full px-3 py-2 rounded-lg text-xs bg-[#2d2d30] text-[#f5f5f7] border border-[#424245] focus:outline-none focus:border-white/50 font-normal mb-3"
                             disabled={isRedesigning}
                           />
-                          
+
                           {/* PR Option */}
                           <label className="flex items-center gap-2 mb-1 cursor-pointer">
                             <input
@@ -1045,13 +1043,13 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                               Create Pull Request on original space
                             </span>
                           </label>
-                          
+
                           {createPR && (
                             <p className="text-[10px] text-[#86868b] mb-2 ml-6">
                               ⚠️ Note: PR creation requires space owner to enable PRs. If disabled, uncheck this to duplicate the space instead.
                             </p>
                           )}
-                          
+
                           {redesignError && (
                             <p className="text-xs text-red-400 mb-2">{redesignError}</p>
                           )}
@@ -1075,7 +1073,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                             </button>
                           </div>
                           <p className="text-[10px] text-[#86868b] mt-3">
-                            {createPR 
+                            {createPR
                               ? 'Creates a Pull Request on the original space with your redesign'
                               : 'Import and automatically redesign with modern, mobile-friendly design'}
                           </p>
@@ -1111,7 +1109,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                       </button>
                     </>
                   )}
-                  
+
                   {/* Send button - Apple style */}
                   <button
                     type="submit"
@@ -1126,7 +1124,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                 </div>
               </div>
             </div>
-            
+
             {!isAuthenticated && (
               <div className="mt-4 text-center">
                 <p className="text-xs text-[#86868b]">
@@ -1178,7 +1176,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                       <span className="px-1.5 py-0.5 bg-[#2d2d30] text-[#86868b] text-[9px] rounded-full font-medium">
                         {app.sdk}
                       </span>
-                      {app.tags?.slice(0, 2).map((tag: string) => 
+                      {app.tags?.slice(0, 2).map((tag: string) =>
                         tag !== 'anycoder' && tag !== app.sdk && tag !== 'region:us' && (
                           <span key={tag} className="px-1.5 py-0.5 bg-[#2d2d30] text-[#86868b] text-[9px] rounded-full font-medium">
                             {tag}

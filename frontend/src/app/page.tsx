@@ -14,10 +14,10 @@ import type { Message, Language, CodeGenerationRequest, Model } from '@/types';
 export default function Home() {
   // Initialize messages as empty array (will load from localStorage in useEffect)
   const [messages, setMessages] = useState<Message[]>([]);
-  
+
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('zai-org/GLM-4.6V:zai-org');
+  const [selectedModel, setSelectedModel] = useState('devstral-medium-2512');
   const [models, setModels] = useState<Model[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -25,13 +25,13 @@ export default function Home() {
   const [username, setUsername] = useState<string | null>(null);  // Track current user
   const [pendingPR, setPendingPR] = useState<{ repoId: string; language: Language } | null>(null);  // Track pending PR after redesign
   const pendingPRRef = useRef<{ repoId: string; language: Language } | null>(null);  // Ref for immediate access
-  
+
   // Landing page state - show landing page if no messages exist
   const [showLandingPage, setShowLandingPage] = useState(true);
-  
+
   // Mobile view state: 'chat', 'editor', or 'settings' - start on chat for mobile
   const [mobileView, setMobileView] = useState<'chat' | 'editor' | 'settings'>('chat');
-  
+
   // Resizable sidebar widths (in pixels)
   const [chatSidebarWidth, setChatSidebarWidth] = useState(320);
   const [settingsSidebarWidth, setSettingsSidebarWidth] = useState(288);
@@ -50,12 +50,12 @@ export default function Home() {
       console.log('[Cache] Clearing models and languages cache on app startup');
       localStorage.removeItem('anycoder_models');
       localStorage.removeItem('anycoder_languages');
-      
+
       // Load models for checking image support
       loadModels();
     }
   }, []); // Run once on mount
-  
+
   const loadModels = async () => {
     try {
       const modelsList = await apiClient.getModels();
@@ -65,14 +65,14 @@ export default function Home() {
       console.error('Failed to load models:', error);
     }
   };
-  
+
   // Check if current model supports images
   // Show immediately for GLM-4.6V even before models load
-  const currentModelSupportsImages = 
-    selectedModel === 'zai-org/GLM-4.6V:zai-org' || 
-    models.find(m => m.id === selectedModel)?.supports_images || 
+  const currentModelSupportsImages =
+    selectedModel === 'zai-org/GLM-4.6V:zai-org' ||
+    models.find(m => m.id === selectedModel)?.supports_images ||
     false;
-  
+
   // Debug log for image support
   useEffect(() => {
     console.log('[Image Support] Selected model:', selectedModel);
@@ -97,7 +97,7 @@ export default function Home() {
           console.error('[localStorage] Failed to parse saved messages:', e);
         }
       }
-      
+
       // Load sidebar widths from localStorage
       const savedChatWidth = localStorage.getItem('anycoder_chat_sidebar_width');
       const savedSettingsWidth = localStorage.getItem('anycoder_settings_sidebar_width');
@@ -107,13 +107,13 @@ export default function Home() {
       if (savedSettingsWidth) {
         setSettingsSidebarWidth(parseInt(savedSettingsWidth, 10));
       }
-      
+
       // Check if desktop on mount
       const checkDesktop = () => {
         setIsDesktop(window.innerWidth >= 768);
       };
       checkDesktop();
-      
+
       // Listen for window resize to update desktop status
       window.addEventListener('resize', checkDesktop);
       return () => window.removeEventListener('resize', checkDesktop);
@@ -136,7 +136,7 @@ export default function Home() {
   // Check auth on mount and handle OAuth callback
   useEffect(() => {
     checkAuth();
-    
+
     // Check for OAuth callback in URL (handles ?session=token)
     // initializeOAuth already handles this, but we call checkAuth to sync state
     const urlParams = new URLSearchParams(window.location.search);
@@ -174,7 +174,7 @@ export default function Home() {
       setIsAuthenticated(false);
       setUsername(null);
       apiClient.setToken(null);
-      
+
       // Show alert to user
       if (typeof window !== 'undefined') {
         alert(e.detail?.message || 'Your session has expired. Please sign in again.');
@@ -206,13 +206,13 @@ export default function Home() {
   const checkAuth = async () => {
     const authenticated = checkIsAuthenticated();
     setIsAuthenticated(authenticated);
-    
+
     // Make sure API client has the token or clears it
     if (authenticated) {
       const token = getStoredToken();
       if (token) {
         apiClient.setToken(token);
-        
+
         // Get username from auth status (only if we don't have it yet and backend is available)
         // Skip if backend is known to be unavailable to avoid repeated failed requests
         if (!username && !usernameFetchAttemptedRef.current && !backendUnavailableRef.current) {
@@ -225,16 +225,16 @@ export default function Home() {
             }
           } catch (error: any) {
             // Check if this is a connection error
-            const isConnectionError = 
-              error.code === 'ECONNABORTED' || 
-              error.code === 'ECONNRESET' || 
+            const isConnectionError =
+              error.code === 'ECONNABORTED' ||
+              error.code === 'ECONNRESET' ||
               error.code === 'ECONNREFUSED' ||
               error.message?.includes('socket hang up') ||
               error.message?.includes('timeout') ||
               error.message?.includes('Network Error') ||
               error.response?.status === 503 ||
               error.response?.status === 502;
-            
+
             if (isConnectionError) {
               // Mark backend as unavailable to avoid repeated requests
               backendUnavailableRef.current = true;
@@ -292,10 +292,10 @@ export default function Home() {
 
     // If there's existing code, include it in the message context for modifications
     let enhancedMessage = message;
-    const hasRealCode = generatedCode && 
-                        generatedCode.length > 50 && 
-                        !generatedCode.includes('Your generated code will appear here');
-    
+    const hasRealCode = generatedCode &&
+      generatedCode.length > 50 &&
+      !generatedCode.includes('Your generated code will appear here');
+
     if (hasRealCode) {
       enhancedMessage = `I have existing code in the editor. Please modify it based on my request.\n\nCurrent code:\n\`\`\`${language}\n${generatedCode}\n\`\`\`\n\nMy request: ${message}`;
     }
@@ -303,7 +303,7 @@ export default function Home() {
     // Add user message (show original message to user, but send enhanced to API)
     console.log('[handleSendMessage] Received imageUrl:', imageUrl ? 'Yes' : 'No');
     console.log('[handleSendMessage] Image URL length:', imageUrl?.length || 0);
-    
+
     const userMessage: Message = {
       role: 'user',
       content: message,
@@ -312,23 +312,23 @@ export default function Home() {
     };
     setMessages((prev) => [...prev, userMessage]);
     setIsGenerating(true);
-    
+
     // Clear previous code to show streaming from start
     setGeneratedCode('');
 
     // Prepare request with enhanced query that includes current code
     // Use overrideRepoId if provided (from import/duplicate), otherwise use currentRepoId from state
     const effectiveRepoId = overrideRepoId || currentRepoId || undefined;
-    
+
     console.log('[SendMessage] ========== GENERATION REQUEST ==========');
     console.log('[SendMessage] overrideRepoId:', overrideRepoId);
     console.log('[SendMessage] currentRepoId:', currentRepoId);
     console.log('[SendMessage] effectiveRepoId (will use):', effectiveRepoId);
     console.log('[SendMessage] ==========================================');
-    
+
     console.log('[Request] Building request with imageUrl:', imageUrl ? 'Yes' : 'No');
     console.log('[Request] Image URL:', imageUrl?.substring(0, 50) + '...');
-    
+
     const request: CodeGenerationRequest = {
       query: enhancedMessage,
       language: language,
@@ -370,7 +370,7 @@ export default function Home() {
         (code: string) => {
           setGeneratedCode(code);
           setIsGenerating(false);
-          
+
           // Update final message - just show success, not the code
           setMessages((prev) => {
             const newMessages = [...prev];
@@ -380,7 +380,7 @@ export default function Home() {
             };
             return newMessages;
           });
-          
+
           // Check if we need to create a PR (redesign with PR option)
           console.log('[PR] onComplete - Checking pendingPR ref:', pendingPRRef.current);
           console.log('[PR] onComplete - Checking pendingPR state:', pendingPR);
@@ -422,13 +422,13 @@ export default function Home() {
         // onDeployed
         (message: string, spaceUrl: string) => {
           console.log('[Deploy] Deployment successful:', spaceUrl);
-          
+
           // Extract repo_id from space URL
           const match = spaceUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
           if (match) {
             setCurrentRepoId(match[1]);
           }
-          
+
           // Update message with deployment success - use backend message format for history tracking
           setMessages((prev) => {
             const newMessages = [...prev];
@@ -438,7 +438,7 @@ export default function Home() {
             };
             return newMessages;
           });
-          
+
           // Open the space URL in a new tab
           window.open(spaceUrl, '_blank');
         },
@@ -472,7 +472,7 @@ export default function Home() {
   const createPullRequestAfterGeneration = async (repoId: string, code: string, language: Language) => {
     try {
       console.log('[PR] Creating PR on:', repoId);
-      
+
       // Update message to show PR creation in progress
       setMessages((prev) => {
         const newMessages = [...prev];
@@ -482,7 +482,7 @@ export default function Home() {
         };
         return newMessages;
       });
-      
+
       const prResult = await apiClient.createPullRequest(
         repoId,
         code,
@@ -490,10 +490,10 @@ export default function Home() {
         '🎨 Redesign from AnyCoder',
         undefined
       );
-      
+
       if (prResult.success && prResult.pr_url) {
         console.log('[PR] Pull Request created:', prResult.pr_url);
-        
+
         // Update message with PR link
         setMessages((prev) => {
           const newMessages = [...prev];
@@ -503,7 +503,7 @@ export default function Home() {
           };
           return newMessages;
         });
-        
+
         // Open PR in new tab
         window.open(prResult.pr_url, '_blank');
       } else {
@@ -511,7 +511,7 @@ export default function Home() {
       }
     } catch (error: any) {
       console.error('[PR] Failed to create Pull Request:', error);
-      
+
       // Update message with error
       setMessages((prev) => {
         const newMessages = [...prev];
@@ -529,7 +529,7 @@ export default function Home() {
     console.log('[Deploy] generatedCode exists?', !!generatedCode);
     console.log('[Deploy] generatedCode length:', generatedCode?.length);
     console.log('[Deploy] generatedCode preview:', generatedCode?.substring(0, 200));
-    
+
     if (!generatedCode) {
       alert('No code to publish! Generate some code first.');
       return;
@@ -554,18 +554,18 @@ export default function Home() {
 
     // SAME LOGIC AS GRADIO VERSION: Parse message history to find existing space
     let existingSpace: string | null = null;
-    
+
     // Look for previous deployment or imported space in history
     console.log('[Deploy] ========== DEBUG START ==========');
     console.log('[Deploy] Total messages in history:', messages.length);
     console.log('[Deploy] Current username:', currentUsername);
     console.log('[Deploy] Auth status:', isAuthenticated ? 'authenticated' : 'not authenticated');
     console.log('[Deploy] Messages:', JSON.stringify(messages, null, 2));
-    
+
     if (messages.length > 0 && currentUsername) {
       console.log('[Deploy] Scanning message history FORWARD (oldest first) - MATCHING GRADIO LOGIC...');
       console.log('[Deploy] Total messages to scan:', messages.length);
-      
+
       // EXACT GRADIO LOGIC: Scan forward (oldest first) and stop at first match
       // Gradio: for user_msg, assistant_msg in history:
       for (let i = 0; i < messages.length; i++) {
@@ -574,7 +574,7 @@ export default function Home() {
           role: msg.role,
           contentPreview: msg.content.substring(0, 100)
         });
-        
+
         // Check assistant messages for deployment confirmations
         if (msg.role === 'assistant') {
           // Check for "✅ Deployed!" message
@@ -604,7 +604,7 @@ export default function Home() {
             const importedSpace = match[1];
             console.log('[Deploy] Extracted imported space:', importedSpace);
             console.log('[Deploy] Checking ownership - user:', currentUsername, 'space:', importedSpace);
-            
+
             // Only use if user owns it (EXACT GRADIO LOGIC)
             if (importedSpace.startsWith(`${currentUsername}/`)) {
               existingSpace = importedSpace;
@@ -617,7 +617,7 @@ export default function Home() {
           }
         }
       }
-      
+
       console.log('[Deploy] Final existingSpace value:', existingSpace);
     } else {
       console.log('[Deploy] Skipping scan - no messages or no username');
@@ -642,20 +642,20 @@ export default function Home() {
       console.log('[Deploy] Will create new space?', !existingSpace);
       console.log('[Deploy] Messages count:', messages.length);
       console.log('[Deploy] Messages (first 3):', messages.slice(0, 3).map(m => ({ role: m.role, content: m.content.substring(0, 100) })));
-      
+
       // CRITICAL DEBUG: Check what we're actually sending
       const historyToSend = messages.map(msg => ({ role: msg.role, content: msg.content }));
       console.log('[Deploy] History to send (length):', historyToSend.length);
       console.log('[Deploy] History to send (first 2):', historyToSend.slice(0, 2));
       console.log('[Deploy] =================================================================');
-      
+
       // Build deploy request, omitting undefined fields
       const deployRequest: any = {
         code: generatedCode,
         language: selectedLanguage,
         history: historyToSend  // Use the variable we just logged
       };
-      
+
       // Only include optional fields if they have values
       if (spaceName) {
         deployRequest.space_name = spaceName;
@@ -664,7 +664,7 @@ export default function Home() {
         deployRequest.existing_repo_id = existingSpace;
         deployRequest.commit_message = 'Update via AnyCoder';
       }
-      
+
       console.log('[Deploy] 🚀 Sending to backend:', {
         existing_repo_id: deployRequest.existing_repo_id,
         space_name: deployRequest.space_name,
@@ -674,7 +674,7 @@ export default function Home() {
         history_length: deployRequest.history?.length
       });
       console.log('[Deploy] Full request object:', JSON.stringify(deployRequest, null, 2).substring(0, 500));
-      
+
       const response = await apiClient.deploy(deployRequest);
       console.log('[Deploy] ✅ Response received:', response);
 
@@ -691,23 +691,23 @@ export default function Home() {
             setCurrentRepoId(match[1]);
           }
         }
-        
+
         // Add deployment message to chat (EXACT format backend expects)
         const deployMessage: Message = {
           role: 'assistant',
-          content: existingSpace 
-            ? `✅ Updated! View your space at: ${response.space_url}` 
+          content: existingSpace
+            ? `✅ Updated! View your space at: ${response.space_url}`
             : `✅ Deployed! View your space at: ${response.space_url}`,
           timestamp: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, deployMessage]);
-        
+
         // Open the space URL in a new tab
         window.open(response.space_url, '_blank');
-        
+
         // Show success message
         const isDev = response.dev_mode;
-        const message = isDev 
+        const message = isDev
           ? '🚀 Opening HuggingFace Spaces creation page...\nPlease complete the space setup in the new tab.'
           : existingSpace
             ? `✅ Updated successfully!\n\nOpening: ${response.space_url}`
@@ -720,12 +720,12 @@ export default function Home() {
       console.error('[Deploy] Full error object:', error);
       console.error('[Deploy] Error response:', error.response);
       console.error('[Deploy] Error data:', error.response?.data);
-      
-      const errorMessage = error.response?.data?.detail 
-        || error.response?.data?.message 
-        || error.message 
+
+      const errorMessage = error.response?.data?.detail
+        || error.response?.data?.message
+        || error.message
         || 'Unknown error';
-      
+
       alert(`Deployment error: ${errorMessage}\n\nCheck console for details.`);
     }
   };
@@ -749,31 +749,31 @@ export default function Home() {
     console.log('[Import] Import URL:', importUrl);
     console.log('[Import] Current username:', username);
     console.log('[Import] Current repo before import:', currentRepoId);
-    
+
     // Hide landing page when importing
     if (showLandingPage) {
       setShowLandingPage(false);
     }
-    
+
     setGeneratedCode(code);
     setSelectedLanguage(language);
-    
+
     // Extract repo_id from import URL if provided
     if (importUrl) {
       const spaceMatch = importUrl.match(/huggingface\.co\/spaces\/([^\/\s\)]+\/[^\/\s\)]+)/);
       console.log('[Import] Regex match result:', spaceMatch);
-      
+
       if (spaceMatch) {
         const importedRepoId = spaceMatch[1];
         const importedUsername = importedRepoId.split('/')[0];
-        
+
         console.log('[Import] ========================================');
         console.log('[Import] Extracted repo_id:', importedRepoId);
         console.log('[Import] Imported username:', importedUsername);
         console.log('[Import] Logged-in username:', username);
         console.log('[Import] Ownership check:', importedUsername === username);
         console.log('[Import] ========================================');
-        
+
         // Only set as current repo if user owns it
         if (username && importedRepoId.startsWith(`${username}/`)) {
           console.log('[Import] ✅✅✅ BEFORE setCurrentRepoId - currentRepoId was:', currentRepoId);
@@ -795,26 +795,26 @@ export default function Home() {
     } else {
       console.log('[Import] No import URL provided');
     }
-    
+
     console.log('[Import] ========== IMPORT END ==========');
-    
+
     // Add messages that include the imported code so LLM can see it
     const userMessage: Message = {
       role: 'user',
-      content: importUrl 
+      content: importUrl
         ? `Imported Space from ${importUrl}`
         : `I imported a ${language} project. Here's the code that was imported.`,
       timestamp: new Date().toISOString(),
     };
-    
+
     const assistantMessage: Message = {
       role: 'assistant',
       content: `✅ I've loaded your ${language} project. The code is now in the editor. You can ask me to:\n\n• Modify existing features\n• Add new functionality\n• Fix bugs or improve code\n• Explain how it works\n• Publish it to HuggingFace Spaces\n\nWhat would you like me to help you with?`,
       timestamp: new Date().toISOString(),
     };
-    
+
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
-    
+
     // Switch to editor view on mobile
     setMobileView('editor');
   };
@@ -823,10 +823,10 @@ export default function Home() {
   const handleLandingPageStart = async (prompt: string, language: Language, modelId: string, imageUrl?: string, repoId?: string, shouldCreatePR?: boolean) => {
     console.log('[LandingPageStart] Received imageUrl:', imageUrl ? 'Yes' : 'No');
     console.log('[LandingPageStart] Image URL length:', imageUrl?.length || 0);
-    
+
     // Hide landing page immediately for smooth transition
     setShowLandingPage(false);
-    
+
     // If shouldCreatePR is true, set pending PR state and ref
     if (shouldCreatePR && repoId) {
       console.log('[PR] Setting pending PR for:', repoId);
@@ -834,7 +834,7 @@ export default function Home() {
       setPendingPR(prInfo);
       pendingPRRef.current = prInfo;  // Set ref immediately for synchronous access
     }
-    
+
     // Send the message with the selected language, model, and image
     // Don't pass repoId to handleSendMessage when creating PR (we want to generate code first, then create PR)
     await handleSendMessage(prompt, imageUrl, language, modelId, shouldCreatePR ? undefined : repoId, shouldCreatePR);
@@ -857,7 +857,7 @@ export default function Home() {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDesktop) return; // Skip on mobile
-      
+
       if (isResizingChat) {
         const newWidth = Math.min(Math.max(e.clientX, 250), 600); // Min 250px, max 600px
         setChatSidebarWidth(newWidth);
@@ -901,7 +901,7 @@ export default function Home() {
   if (showLandingPage && messages.length === 0) {
     return (
       <div className="min-h-screen animate-in fade-in duration-300">
-        <LandingPage 
+        <LandingPage
           onStart={handleLandingPageStart}
           onImport={handleImport}
           isAuthenticated={isAuthenticated}
@@ -918,11 +918,11 @@ export default function Home() {
   return (
     <div className="h-screen flex flex-col bg-[#000000] animate-in fade-in duration-300">
       <Header />
-      
+
       {/* Apple-style layout - Responsive */}
       <main className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar - Chat Panel (Hidden on mobile, shown when mobileView='chat') */}
-        <div 
+        <div
           className={`
             ${mobileView === 'chat' ? 'flex' : 'hidden'} md:flex
             w-full
@@ -937,7 +937,7 @@ export default function Home() {
           <div className="flex items-center px-4 py-3 bg-[#000000] border-b border-[#424245]/30">
             <span className="text-sm font-medium text-[#f5f5f7]">Chat</span>
           </div>
-          
+
           {/* Chat Panel */}
           <div className="flex-1 overflow-hidden">
             <ChatInterface
@@ -951,7 +951,7 @@ export default function Home() {
         </div>
 
         {/* Resize Handle for Chat Sidebar (Desktop only) */}
-        <div 
+        <div
           className={`hidden md:block resize-handle ${isResizingChat ? 'resizing' : ''}`}
           onMouseDown={startResizingChat}
           title="Drag to resize chat panel"
@@ -970,11 +970,11 @@ export default function Home() {
             <div className="flex items-center space-x-2">
               <div className="px-3 py-1 bg-[#2d2d2f] text-sm text-[#f5f5f7] rounded-t-lg font-normal border-t border-x border-[#424245]/50">
                 {selectedLanguage === 'html' ? 'app.html' :
-                 selectedLanguage === 'gradio' || selectedLanguage === 'streamlit' ? 'app.py' : 
-                 selectedLanguage === 'transformers.js' ? 'app.js' :
-                 selectedLanguage === 'comfyui' ? 'app.json' :
-                 selectedLanguage === 'react' ? 'app.jsx' :
-                 `${selectedLanguage}.txt`}
+                  selectedLanguage === 'gradio' || selectedLanguage === 'streamlit' ? 'app.py' :
+                    selectedLanguage === 'transformers.js' ? 'app.js' :
+                      selectedLanguage === 'comfyui' ? 'app.json' :
+                        selectedLanguage === 'react' ? 'app.jsx' :
+                          `${selectedLanguage}.txt`}
               </div>
             </div>
             <div className="ml-auto flex items-center space-x-3 text-xs text-[#86868b]">
@@ -987,7 +987,7 @@ export default function Home() {
               <span className="font-medium">{selectedLanguage.toUpperCase()}</span>
             </div>
           </div>
-          
+
           {/* Editor */}
           <div className="flex-1">
             <CodeEditor
@@ -1000,14 +1000,14 @@ export default function Home() {
         </div>
 
         {/* Resize Handle for Settings Sidebar (Desktop only) */}
-        <div 
+        <div
           className={`hidden md:block resize-handle ${isResizingSettings ? 'resizing' : ''}`}
           onMouseDown={startResizingSettings}
           title="Drag to resize settings panel"
         />
 
         {/* Right Sidebar - Configuration Panel (Hidden on mobile, shown when mobileView='settings') */}
-        <div 
+        <div
           className={`
             ${mobileView === 'settings' ? 'flex' : 'hidden'} md:flex
             w-full
@@ -1034,39 +1034,36 @@ export default function Home() {
       <nav className="md:hidden bg-[#000000]/95 backdrop-blur-xl border-t border-[#424245]/20 flex items-center justify-around h-14 px-2 safe-area-bottom">
         <button
           onClick={() => setMobileView('chat')}
-          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${
-            mobileView === 'chat' 
-              ? 'text-white' 
+          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${mobileView === 'chat'
+              ? 'text-white'
               : 'text-[#86868b]'
-          }`}
+            }`}
         >
           <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
           </svg>
           <span className="text-[10px]">Chat</span>
         </button>
-        
+
         <button
           onClick={() => setMobileView('editor')}
-          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${
-            mobileView === 'editor' 
-              ? 'text-white' 
+          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${mobileView === 'editor'
+              ? 'text-white'
               : 'text-[#86868b]'
-          }`}
+            }`}
         >
           <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
           </svg>
           <span className="text-[10px]">Code</span>
         </button>
-        
+
         <button
           onClick={() => setMobileView('settings')}
-          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${
-            mobileView === 'settings' 
-              ? 'text-white' 
+          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${mobileView === 'settings'
+              ? 'text-white'
               : 'text-[#86868b]'
-          }`}
+            }`}
         >
           <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
