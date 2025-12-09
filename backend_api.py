@@ -99,7 +99,7 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
-    {"name": "Devstral Medium 2512", "id": "devstral-medium-2512", "description": "Mistral Devstral Medium 2512 - Expert code generation model via Mistral Conversations API (Default)", "supports_images": False},
+    {"name": "Devstral Medium 2512", "id": "devstral-medium-2512", "description": "Mistral Devstral 2512 - Expert code generation model via OpenRouter (Default)", "supports_images": False},
     {"name": "GLM-4.6V 👁️", "id": "zai-org/GLM-4.6V:zai-org", "description": "GLM-4.6V vision model - supports image uploads for visual understanding", "supports_images": True},
     {"name": "DeepSeek V3.2", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental - Fast model for code generation via HuggingFace Router with Novita provider", "supports_images": False},
     {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation", "supports_images": False},
@@ -845,60 +845,12 @@ async def generate_code(
                 if is_mistral_model(selected_model_id):
                     print(f"[Generate] Using Mistral SDK for {selected_model_id}")
                     
-                    # devstral-medium-2512 uses the beta Conversations API
-                    if selected_model_id == "devstral-medium-2512":
-                        # Convert messages to inputs format for Conversations API
-                        # Extract system instruction from messages
-                        instructions = ""
-                        inputs = []
-                        for msg in messages:
-                            if msg["role"] == "system":
-                                instructions = msg["content"]
-                            else:
-                                inputs.append({
-                                    "role": msg["role"],
-                                    "content": msg["content"]
-                                })
-                        
-                        # Use beta Conversations API
-                        response = client.beta.conversations.start(
-                            inputs=inputs,
-                            model=actual_model_id,
-                            instructions=instructions,
-                            completion_args={
-                                "temperature": 0.7,
-                                "max_tokens": 10000,
-                                "top_p": 1
-                            },
-                            tools=[],
-                        )
-                        
-                        # For non-streaming response, yield the complete content
-                        # Note: Conversations API might not support streaming in the same way
-                        # We'll yield the complete response as chunks for consistency
-                        full_response = str(response)
-                        generated_code = full_response
-                        
-                        # Yield in chunks to maintain consistency with streaming API
-                        chunk_size = 100
-                        for i in range(0, len(full_response), chunk_size):
-                            chunk_content = full_response[i:i+chunk_size]
-                            event_data = json.dumps({
-                                "type": "chunk",
-                                "content": chunk_content
-                            })
-                            yield f"data: {event_data}\\n\\n"
-                            await asyncio.sleep(0)
-                        
-                        # Skip the normal streaming loop
-                        stream = None
-                    else:
-                        # Other Mistral models use the standard chat.stream API
-                        stream = client.chat.stream(
-                            model=actual_model_id,
-                            messages=messages,
-                            max_tokens=10000
-                        )
+                    # Mistral models use the standard chat.stream API
+                    stream = client.chat.stream(
+                        model=actual_model_id,
+                        messages=messages,
+                        max_tokens=10000
+                    )
                 
                 
                 # All other models use OpenAI-compatible API

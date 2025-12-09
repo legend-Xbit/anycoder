@@ -149,7 +149,18 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             base_url="https://api.stepfun.com/v1"
         )
     
-    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508" or model_id == "devstral-medium-2512":
+    elif model_id == "devstral-medium-2512":
+        # Use OpenRouter for Devstral
+        return OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            default_headers={
+                "HTTP-Referer": "https://anycoder.app",
+                "X-Title": "AnyCoder",
+            }
+        )
+    
+    elif model_id == "codestral-2508" or model_id == "mistral-medium-2508":
         # Use Mistral client for Mistral models
         return Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
     
@@ -246,7 +257,10 @@ def get_inference_client(model_id: str, provider: str = "auto"):
 
 def get_real_model_id(model_id: str) -> str:
     """Get the real model ID with provider suffixes if needed"""
-    if model_id == "stealth-model-1":
+    if model_id == "devstral-medium-2512":
+        return "mistralai/devstral-2512:free"
+    
+    elif model_id == "stealth-model-1":
         # Get the real model ID from environment variable
         real_model_id = os.getenv("STEALTH_MODEL_1_ID")
         if not real_model_id:
@@ -327,5 +341,5 @@ def is_native_sdk_model(model_id: str) -> bool:
 
 def is_mistral_model(model_id: str) -> bool:
     """Check if model uses Mistral SDK"""
-    return model_id in ["codestral-2508", "mistral-medium-2508", "devstral-medium-2512"]
+    return model_id in ["codestral-2508", "mistral-medium-2508"]
 
