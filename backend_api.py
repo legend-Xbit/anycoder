@@ -99,10 +99,11 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
-    {"name": "Devstral Medium 2512", "id": "devstral-medium-2512", "description": "Mistral Devstral 2512 - Expert code generation model via OpenRouter (Default)", "supports_images": False},
+    {"name": "Devstral Medium 2512", "id": "devstral-medium-2512", "description": "Mistral Devstral 2512 - Expert code generation model via OpenRouter", "supports_images": False},
     {"name": "GLM-4.6V 👁️", "id": "zai-org/GLM-4.6V:zai-org", "description": "GLM-4.6V vision model - supports image uploads for visual understanding", "supports_images": True},
     {"name": "DeepSeek V3.2", "id": "deepseek-ai/DeepSeek-V3.2-Exp", "description": "DeepSeek V3.2 Experimental - Fast model for code generation via HuggingFace Router with Novita provider", "supports_images": False},
     {"name": "DeepSeek R1", "id": "deepseek-ai/DeepSeek-R1-0528", "description": "DeepSeek R1 model for code generation", "supports_images": False},
+    {"name": "Gemini 3.0 Flash Preview", "id": "gemini-3-flash-preview", "description": "Google Gemini 3.0 Flash Preview with Thinking Mode (High) (Default)", "supports_images": False},
     {"name": "Gemini 3.0 Pro", "id": "gemini-3.0-pro", "description": "Google Gemini 3.0 Pro via Poe with advanced reasoning", "supports_images": False},
     {"name": "Grok 4.1 Fast", "id": "x-ai/grok-4.1-fast", "description": "Grok 4.1 Fast model via OpenRouter (20 req/min on free tier)", "supports_images": False},
     {"name": "MiniMax M2", "id": "MiniMaxAI/MiniMax-M2", "description": "MiniMax M2 model via HuggingFace InferenceClient with Novita provider", "supports_images": False},
@@ -200,7 +201,7 @@ async def startup_event():
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "devstral-medium-2512"
+    model_id: str = "gemini-3-flash-preview"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False
@@ -851,7 +852,20 @@ async def generate_code(
                         messages=messages,
                         max_tokens=10000
                     )
-                
+
+                # Handle Native SDK models (Gemini 3)
+                elif is_native_sdk_model(selected_model_id):
+                    print(f"[Generate] Using Native SDK (Gemini) for {selected_model_id}")
+                    
+                    if selected_model_id == "gemini-3-flash-preview":
+                        contents, config = create_gemini3_messages(messages)
+                        stream = client.models.generate_content_stream(
+                           model=selected_model_id,
+                           contents=contents,
+                           config=config
+                        )
+                    else:
+                        raise ValueError(f"Unknown native SDK model: {selected_model_id}")
                 
                 # All other models use OpenAI-compatible API
                 else:
@@ -865,6 +879,7 @@ async def generate_code(
                 
                 chunk_count = 0
                 is_mistral = is_mistral_model(selected_model_id)
+                is_native = is_native_sdk_model(selected_model_id)
                 
                 # Only process stream if it exists (not None for Conversations API)
                 if stream:
@@ -872,7 +887,13 @@ async def generate_code(
                     for chunk in stream:
                         chunk_content = None
                         
-                        if is_mistral:
+                        if is_native:
+                            # Native SDK format (Gemini)
+                            try:
+                                chunk_content = chunk.text
+                            except (AttributeError, ValueError):
+                                continue
+                        elif is_mistral:
                             # Mistral format: chunk.data.choices[0].delta.content
                             try:
                                 if chunk.data and chunk.data.choices and chunk.data.choices[0].delta.content:

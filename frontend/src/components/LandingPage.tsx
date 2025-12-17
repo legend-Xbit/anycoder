@@ -31,7 +31,7 @@ export default function LandingPage({
   onImport,
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'devstral-medium-2512',
+  initialModel = 'gemini-3-flash-preview',
   onAuthChange,
   setPendingPR,
   pendingPRRef

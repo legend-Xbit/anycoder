@@ -247,6 +247,12 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             base_url=base_url,
         )
     
+    elif model_id == "gemini-3-flash-preview":
+        # Use native Google GenAI client for Gemini 3.0 Flash Preview
+        if not GEMINI_AVAILABLE:
+            raise ImportError("google-genai package required for Gemini 3")
+        return genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
     else:
         # Unknown model - try HuggingFace Inference API
         return OpenAI(
@@ -326,7 +332,7 @@ def create_gemini3_messages(messages: list) -> tuple:
     # Configure tools and thinking
     tools = [types.Tool(googleSearch=types.GoogleSearch())]
     config = types.GenerateContentConfig(
-        thinkingConfig=types.ThinkingConfig(thinkingLevel="HIGH"),
+        thinking_config=types.ThinkingConfig(thinking_level="HIGH"),
         tools=tools,
         max_output_tokens=16384
     )
@@ -336,7 +342,7 @@ def create_gemini3_messages(messages: list) -> tuple:
 
 def is_native_sdk_model(model_id: str) -> bool:
     """Check if model uses native SDK (not OpenAI-compatible)"""
-    return False  # All models now use OpenAI-compatible APIs
+    return model_id == "gemini-3-flash-preview"
 
 
 def is_mistral_model(model_id: str) -> bool:
