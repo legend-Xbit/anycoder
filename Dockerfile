@@ -1,7 +1,7 @@
 # Multi-stage build for AnyCoder Docker Space
 
 # Stage 1: Build frontend
-FROM node:18-slim AS frontend-builder
+FROM node:22-slim AS frontend-builder
 
 WORKDIR /build
 
@@ -25,12 +25,12 @@ RUN npm run build
 FROM python:3.11-slim
 
 # Install system dependencies as root (git for pip, nodejs for frontend)
+# Install Node.js 22 from NodeSource (Debian repo only has v18)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    git \
-    nodejs \
-    npm \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends curl ca-certificates gnupg git && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set up a new user named "user" with user ID 1000
 RUN useradd -m -u 1000 user
