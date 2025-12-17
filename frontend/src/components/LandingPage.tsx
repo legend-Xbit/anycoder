@@ -513,8 +513,8 @@ ${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, 
               if (onStart) {
                 // Pass duplicated space ID so auto-deploy updates it
                 console.log('[Redesign] Calling onStart with duplicated repo ID:', duplicatedRepoId);
-                console.log('[Redesign] Using Claude-Sonnet-4.5 for redesign');
-                onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', undefined, duplicatedRepoId);
+                console.log('[Redesign] Using GLM-4.6 for redesign');
+                onStart(redesignPrompt, result.language || 'html', 'zai-org/GLM-4.6', undefined, duplicatedRepoId);
               }
             }, 100);
 
@@ -558,8 +558,8 @@ Note: After generating the redesign, I will create a Pull Request on the origina
 
             if (onStart) {
               console.log('[Redesign] Will create PR - not passing repo ID');
-              console.log('[Redesign] Using Claude-Sonnet-4.5 for redesign');
-              onStart(redesignPrompt, result.language || 'html', 'claude-sonnet-4.5', undefined, repoId, true); // Pass true for shouldCreatePR
+              console.log('[Redesign] Using GLM-4.6 for redesign');
+              onStart(redesignPrompt, result.language || 'html', 'zai-org/GLM-4.6', undefined, repoId, true); // Pass true for shouldCreatePR
             }
 
             console.log('[Redesign] Will create PR after code generation completes');
