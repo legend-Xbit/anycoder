@@ -833,7 +833,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium text-[#f5f5f7]">{model.name}</span>
-                                {model.id === 'devstral-medium-2512' && (
+                                {model.id === 'gemini-3-flash-preview' && (
                                   <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase">
                                     NEW
                                   </span>

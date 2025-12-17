@@ -190,13 +190,13 @@ export default function ControlPanel({
                       setShowModelDropdown(false);
                     }}
                     className={`w-full px-3 py-2 text-left transition-colors ${selectedModel === model.id
-                        ? 'bg-[#2d2d2f]'
-                        : 'hover:bg-[#2d2d2f]'
+                      ? 'bg-[#2d2d2f]'
+                      : 'hover:bg-[#2d2d2f]'
                       }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm text-[#f5f5f7]">{model.name}</span>
-                      {model.id === 'devstral-medium-2512' && (
+                      {model.id === 'gemini-3-flash-preview' && (
                         <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase flex-shrink-0">
                           NEW
                         </span>

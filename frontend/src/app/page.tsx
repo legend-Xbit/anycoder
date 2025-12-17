@@ -17,7 +17,7 @@ export default function Home() {
 
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('devstral-medium-2512');
+  const [selectedModel, setSelectedModel] = useState('gemini-3-flash-preview');
   const [models, setModels] = useState<Model[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1035,8 +1035,8 @@ export default function Home() {
         <button
           onClick={() => setMobileView('chat')}
           className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${mobileView === 'chat'
-              ? 'text-white'
-              : 'text-[#86868b]'
+            ? 'text-white'
+            : 'text-[#86868b]'
             }`}
         >
           <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -1048,8 +1048,8 @@ export default function Home() {
         <button
           onClick={() => setMobileView('editor')}
           className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${mobileView === 'editor'
-              ? 'text-white'
-              : 'text-[#86868b]'
+            ? 'text-white'
+            : 'text-[#86868b]'
             }`}
         >
           <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -1061,8 +1061,8 @@ export default function Home() {
         <button
           onClick={() => setMobileView('settings')}
           className={`flex flex-col items-center justify-center flex-1 py-1.5 transition-all ${mobileView === 'settings'
-              ? 'text-white'
-              : 'text-[#86868b]'
+            ? 'text-white'
+            : 'text-[#86868b]'
             }`}
         >
           <svg className="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
