@@ -52,7 +52,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY --chown=user:user anycoder_app/ ./anycoder_app/
 COPY --chown=user:user backend_api.py .
 COPY --chown=user:user backend_models.py .
 COPY --chown=user:user backend_docs_manager.py .
@@ -61,7 +60,6 @@ COPY --chown=user:user backend_parsers.py .
 COPY --chown=user:user backend_deploy.py .
 COPY --chown=user:user backend_search_replace.py .
 COPY --chown=user:user project_importer.py .
-COPY --chown=user:user app.py .
 
 # Copy built frontend from builder stage
 COPY --chown=user:user --from=frontend-builder /build/.next ./frontend/.next

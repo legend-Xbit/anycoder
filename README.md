@@ -14,8 +14,6 @@ hf_oauth_scopes:
 - write-discussions
 ---
 
-> **Note:** This is the Docker Space configuration for the React frontend version.  
-> For the original Gradio app, see `README_GRADIO.md`.
 
 # AnyCoder - AI Code Generator with React Frontend
 
@@ -42,12 +40,6 @@ anycoder/
 │   │   ├── lib/            # API client, auth utilities
 │   │   └── types/          # TypeScript types
 │   └── package.json
-├── anycoder_app/           # Original Gradio app modules
-│   ├── agent.py
-│   ├── config.py
-│   ├── deploy.py
-│   └── ...
-├── app.py                  # Original Gradio interface
 ├── requirements.txt        # Python dependencies
 ├── Dockerfile              # Docker Space configuration
 └── start_fullstack.sh      # Local development script

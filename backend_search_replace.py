@@ -1,6 +1,6 @@
 """
 Search/Replace utilities for applying targeted code changes.
-Extracted from anycoder_app/parsers.py for use in backend.
+Search/Replace utilities for applying targeted code changes.
 """
 
 # Search/Replace block markers
