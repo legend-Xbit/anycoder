@@ -371,8 +371,8 @@ def generate_requirements_txt_with_llm(import_statements):
     
     # Use a lightweight model for this task
     try:
-        client = get_inference_client("zai-org/GLM-4.6", "auto")
-        actual_model_id = get_real_model_id("zai-org/GLM-4.6")
+        client = get_inference_client("zai-org/GLM-4.7", "auto")
+        actual_model_id = get_real_model_id("zai-org/GLM-4.7")
         
         imports_text = '\n'.join(import_statements)
         

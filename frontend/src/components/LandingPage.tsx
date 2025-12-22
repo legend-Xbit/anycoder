@@ -31,7 +31,7 @@ export default function LandingPage({
   onImport,
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'zai-org/GLM-4.6',
+  initialModel = 'zai-org/GLM-4.7',
   onAuthChange,
   setPendingPR,
   pendingPRRef
@@ -513,8 +513,8 @@ ${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, 
               if (onStart) {
                 // Pass duplicated space ID so auto-deploy updates it
                 console.log('[Redesign] Calling onStart with duplicated repo ID:', duplicatedRepoId);
-                console.log('[Redesign] Using GLM-4.6 for redesign');
-                onStart(redesignPrompt, result.language || 'html', 'zai-org/GLM-4.6', undefined, duplicatedRepoId);
+                console.log('[Redesign] Using GLM-4.7 for redesign');
+                onStart(redesignPrompt, result.language || 'html', 'zai-org/GLM-4.7', undefined, duplicatedRepoId);
               }
             }, 100);
 
@@ -558,8 +558,8 @@ Note: After generating the redesign, I will create a Pull Request on the origina
 
             if (onStart) {
               console.log('[Redesign] Will create PR - not passing repo ID');
-              console.log('[Redesign] Using GLM-4.6 for redesign');
-              onStart(redesignPrompt, result.language || 'html', 'zai-org/GLM-4.6', undefined, repoId, true); // Pass true for shouldCreatePR
+              console.log('[Redesign] Using GLM-4.7 for redesign');
+              onStart(redesignPrompt, result.language || 'html', 'zai-org/GLM-4.7', undefined, repoId, true); // Pass true for shouldCreatePR
             }
 
             console.log('[Redesign] Will create PR after code generation completes');
@@ -833,7 +833,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium text-[#f5f5f7]">{model.name}</span>
-                                {model.id === 'zai-org/GLM-4.6' && (
+                                {model.id === 'zai-org/GLM-4.7' && (
                                   <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase">
                                     NEW
                                   </span>

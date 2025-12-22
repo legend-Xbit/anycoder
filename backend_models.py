@@ -95,6 +95,10 @@ def get_real_model_id(model_id: str) -> str:
         # GLM-4.5 needs fireworks-ai provider
         return "zai-org/GLM-4.5:fireworks-ai"
     
+    elif model_id == "zai-org/GLM-4.7":
+        # GLM-4.7 needs zai-org provider suffix
+        return "zai-org/GLM-4.7:zai-org"
+    
     return model_id
 
 
