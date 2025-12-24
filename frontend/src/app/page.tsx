@@ -367,16 +367,20 @@ export default function Home() {
           });
         },
         // onComplete
-        (code: string) => {
+        (code: string, reasoning?: string) => {
           setGeneratedCode(code);
           setIsGenerating(false);
 
-          // Update final message - just show success, not the code
+          // Update final message - include reasoning if available
           setMessages((prev) => {
             const newMessages = [...prev];
+            const content = reasoning
+              ? `✅ Code generated successfully!\n\n**Reasoning:**\n${reasoning}\n\nCheck the editor →`
+              : '✅ Code generated successfully! Check the editor →';
+
             newMessages[newMessages.length - 1] = {
               ...assistantMessage,
-              content: '✅ Code generated successfully! Check the editor →',
+              content: content,
             };
             return newMessages;
           });

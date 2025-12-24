@@ -18,20 +18,20 @@ const getApiUrl = () => {
     console.log('[API Client] Using explicit API URL:', process.env.NEXT_PUBLIC_API_URL);
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  
+
   // For server-side rendering, always use relative URLs
   if (typeof window === 'undefined') {
     console.log('[API Client] SSR mode: using relative URLs');
     return '';
   }
-  
+
   // On localhost (dev mode), use direct backend URL  
   const hostname = window.location.hostname;
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     console.log('[API Client] Localhost dev mode: using http://localhost:8000');
     return 'http://localhost:8000';
   }
-  
+
   // In production (HF Space), use relative URLs (Next.js proxies to backend)
   console.log('[API Client] Production mode: using relative URLs (proxied by Next.js)');
   return '';
@@ -70,23 +70,23 @@ class ApiClient {
         if (error.response && error.response.status === 401) {
           const errorData = error.response.data;
           const errorMessage = errorData?.detail || errorData?.message || '';
-          
+
           // Only log out if it's an authentication/session issue
           // Don't log out for permission errors on specific resources
-          const shouldLogout = 
+          const shouldLogout =
             errorMessage.includes('Authentication required') ||
             errorMessage.includes('Invalid token') ||
             errorMessage.includes('Token expired') ||
             errorMessage.includes('Session expired') ||
             error.config?.url?.includes('/auth/');
-          
+
           if (shouldLogout && typeof window !== 'undefined') {
             // Clear ALL authentication data including session token
             localStorage.removeItem('hf_oauth_token');
             localStorage.removeItem('hf_session_token');
             localStorage.removeItem('hf_user_info');
             this.token = null;
-            
+
             // Dispatch custom event to notify UI components
             window.dispatchEvent(new CustomEvent('auth-expired', {
               detail: { message: 'Your session has expired. Please sign in again.' }
@@ -116,19 +116,19 @@ class ApiClient {
   // Cache helpers
   private getCachedData<T>(key: string, maxAgeMs: number): T | null {
     if (typeof window === 'undefined') return null;
-    
+
     try {
       const cached = localStorage.getItem(key);
       if (!cached) return null;
-      
+
       const { data, timestamp } = JSON.parse(cached);
       const age = Date.now() - timestamp;
-      
+
       if (age > maxAgeMs) {
         localStorage.removeItem(key);
         return null;
       }
-      
+
       return data;
     } catch (error) {
       console.error(`Failed to get cached data for ${key}:`, error);
@@ -138,7 +138,7 @@ class ApiClient {
 
   private setCachedData<T>(key: string, data: T): void {
     if (typeof window === 'undefined') return;
-    
+
     try {
       localStorage.setItem(key, JSON.stringify({
         data,
@@ -161,26 +161,26 @@ class ApiClient {
       console.log('Fetching models from API...');
       const response = await this.client.get<Model[]>('/api/models');
       const models = response.data;
-      
+
       // Cache the successful response
       if (models && models.length > 0) {
         this.setCachedData('anycoder_models', models);
         console.log('Cached', models.length, 'models (valid for 24 hours)');
       }
-      
+
       return models;
     } catch (error: any) {
       // Handle connection errors gracefully
-      const isConnectionError = 
-        error.code === 'ECONNABORTED' || 
-        error.code === 'ECONNRESET' || 
+      const isConnectionError =
+        error.code === 'ECONNABORTED' ||
+        error.code === 'ECONNRESET' ||
         error.code === 'ECONNREFUSED' ||
         error.message?.includes('socket hang up') ||
         error.message?.includes('timeout') ||
         error.message?.includes('Network Error') ||
         error.response?.status === 503 ||
         error.response?.status === 502;
-      
+
       if (isConnectionError) {
         // Try to return stale cache if available
         const staleCache = this.getCachedData<Model[]>('anycoder_models', Infinity);
@@ -188,7 +188,7 @@ class ApiClient {
           console.warn('Backend not available, using stale cached models');
           return staleCache;
         }
-        
+
         console.warn('Backend not available, cannot load models');
         return [];
       }
@@ -209,26 +209,26 @@ class ApiClient {
       console.log('Fetching languages from API...');
       const response = await this.client.get<{ languages: Language[] }>('/api/languages');
       const languages = response.data.languages;
-      
+
       // Cache the successful response
       if (languages && languages.length > 0) {
         this.setCachedData('anycoder_languages', languages);
         console.log('Cached', languages.length, 'languages (valid for 24 hours)');
       }
-      
+
       return response.data;
     } catch (error: any) {
       // Handle connection errors gracefully
-      const isConnectionError = 
-        error.code === 'ECONNABORTED' || 
-        error.code === 'ECONNRESET' || 
+      const isConnectionError =
+        error.code === 'ECONNABORTED' ||
+        error.code === 'ECONNRESET' ||
         error.code === 'ECONNREFUSED' ||
         error.message?.includes('socket hang up') ||
         error.message?.includes('timeout') ||
         error.message?.includes('Network Error') ||
         error.response?.status === 503 ||
         error.response?.status === 502;
-      
+
       if (isConnectionError) {
         // Try to return stale cache if available
         const staleCache = this.getCachedData<Language[]>('anycoder_languages', Infinity);
@@ -236,7 +236,7 @@ class ApiClient {
           console.warn('Backend not available, using stale cached languages');
           return { languages: staleCache };
         }
-        
+
         // Fall back to default languages
         console.warn('Backend not available, using default languages');
         return { languages: ['html', 'gradio', 'transformers.js', 'streamlit', 'comfyui', 'react'] };
@@ -273,7 +273,7 @@ class ApiClient {
   generateCodeStream(
     request: CodeGenerationRequest,
     onChunk: (content: string) => void,
-    onComplete: (code: string) => void,
+    onComplete: (code: string, reasoning?: string) => void,
     onError: (error: string) => void,
     onDeploying?: (message: string) => void,
     onDeployed?: (message: string, spaceUrl: string) => void,
@@ -282,11 +282,11 @@ class ApiClient {
     // Build the URL correctly whether we have a base URL or not
     const baseUrl = API_URL || window.location.origin;
     const url = new URL('/api/generate', baseUrl);
-    
+
     let abortController = new AbortController();
     let accumulatedCode = '';
     let buffer = ''; // Buffer for incomplete SSE lines
-    
+
     // Use fetch with POST to support large payloads
     fetch(url.toString(), {
       method: 'POST',
@@ -303,21 +303,21 @@ class ApiClient {
           onError('⏱️ Rate limit exceeded. Free tier allows up to 20 requests per minute. Please wait a moment and try again.');
           return;
         }
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         if (!response.body) {
           throw new Error('Response body is null');
         }
-        
+
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        
+
         while (true) {
           const { done, value } = await reader.read();
-          
+
           if (done) {
             console.log('[Stream] Stream ended, total code length:', accumulatedCode.length);
             if (accumulatedCode) {
@@ -325,20 +325,20 @@ class ApiClient {
             }
             break;
           }
-          
+
           // Decode chunk and add to buffer
           buffer += decoder.decode(value, { stream: true });
-          
+
           // Process complete SSE messages (ending with \n\n)
           const messages = buffer.split('\n\n');
-          
+
           // Keep the last incomplete message in the buffer
           buffer = messages.pop() || '';
-          
+
           // Process each complete message
           for (const message of messages) {
             if (!message.trim()) continue;
-            
+
             // Parse SSE format: "data: {...}"
             const lines = message.split('\n');
             for (const line of lines) {
@@ -347,7 +347,7 @@ class ApiClient {
                   const jsonStr = line.substring(6);
                   const data = JSON.parse(jsonStr);
                   console.log('[Stream] Received event:', data.type, data.content?.substring(0, 50));
-                  
+
                   if (data.type === 'chunk' && data.content) {
                     accumulatedCode += data.content;
                     onChunk(data.content);
@@ -355,7 +355,7 @@ class ApiClient {
                     console.log('[Stream] Generation complete, total code length:', data.code?.length || accumulatedCode.length);
                     // Use the complete code from the message if available, otherwise use accumulated
                     const finalCode = data.code || accumulatedCode;
-                    onComplete(finalCode);
+                    onComplete(finalCode, data.reasoning);
                     // Don't return yet - might have deployment events coming
                   } else if (data.type === 'deploying') {
                     console.log('[Stream] Deployment started:', data.message);
@@ -419,7 +419,7 @@ class ApiClient {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        
+
         if (data.type === 'chunk' && data.content) {
           onChunk(data.content);
         } else if (data.type === 'complete' && data.code) {
@@ -453,7 +453,7 @@ class ApiClient {
       space_name: request.space_name,
       existing_repo_id: request.existing_repo_id,
     });
-    
+
     try {
       const response = await this.client.post<DeploymentResponse>('/api/deploy', request);
       console.log('[API Client] Deploy response:', response.status, response.data);
@@ -521,13 +521,13 @@ class ApiClient {
       const response = await axios.get('https://huggingface.co/api/spaces', {
         timeout: 5000,
       });
-      
+
       // Filter for apps with 'anycoder' tag and sort by trendingScore
       const anycoderApps = response.data
         .filter((space: any) => space.tags && space.tags.includes('anycoder'))
         .sort((a: any, b: any) => (b.trendingScore || 0) - (a.trendingScore || 0))
         .slice(0, 6);
-      
+
       return anycoderApps;
     } catch (error) {
       console.error('Failed to fetch trending anycoder apps:', error);

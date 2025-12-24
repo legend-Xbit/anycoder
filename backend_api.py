@@ -733,12 +733,49 @@ def cleanup_generated_code(code: str, language: str) -> str:
         return code
 
 
+def extract_reasoning(code: str, language: str) -> str:
+    """Extract LLM reasoning/explanatory text that's outside the main code block"""
+    try:
+        if not code:
+            return ""
+        
+        # 1. Check for <think> tags (e.g. from DeepSeek-R1 or newer GLM-4)
+        think_match = re.search(r'<think>([\s\S]*?)</think>', code, re.IGNORECASE)
+        if think_match:
+            return think_match.group(1).strip()
+            
+        # 2. Extract everything outside of markdown code blocks
+        blocks = list(re.finditer(r'```(?:[\w]*)\s*\n([\s\S]*?)(?:\n```|$)', code, re.IGNORECASE))
+        
+        if not blocks:
+            return ""
+            
+        text_parts = []
+        last_end = 0
+        for match in blocks:
+            pre_text = code[last_end:match.start()].strip()
+            if pre_text and len(pre_text) > 10:
+                text_parts.append(pre_text)
+            last_end = match.end()
+            
+        post_text = code[last_end:].strip()
+        if post_text and len(post_text) > 10:
+            text_parts.append(post_text)
+            
+        return "\n\n".join(text_parts).strip()
+    except Exception as e:
+        print(f"[Reasoning Extraction] Error: {e}")
+        return ""
+
+
 @app.post("/api/generate")
 async def generate_code(
     request: CodeGenerationRequest,
     authorization: Optional[str] = Header(None)
 ):
     """Generate code based on user query - returns streaming response"""
+
+
     # Dev mode: No authentication required - just use server's HF_TOKEN
     # In production, you would check real OAuth tokens here
     
@@ -872,14 +909,21 @@ async def generate_code(
                             })
                             yield f"data: {event_data}\n\n"
                 
+                # Extract reasoning before cleaning up
+                reasoning = extract_reasoning(generated_code, language)
+                
                 # Clean up generated code (remove LLM explanatory text and markdown)
                 generated_code = cleanup_generated_code(generated_code, language)
                 
-                # Send completion event (optimized - no timestamp in hot path)
-                completion_data = json.dumps({
+                # Send completion event (include reasoning for GLM-4.7)
+                completion_dict = {
                     "type": "complete",
                     "code": generated_code
-                })
+                }
+                if selected_model_id == "zai-org/GLM-4.7" and reasoning:
+                    completion_dict["reasoning"] = reasoning
+                    
+                completion_data = json.dumps(completion_dict)
                 yield f"data: {completion_data}\n\n"
                 
                 # Auto-deploy after code generation (if authenticated and not skipped)
