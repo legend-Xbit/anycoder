@@ -17,7 +17,7 @@ export default function Home() {
 
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('zai-org/GLM-4.7');
+  const [selectedModel, setSelectedModel] = useState('zai-org/GLM-4.6');
   const [models, setModels] = useState<Model[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
