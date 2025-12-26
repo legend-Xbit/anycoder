@@ -833,7 +833,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium text-[#f5f5f7]">{model.name}</span>
-                                {model.id === 'zai-org/GLM-4.7' && (
+                                {(model.id === 'zai-org/GLM-4.7' || model.id === 'MiniMaxAI/MiniMax-M2.1') && (
                                   <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase">
                                     NEW
                                   </span>
@@ -1004,12 +1004,6 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                       </svg>
                       <span>Redesign</span>
-                      {/* Enhanced NEW Badge with glow effect */}
-                      <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white text-[9px] font-extrabold rounded-full shadow-lg animate-pulse">
-                        <span className="relative z-10">NEW</span>
-                        {/* Glow effect */}
-                        <span className="absolute inset-0 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-full blur-sm opacity-75 animate-pulse"></span>
-                      </span>
                     </button>
 
                     {/* Redesign Dialog */}
