@@ -13,8 +13,8 @@ def get_inference_client(model_id: str, provider: str = "auto"):
     
     Returns OpenAI-compatible client for all models or raises error if not configured.
     """
-    if model_id == "MiniMaxAI/MiniMax-M2":
-        # Use HuggingFace Router with Novita provider for MiniMax M2 model
+    if model_id == "MiniMaxAI/MiniMax-M2" or model_id == "MiniMaxAI/MiniMax-M2.1":
+        # Use HuggingFace Router with Novita provider for MiniMax M2 models
         return OpenAI(
             base_url="https://router.huggingface.co/v1",
             api_key=os.getenv("HF_TOKEN"),
@@ -75,9 +75,9 @@ def get_real_model_id(model_id: str) -> str:
         # GLM-4.6 requires Cerebras provider suffix in model string for API calls
         return "zai-org/GLM-4.6:cerebras"
     
-    elif model_id == "MiniMaxAI/MiniMax-M2":
-        # MiniMax M2 needs Novita provider suffix
-        return "MiniMaxAI/MiniMax-M2:novita"
+    elif model_id == "MiniMaxAI/MiniMax-M2" or model_id == "MiniMaxAI/MiniMax-M2.1":
+        # MiniMax M2 and M2.1 need Novita provider suffix
+        return f"{model_id}:novita"
     
     elif model_id == "moonshotai/Kimi-K2-Thinking":
         # Kimi K2 Thinking needs Together AI provider
