@@ -100,8 +100,8 @@ def get_real_model_id(model_id: str) -> str:
         return "zai-org/GLM-4.7:cerebras"
     
     elif model_id == "zai-org/GLM-4.7-Flash":
-        # GLM-4.7-Flash via HuggingFace Router
-        return "zai-org/GLM-4.7-Flash"
+        # GLM-4.7-Flash via HuggingFace Router with Novita provider
+        return "zai-org/GLM-4.7-Flash:novita"
     
     return model_id
 
