@@ -98,7 +98,8 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
-    {"name": "GLM-4.7", "id": "zai-org/GLM-4.7", "description": "GLM-4.7 - Latest GLM model via HuggingFace Router with Cerebras provider (Default)", "supports_images": False},
+    {"name": "GLM-4.7-Flash ⚡", "id": "zai-org/GLM-4.7-Flash", "description": "GLM-4.7-Flash - Ultra-fast GLM model via HuggingFace Router (Default)", "supports_images": False},
+    {"name": "GLM-4.7", "id": "zai-org/GLM-4.7", "description": "GLM-4.7 - Latest GLM model via HuggingFace Router with Cerebras provider", "supports_images": False},
     {"name": "MiniMax M2.1", "id": "MiniMaxAI/MiniMax-M2.1", "description": "MiniMax M2.1 - Enhanced model via HuggingFace Router", "supports_images": False},
     {"name": "GLM-4.6", "id": "zai-org/GLM-4.6", "description": "GLM-4.6 model via HuggingFace with Cerebras provider", "supports_images": False},
     {"name": "GLM-4.6V 👁️", "id": "zai-org/GLM-4.6V:zai-org", "description": "GLM-4.6V vision model - supports image uploads for visual understanding", "supports_images": True},
@@ -192,7 +193,7 @@ async def startup_event():
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "zai-org/GLM-4.7"
+    model_id: str = "zai-org/GLM-4.7-Flash"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False

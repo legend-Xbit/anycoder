@@ -99,6 +99,10 @@ def get_real_model_id(model_id: str) -> str:
         # GLM-4.7 needs cerebras provider suffix
         return "zai-org/GLM-4.7:cerebras"
     
+    elif model_id == "zai-org/GLM-4.7-Flash":
+        # GLM-4.7-Flash via HuggingFace Router
+        return "zai-org/GLM-4.7-Flash"
+    
     return model_id
 
 
