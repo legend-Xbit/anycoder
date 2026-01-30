@@ -397,6 +397,7 @@ Instructions:
   * streamlit often needs: pandas, numpy, requests
   * opencv-python often needs: numpy, pillow
   * fastapi often needs: uvicorn, pydantic
+  * daggr often needs: daggr, gradio>=6.0, pydub
   * torch often needs: torchvision, torchaudio (if doing computer vision/audio)
 - Include packages for common file formats if relevant (openpyxl, python-docx, PyPDF2)
 - Do not include Python built-in modules

@@ -54,7 +54,7 @@ export interface DeploymentRequest {
   requirements?: string;
   existing_repo_id?: string;  // For updating existing spaces
   commit_message?: string;
-  history?: Array<{role: string; content: string}>;  // Chat history for tracking
+  history?: Array<{ role: string; content: string }>;  // Chat history for tracking
 }
 
 export interface DeploymentResponse {
@@ -65,5 +65,5 @@ export interface DeploymentResponse {
   repo_id?: string;
 }
 
-export type Language = 'html' | 'gradio' | 'transformers.js' | 'streamlit' | 'comfyui' | 'react';
+export type Language = 'html' | 'gradio' | 'transformers.js' | 'streamlit' | 'comfyui' | 'react' | 'daggr';
 

@@ -45,6 +45,7 @@ try:
         get_gradio_system_prompt,  # Import the function to get dynamic prompt
         get_comfyui_system_prompt,  # Import the function to get dynamic ComfyUI prompt
         JSON_SYSTEM_PROMPT,
+        DAGGR_SYSTEM_PROMPT,
         GENERIC_SYSTEM_PROMPT
     )
     # Get the Gradio system prompt (includes full Gradio 6 documentation)
@@ -80,6 +81,7 @@ SYSTEM_PROMPT_CACHE = {
     "transformers.js": TRANSFORMERS_JS_SYSTEM_PROMPT,
     "react": REACT_SYSTEM_PROMPT,
     "comfyui": COMFYUI_SYSTEM_PROMPT,  # Use ComfyUI-specific prompt with documentation
+    "daggr": DAGGR_SYSTEM_PROMPT,
 }
 
 # Client connection pool for reuse (thread-safe)
@@ -114,7 +116,7 @@ AVAILABLE_MODELS = [
 MODEL_CACHE = {model["id"]: model for model in AVAILABLE_MODELS}
 print(f"[Startup] ✅ Performance optimizations loaded: {len(SYSTEM_PROMPT_CACHE)} cached prompts, {len(MODEL_CACHE)} cached models, client pooling enabled")
 
-LANGUAGE_CHOICES = ["html", "gradio", "transformers.js", "streamlit", "comfyui", "react"]
+LANGUAGE_CHOICES = ["html", "gradio", "transformers.js", "streamlit", "comfyui", "react", "daggr"]
 
 app = FastAPI(title="AnyCoder API", version="1.0.0")
 
@@ -710,7 +712,7 @@ def cleanup_generated_code(code: str, language: str) -> str:
                     code = code[:last_tag + 7].strip()
         
         # For Python: remove text after the last function/class definition or code block
-        elif language in ["gradio", "streamlit"]:
+        elif language in ["gradio", "streamlit", "daggr"]:
             # Find the last line that looks like actual code (not comments or blank)
             lines = code.split('\n')
             last_code_line = -1

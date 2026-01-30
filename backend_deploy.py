@@ -278,8 +278,8 @@ def is_streamlit_code(code: str) -> bool:
 
 
 def is_gradio_code(code: str) -> bool:
-    """Check if code is Gradio"""
-    return 'import gradio' in code or 'gr.' in code
+    """Check if code is Gradio or Daggr"""
+    return 'import gradio' in code or 'gr.' in code or 'import daggr' in code or 'from daggr' in code
 
 
 def detect_sdk_from_code(code: str, language: str) -> str:
@@ -294,7 +294,7 @@ def detect_sdk_from_code(code: str, language: str) -> str:
         return "docker"
     elif language == "streamlit" or is_streamlit_code(code):
         return "docker"
-    elif language == "gradio" or is_gradio_code(code):
+    elif language == "gradio" or language == "daggr" or is_gradio_code(code):
         return "gradio"
     else:
         return "gradio"  # Default
@@ -673,7 +673,7 @@ def deploy_to_huggingface_space(
                 # Fall through to normal React deployment below
         
         # For Gradio space updates (import/redesign), update .py files and upload all new files
-        if is_update and language == "gradio":
+        if is_update and language in ["gradio", "daggr"]:
             print(f"[Deploy] Gradio space update - updating .py files and uploading any new files")
             
             # Parse the code to get all files

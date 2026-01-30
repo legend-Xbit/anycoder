@@ -277,6 +277,7 @@ export default function LandingPage({
     if (lang === 'html') return 'HTML';
     if (lang === 'transformers.js') return 'Transformers.js';
     if (lang === 'comfyui') return 'ComfyUI';
+    if (lang === 'daggr') return 'Daggr';
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
