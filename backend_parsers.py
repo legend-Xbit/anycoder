@@ -387,6 +387,7 @@ Instructions:
 - IMPORTANT: For diffusers, ALWAYS use: git+https://github.com/huggingface/diffusers
 - IMPORTANT: For transformers, ALWAYS use: git+https://github.com/huggingface/transformers
 - IMPORTANT: If diffusers is installed, also include transformers and sentencepiece as they usually go together
+- IMPORTANT: For daggr, ALWAYS use: daggr>=0.5.4
 - Examples of comprehensive dependencies:
   * diffusers often needs: git+https://github.com/huggingface/transformers, sentencepiece, accelerate, torch, tokenizers
   * transformers often needs: accelerate, torch, tokenizers, datasets
@@ -397,7 +398,7 @@ Instructions:
   * streamlit often needs: pandas, numpy, requests
   * opencv-python often needs: numpy, pillow
   * fastapi often needs: uvicorn, pydantic
-  * daggr often needs: daggr, gradio>=6.0, pydub
+  * daggr often needs: daggr>=0.5.4, gradio>=6.0, pydub
   * torch often needs: torchvision, torchaudio (if doing computer vision/audio)
 - Include packages for common file formats if relevant (openpyxl, python-docx, PyPDF2)
 - Do not include Python built-in modules

@@ -607,7 +607,7 @@ summarizer = FnNode(
 Daggr apps launch with `graph.launch()`. For deployment to Spaces, they act like standard Gradio apps.
 
 ## Requirements:
-1. ALWAYS generate a complete `app.py` and `requirements.txt` (via imports).
+1. ALWAYS generate a complete `app.py` and `requirements.txt` (via imports). In `requirements.txt`, ALWAYS use `daggr>=0.5.4` and `gradio>=6.0.2`.
 2. Organize workflow logically with clear node names.
 3. Use `GradioNode` or `InferenceNode` when possible for parallel execution.
 4. Always include "Built with anycoder" in the header.

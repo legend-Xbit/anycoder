@@ -880,6 +880,8 @@ def deploy_to_huggingface_space(
                             (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
                         elif language == "streamlit":
                             (temp_path / "requirements.txt").write_text("streamlit>=1.30.0\n", encoding='utf-8')
+                        elif language == "daggr":
+                            (temp_path / "requirements.txt").write_text("daggr>=0.5.4\ngradio>=6.0.2\n", encoding='utf-8')
                 
                 # Create Dockerfile if needed
                 if sdk == "docker":
@@ -938,7 +940,10 @@ def deploy_to_huggingface_space(
                         print(f"[Deploy] Generated requirements.txt with {len(requirements_content.splitlines())} lines")
                     else:
                         # Fallback to minimal requirements if no app file found
-                        (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
+                        if language == "daggr":
+                            (temp_path / "requirements.txt").write_text("daggr>=0.5.4\ngradio>=6.0.2\n", encoding='utf-8')
+                        else:
+                            (temp_path / "requirements.txt").write_text("gradio>=4.0.0\n", encoding='utf-8')
             
             # Don't create README - HuggingFace will auto-generate it
             # We'll add the anycoder tag after deployment
