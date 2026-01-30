@@ -162,7 +162,7 @@ You MUST use this exact format and ALWAYS include Dockerfile, streamlit_app.py, 
 [main application code]
 
 === requirements.txt ===
-[dependencies]
+[dependencies]. ALWAYS use `daggr>=0.5.4` and `gradio>=6.0.2` if applicable.
 
 === utils.py ===
 [utility functions - optional]
@@ -621,6 +621,10 @@ from daggr import GradioNode, FnNode, InferenceNode, Graph
 
 graph = Graph(name="My Workflow", nodes=[node1, node2])
 graph.launch()
+
+=== requirements.txt ===
+daggr>=0.5.4
+gradio>=6.0.2
 
 **🚨 CRITICAL: DO NOT Generate README.md Files**
 - NEVER generate README.md files under any circumstances

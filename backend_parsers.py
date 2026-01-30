@@ -192,8 +192,8 @@ def parse_multi_file_python_output(code: str) -> Dict[str, str]:
     """Parse multi-file Python output (e.g., Gradio, Streamlit)"""
     files = {}
     
-    # Pattern to match file sections
-    pattern = r'===\s*(\S+\.(?:py|txt))\s*===\s*(.*?)(?====|$)'
+    # Pattern to match file sections like === filename.ext ===
+    pattern = r'===\s*(\S+\.\w+)\s*===\s*(.*?)(?=\n\s*===\s*\S+\.\w+\s*===|$)'
     matches = re.finditer(pattern, code, re.DOTALL | re.IGNORECASE)
     
     for match in matches:
@@ -204,6 +204,8 @@ def parse_multi_file_python_output(code: str) -> Dict[str, str]:
         content = re.sub(r'^```\w*\s*', '', content, flags=re.MULTILINE)
         content = re.sub(r'```\s*$', '', content, flags=re.MULTILINE)
         
+        if filename == "requirements.txt":
+            content = enforce_critical_versions(content)
         files[filename] = content
     
     return files
@@ -364,6 +366,22 @@ def parse_react_output(text: str) -> Dict[str, str]:
     return files if isinstance(files, dict) and files else {}
 
 
+def enforce_critical_versions(requirements_content: str) -> str:
+    """Ensure critical packages like daggr and gradio have minimum required versions"""
+    if 'daggr' in requirements_content:
+        # Check if version is already specified
+        if 'daggr>=' not in requirements_content and 'daggr==' not in requirements_content:
+            # Replace plain 'daggr' with pinned version, preserving comments
+            requirements_content = re.sub(r'^daggr\s*(?=[#\n]|$)', 'daggr>=0.5.4', requirements_content, flags=re.MULTILINE)
+    
+    if 'gradio' in requirements_content:
+        if 'gradio>=' not in requirements_content and 'gradio==' not in requirements_content:
+            # Replace plain 'gradio' with pinned version, preserving comments
+            requirements_content = re.sub(r'^gradio\s*(?=[#\n]|$)', 'gradio>=6.0.2', requirements_content, flags=re.MULTILINE)
+            
+    return requirements_content
+
+
 def generate_requirements_txt_with_llm(import_statements):
     """Generate requirements.txt content using LLM based on import statements."""
     if not import_statements:
@@ -467,6 +485,8 @@ Generate a comprehensive requirements.txt that ensures the application will work
         
         requirements_content = '\n'.join(clean_lines).strip()
         
+        requirements_content = enforce_critical_versions(requirements_content)
+        
         # Ensure it ends with a newline
         if requirements_content and not requirements_content.endswith('\n'):
             requirements_content += '\n'
@@ -481,7 +501,9 @@ Generate a comprehensive requirements.txt that ensures the application will work
             'PIL': 'Pillow', 
             'sklearn': 'scikit-learn',
             'skimage': 'scikit-image',
-            'bs4': 'beautifulsoup4'
+            'bs4': 'beautifulsoup4',
+            'daggr': 'daggr>=0.5.4',
+            'gradio': 'gradio>=6.0.2'
         }
         
         for stmt in import_statements:

@@ -444,7 +444,7 @@ When creating Gradio applications, organize your code into multiple files for pr
 
 **File Organization:**
 - `app.py` - Main application entry point (REQUIRED)
-- `requirements.txt` - Python dependencies (REQUIRED, auto-generated from imports)
+- `requirements.txt` - Python dependencies (REQUIRED, auto-generated from imports). ALWAYS use `daggr>=0.5.4` and `gradio>=6.0.2` if applicable.
 - `utils.py` - Utility functions and helpers (optional)
 - `models.py` - Model loading and inference functions (optional)
 - `config.py` - Configuration and constants (optional)
