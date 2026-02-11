@@ -45,7 +45,7 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             default_headers={"X-HF-Bill-To": "huggingface"}
         )
     
-    elif model_id.startswith("zai-org/GLM-4"):
+    elif model_id.startswith("zai-org/GLM"):
         # GLM models via HuggingFace Router
         return OpenAI(
             base_url="https://router.huggingface.co/v1",
@@ -110,6 +110,10 @@ def get_real_model_id(model_id: str) -> str:
     elif model_id == "zai-org/GLM-4.7-Flash":
         # GLM-4.7-Flash via HuggingFace Router with Novita provider
         return "zai-org/GLM-4.7-Flash:novita"
+    
+    elif model_id == "zai-org/GLM-5":
+        # GLM-5 via HuggingFace Router with Novita provider
+        return "zai-org/GLM-5:novita"
     
     elif model_id == "moonshotai/Kimi-K2.5":
         # Kimi K2.5 needs Novita provider

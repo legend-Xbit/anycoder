@@ -17,7 +17,7 @@ export default function Home() {
 
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('Qwen/Qwen3-Coder-Next');
+  const [selectedModel, setSelectedModel] = useState('zai-org/GLM-5');
   const [models, setModels] = useState<Model[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
