@@ -12,6 +12,20 @@ hf_oauth_expiration_minutes: 43200
 hf_oauth_scopes:
 - manage-repos
 - write-discussions
+models:
+  - MiniMaxAI/MiniMax-M2.5
+  - zai-org/GLM-5
+  - Qwen/Qwen3-Coder-Next
+  - moonshotai/Kimi-K2.5
+  - zai-org/GLM-4.7-Flash
+  - zai-org/GLM-4.7
+  - MiniMaxAI/MiniMax-M2.1
+  - zai-org/GLM-4.6
+  - zai-org/GLM-4.6V
+  - deepseek-ai/DeepSeek-V3
+  - deepseek-ai/DeepSeek-R1
+  - MiniMaxAI/MiniMax-M2
+  - moonshotai/Kimi-K2-Thinking
 ---
 
 
@@ -96,11 +110,22 @@ This app runs as a Docker Space on HuggingFace. The Dockerfile:
 
 ## 🤖 Available Models
 
-- **Gemini 3 Pro Preview** (Default) - Google's latest with deep thinking & Google Search
-- MiniMax M2 (via HF router with Novita)
-- DeepSeek V3/V3.1
-- DeepSeek R1
-- And more via HuggingFace InferenceClient
+The following models are currently supported and used by AnyCoder:
+
+models:
+  - MiniMaxAI/MiniMax-M2.5
+  - zai-org/GLM-5
+  - Qwen/Qwen3-Coder-Next
+  - moonshotai/Kimi-K2.5
+  - zai-org/GLM-4.7-Flash
+  - zai-org/GLM-4.7
+  - MiniMaxAI/MiniMax-M2.1
+  - zai-org/GLM-4.6
+  - zai-org/GLM-4.6V
+  - deepseek-ai/DeepSeek-V3
+  - deepseek-ai/DeepSeek-R1
+  - MiniMaxAI/MiniMax-M2
+  - moonshotai/Kimi-K2-Thinking
 
 ## 🎯 Usage
 
