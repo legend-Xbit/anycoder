@@ -17,7 +17,7 @@ export default function Home() {
 
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('MiniMaxAI/MiniMax-M2.5');
+  const [selectedModel, setSelectedModel] = useState('Qwen/Qwen3.5-397B-A17B');
   const [models, setModels] = useState<Model[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);

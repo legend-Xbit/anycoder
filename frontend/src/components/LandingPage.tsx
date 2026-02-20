@@ -31,7 +31,7 @@ export default function LandingPage({
   onImport,
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'MiniMaxAI/MiniMax-M2.5',
+  initialModel = 'Qwen/Qwen3.5-397B-A17B',
   onAuthChange,
   setPendingPR,
   pendingPRRef
@@ -514,8 +514,8 @@ ${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, 
               if (onStart) {
                 // Pass duplicated space ID so auto-deploy updates it
                 console.log('[Redesign] Calling onStart with duplicated repo ID:', duplicatedRepoId);
-                console.log('[Redesign] Using MiniMaxAI/MiniMax-M2.5 for redesign');
-                onStart(redesignPrompt, result.language || 'html', 'MiniMaxAI/MiniMax-M2.5', undefined, duplicatedRepoId);
+                console.log('[Redesign] Using Qwen/Qwen3.5-397B-A17B for redesign');
+                onStart(redesignPrompt, result.language || 'html', 'Qwen/Qwen3.5-397B-A17B', undefined, duplicatedRepoId);
               }
             }, 100);
 
@@ -559,8 +559,8 @@ Note: After generating the redesign, I will create a Pull Request on the origina
 
             if (onStart) {
               console.log('[Redesign] Will create PR - not passing repo ID');
-              console.log('[Redesign] Using MiniMaxAI/MiniMax-M2.5 for redesign');
-              onStart(redesignPrompt, result.language || 'html', 'MiniMaxAI/MiniMax-M2.5', undefined, repoId, true); // Pass true for shouldCreatePR
+              console.log('[Redesign] Using Qwen/Qwen3.5-397B-A17B for redesign');
+              onStart(redesignPrompt, result.language || 'html', 'Qwen/Qwen3.5-397B-A17B', undefined, repoId, true); // Pass true for shouldCreatePR
             }
 
             console.log('[Redesign] Will create PR after code generation completes');

@@ -100,7 +100,8 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
-    {"name": "MiniMax-M2.5 🤖", "id": "MiniMaxAI/MiniMax-M2.5", "description": "MiniMax-M2.5 - Latest powerful coder model via HuggingFace Router with fastest provider (Default)", "supports_images": False},
+    {"name": "Qwen3.5-397B 🤖", "id": "Qwen/Qwen3.5-397B-A17B", "description": "Qwen3.5-397B-A17B - Latest powerful model via HuggingFace Router (Default)", "supports_images": True},
+    {"name": "MiniMax-M2.5 🤖", "id": "MiniMaxAI/MiniMax-M2.5", "description": "MiniMax-M2.5 - Latest powerful coder model via HuggingFace Router with fastest provider", "supports_images": False},
     {"name": "GLM-5 🧠", "id": "zai-org/GLM-5", "description": "GLM-5 - New powerful reasoning model via HuggingFace Router", "supports_images": False},
     {"name": "Qwen3-Coder-Next 🤖", "id": "Qwen/Qwen3-Coder-Next", "description": "Qwen3-Coder-Next - Latest powerful coder model via HuggingFace Router with Novita provider", "supports_images": False},
     {"name": "Kimi-K2.5 🧠", "id": "moonshotai/Kimi-K2.5", "description": "Kimi-K2.5 - New powerful reasoning model via HuggingFace Router with Novita provider", "supports_images": True},
@@ -199,7 +200,7 @@ async def startup_event():
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "MiniMaxAI/MiniMax-M2.5"
+    model_id: str = "Qwen/Qwen3.5-397B-A17B"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False

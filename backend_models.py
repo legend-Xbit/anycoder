@@ -69,6 +69,14 @@ def get_inference_client(model_id: str, provider: str = "auto"):
             default_headers={"X-HF-Bill-To": "huggingface"}
         )
     
+    elif model_id.startswith("Qwen/Qwen3.5"):
+        # Qwen 3.5 models via HuggingFace Router
+        return OpenAI(
+            base_url="https://router.huggingface.co/v1",
+            api_key=os.getenv("HF_TOKEN"),
+            default_headers={"X-HF-Bill-To": "huggingface"}
+        )
+    
     else:
         # Unknown model - try HuggingFace Inference API
         return OpenAI(
@@ -126,6 +134,10 @@ def get_real_model_id(model_id: str) -> str:
     elif model_id == "Qwen/Qwen3-Coder-Next":
         # Qwen3-Coder-Next needs Novita provider
         return "Qwen/Qwen3-Coder-Next:novita"
+    
+    elif model_id == "Qwen/Qwen3.5-397B-A17B":
+        # Qwen3.5-397B-A17B needs fastest provider
+        return "Qwen/Qwen3.5-397B-A17B:fastest"
     
     return model_id
 
