@@ -88,6 +88,11 @@ export default function ControlPanel({
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
+  const formatModelName = (name: string, id: string) => {
+    if (id === 'Qwen/Qwen3.5-397B-A17B') return 'Qwen3.5-397B-A17B 🤖';
+    return name;
+  };
+
   return (
     <div className="bg-[#000000] h-full flex flex-col">
       {/* Panel Header */}
@@ -161,12 +166,10 @@ export default function ControlPanel({
             disabled={isGenerating}
             className="w-full px-3 py-2 bg-[#1d1d1f] text-[#f5f5f7] text-sm border border-[#424245]/50 rounded-lg focus:outline-none focus:border-[#424245] disabled:opacity-40 flex items-center justify-between hover:bg-[#2d2d2f] transition-colors"
           >
-            <span className="truncate">
-              {isLoading
-                ? 'Loading...'
-                : models.find(m => m.id === selectedModel)?.name || selectedModel || 'Select model'
-              }
-            </span>
+            {isLoading
+              ? 'Loading...'
+              : formatModelName(models.find(m => m.id === selectedModel)?.name || '', selectedModel) || selectedModel || 'Select model'
+            }
             <svg
               className={`w-3.5 h-3.5 text-[#86868b] flex-shrink-0 ml-2 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`}
               fill="none"
@@ -196,7 +199,7 @@ export default function ControlPanel({
                       }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm text-[#f5f5f7]">{model.name}</span>
+                      <span className="text-sm text-[#f5f5f7]">{formatModelName(model.name, model.id)}</span>
                       {['Qwen/Qwen3.5-397B-A17B', 'MiniMaxAI/MiniMax-M2.5'].includes(model.id) && (
                         <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase flex-shrink-0">
                           NEW

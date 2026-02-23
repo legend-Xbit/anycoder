@@ -281,6 +281,11 @@ export default function LandingPage({
     return lang.charAt(0).toUpperCase() + lang.slice(1);
   };
 
+  const formatModelName = (name: string, id: string) => {
+    if (id === 'Qwen/Qwen3.5-397B-A17B') return 'Qwen3.5-397B-A17B 🤖';
+    return name;
+  };
+
   // Check if user owns the imported space
   const checkSpaceOwnership = (url: string) => {
     if (!url || !userInfo?.preferred_username) {
@@ -798,7 +803,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                       <span className="truncate">
                         {isLoading
                           ? '...'
-                          : models.find(m => m.id === selectedModel)?.name || selectedModel || 'Model'
+                          : formatModelName(models.find(m => m.id === selectedModel)?.name || '', selectedModel) || selectedModel || 'Model'
                         }
                       </span>
                       <svg
@@ -833,7 +838,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                                 }`}
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-medium text-[#f5f5f7]">{model.name}</span>
+                                <span className="text-xs font-medium text-[#f5f5f7]">{formatModelName(model.name, model.id)}</span>
                                 {model.id === 'MiniMaxAI/MiniMax-M2.5' && (
                                   <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase">
                                     NEW
