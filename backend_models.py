@@ -127,6 +127,10 @@ def get_real_model_id(model_id: str) -> str:
         # GLM-5 via HuggingFace Router with Novita provider
         return "zai-org/GLM-5:novita"
     
+    elif model_id == "zai-org/GLM-5.1":
+        # GLM-5.1 via HuggingFace Router with Novita provider
+        return "zai-org/GLM-5.1:novita"
+    
     elif model_id == "moonshotai/Kimi-K2.5":
         # Kimi K2.5 needs Novita provider
         return "moonshotai/Kimi-K2.5:novita"
