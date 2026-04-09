@@ -100,7 +100,8 @@ def get_cached_client(model_id: str, provider: str = "auto"):
 
 # Define models and languages here to avoid importing Gradio UI
 AVAILABLE_MODELS = [
-    {"name": "GLM-5.1 🚀", "id": "zai-org/GLM-5.1", "description": "GLM-5.1 - Latest powerful model via HuggingFace Router with Novita provider (Default)", "supports_images": False},
+    {"name": "Gemma-4-31B ✨", "id": "google/gemma-4-31B-it", "description": "Gemma-4-31B-it - Latest powerful model via HuggingFace Router with fastest provider (Default)", "supports_images": True},
+    {"name": "GLM-5.1 🚀", "id": "zai-org/GLM-5.1", "description": "GLM-5.1 - Powerful model via HuggingFace Router with Novita provider", "supports_images": False},
     {"name": "Qwen3.5-397B 🤖", "id": "Qwen/Qwen3.5-397B-A17B", "description": "Qwen3.5-397B-A17B - Latest powerful model via HuggingFace Router", "supports_images": True},
     {"name": "MiniMax-M2.5 🤖", "id": "MiniMaxAI/MiniMax-M2.5", "description": "MiniMax-M2.5 - Latest powerful coder model via HuggingFace Router with fastest provider", "supports_images": False},
     {"name": "GLM-5 🧠", "id": "zai-org/GLM-5", "description": "GLM-5 - New powerful reasoning model via HuggingFace Router", "supports_images": False},
@@ -201,7 +202,7 @@ async def startup_event():
 class CodeGenerationRequest(BaseModel):
     query: str
     language: str = "html"
-    model_id: str = "zai-org/GLM-5.1"
+    model_id: str = "google/gemma-4-31B-it"
     provider: str = "auto"
     history: List[List[str]] = []
     agent_mode: bool = False

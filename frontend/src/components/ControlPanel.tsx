@@ -89,6 +89,7 @@ export default function ControlPanel({
   };
 
   const formatModelName = (name: string, id: string) => {
+    if (id === 'google/gemma-4-31B-it') return 'Gemma-4-31B ✨';
     if (id === 'zai-org/GLM-5.1') return 'GLM-5.1 🚀';
     if (id === 'Qwen/Qwen3.5-397B-A17B') return 'Qwen3.5-397B-A17B 🤖';
     return name;
@@ -201,7 +202,7 @@ export default function ControlPanel({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm text-[#f5f5f7]">{formatModelName(model.name, model.id)}</span>
-                      {['zai-org/GLM-5.1', 'Qwen/Qwen3.5-397B-A17B', 'MiniMaxAI/MiniMax-M2.5'].includes(model.id) && (
+                      {['google/gemma-4-31B-it', 'zai-org/GLM-5.1', 'Qwen/Qwen3.5-397B-A17B', 'MiniMaxAI/MiniMax-M2.5'].includes(model.id) && (
                         <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase flex-shrink-0">
                           NEW
                         </span>
