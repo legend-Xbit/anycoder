@@ -143,6 +143,10 @@ def get_real_model_id(model_id: str) -> str:
         # Kimi K2.5 needs Novita provider
         return "moonshotai/Kimi-K2.5:novita"
     
+    elif model_id == "moonshotai/Kimi-K2.6":
+        # Kimi K2.6 needs Novita provider
+        return "moonshotai/Kimi-K2.6:novita"
+    
     elif model_id == "Qwen/Qwen3-Coder-Next":
         # Qwen3-Coder-Next needs Novita provider
         return "Qwen/Qwen3-Coder-Next:novita"

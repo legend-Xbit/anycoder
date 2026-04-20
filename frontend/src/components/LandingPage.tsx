@@ -31,7 +31,7 @@ export default function LandingPage({
   onImport,
   isAuthenticated,
   initialLanguage = 'html',
-  initialModel = 'google/gemma-4-31B-it',
+  initialModel = 'moonshotai/Kimi-K2.6',
   onAuthChange,
   setPendingPR,
   pendingPRRef
@@ -282,7 +282,8 @@ export default function LandingPage({
   };
 
   const formatModelName = (name: string, id: string) => {
-    if (id === 'google/gemma-4-31B-it') return 'Gemma-4-31B ✨';
+    if (id === 'moonshotai/Kimi-K2.6') return 'Kimi-K2.6 ✨';
+    if (id === 'google/gemma-4-31B-it') return 'Gemma-4-31B 🤖';
     if (id === 'zai-org/GLM-5.1') return 'GLM-5.1 🚀';
     if (id === 'Qwen/Qwen3.5-397B-A17B') return 'Qwen3.5-397B-A17B 🤖';
     return name;
@@ -521,8 +522,8 @@ ${isGradio ? '\n\nIMPORTANT: Only output app.py with the redesigned UI (themes, 
               if (onStart) {
                 // Pass duplicated space ID so auto-deploy updates it
                 console.log('[Redesign] Calling onStart with duplicated repo ID:', duplicatedRepoId);
-                console.log('[Redesign] Using google/gemma-4-31B-it for redesign');
-                onStart(redesignPrompt, result.language || 'html', 'google/gemma-4-31B-it', undefined, duplicatedRepoId);
+                console.log('[Redesign] Using moonshotai/Kimi-K2.6 for redesign');
+                onStart(redesignPrompt, result.language || 'html', 'moonshotai/Kimi-K2.6', undefined, duplicatedRepoId);
               }
             }, 100);
 
@@ -566,8 +567,8 @@ Note: After generating the redesign, I will create a Pull Request on the origina
 
             if (onStart) {
               console.log('[Redesign] Will create PR - not passing repo ID');
-              console.log('[Redesign] Using google/gemma-4-31B-it for redesign');
-              onStart(redesignPrompt, result.language || 'html', 'google/gemma-4-31B-it', undefined, repoId, true); // Pass true for shouldCreatePR
+              console.log('[Redesign] Using moonshotai/Kimi-K2.6 for redesign');
+              onStart(redesignPrompt, result.language || 'html', 'moonshotai/Kimi-K2.6', undefined, repoId, true); // Pass true for shouldCreatePR
             }
 
             console.log('[Redesign] Will create PR after code generation completes');
@@ -841,7 +842,7 @@ Note: After generating the redesign, I will create a Pull Request on the origina
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <span className="text-xs font-medium text-[#f5f5f7]">{formatModelName(model.name, model.id)}</span>
-                                {model.id === 'MiniMaxAI/MiniMax-M2.5' && (
+                                {['moonshotai/Kimi-K2.6', 'google/gemma-4-31B-it', 'zai-org/GLM-5.1', 'Qwen/Qwen3.5-397B-A17B', 'MiniMaxAI/MiniMax-M2.5'].includes(model.id) && (
                                   <span className="px-1.5 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-[9px] font-bold rounded uppercase">
                                     NEW
                                   </span>

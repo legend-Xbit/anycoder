@@ -17,7 +17,7 @@ export default function Home() {
 
   const [generatedCode, setGeneratedCode] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState<Language>('html');
-  const [selectedModel, setSelectedModel] = useState('google/gemma-4-31B-it');
+  const [selectedModel, setSelectedModel] = useState('moonshotai/Kimi-K2.6');
   const [models, setModels] = useState<Model[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
