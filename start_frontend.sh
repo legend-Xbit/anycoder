@@ -1,11 +1,12 @@
 #!/bin/bash
 # Start the Next.js frontend
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "Starting AnyCoder Frontend..."
 echo "Frontend will be available at: http://localhost:3000"
 echo ""
 
-cd frontend
+cd "$SCRIPT_DIR/frontend" || exit 1
 
 # Install dependencies if node_modules doesn't exist
 if [ ! -d "node_modules" ]; then
@@ -14,4 +15,4 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Start the development server
-npm run dev -- --hostname 127.0.0.1
+npm run dev

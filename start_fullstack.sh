@@ -1,5 +1,7 @@
 #!/bin/bash
 # Start both backend and frontend in separate terminal windows
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR" || exit 1
 
 echo "🚀 Starting AnyCoder Full-Stack Application..."
 echo ""
@@ -26,7 +28,12 @@ chmod +x start_frontend.sh
 
 echo "📦 Starting Backend..."
 # Start backend in background with venv activated
-(source /Users/ahsenkhaliq/anycoder/.venv/bin/activate && ANYCODER_ALLOW_DEV_AUTH=1 python backend_api.py) &
+(
+    if [ -f "$SCRIPT_DIR/.venv/bin/activate" ]; then
+        source "$SCRIPT_DIR/.venv/bin/activate"
+    fi
+    ANYCODER_ALLOW_DEV_AUTH=1 python backend_api.py
+) &
 BACKEND_PID=$!
 
 # Wait for backend to start
