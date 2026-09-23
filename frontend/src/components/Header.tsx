@@ -13,7 +13,7 @@ import {
 import { apiClient } from '@/lib/api';
 import type { OAuthUserInfo } from '@/lib/auth';
 
-export default function Header() {
+export default function Header({ onAuthChange }: { onAuthChange?: () => void }) {
   const [userInfo, setUserInfo] = useState<OAuthUserInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showDevLogin, setShowDevLogin] = useState(false);
@@ -33,6 +33,7 @@ export default function Header() {
         setUserInfo(oauthResult.userInfo);
         // Set token in API client
         apiClient.setToken(oauthResult.accessToken);
+        onAuthChange?.();
       } else {
         // Check if we have stored user info
         const storedUserInfo = getStoredUserInfo();
@@ -74,6 +75,7 @@ export default function Header() {
       const result = loginDevMode(devUsername);
       setUserInfo(result.userInfo);
       apiClient.setToken(result.accessToken);
+      onAuthChange?.();
       setShowDevLogin(false);
       setDevUsername('');
     } catch (error) {
@@ -170,4 +172,3 @@ export default function Header() {
     </header>
   );
 }
-
