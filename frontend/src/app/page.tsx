@@ -8,6 +8,7 @@ import ChatInterface from '@/components/ChatInterface';
 import CodeEditor from '@/components/CodeEditor';
 import ControlPanel from '@/components/ControlPanel';
 import { apiClient } from '@/lib/api';
+import { resolveGenerationRouting } from '@/lib/generation-routing';
 import { isAuthenticated as checkIsAuthenticated, getStoredToken } from '@/lib/auth';
 import type { Message, Language, CodeGenerationRequest, Model } from '@/types';
 
@@ -317,8 +318,11 @@ export default function Home() {
     setGeneratedCode('');
 
     // Prepare request with enhanced query that includes current code
-    // Use overrideRepoId if provided (from import/duplicate), otherwise use currentRepoId from state
-    const effectiveRepoId = overrideRepoId || currentRepoId || undefined;
+    // Import -> PR starts a later chat message without shouldCreatePR. The ref
+    // also covers that path, so it cannot accidentally update the source Space.
+    const { existingRepoId: effectiveRepoId, skipAutoDeploy } = resolveGenerationRouting(
+      overrideRepoId, currentRepoId, shouldCreatePR, pendingPRRef.current?.repoId || null
+    );
 
     console.log('[SendMessage] ========== GENERATION REQUEST ==========');
     console.log('[SendMessage] overrideRepoId:', overrideRepoId);
@@ -337,7 +341,7 @@ export default function Home() {
       history: messages.map((m) => [m.role, m.content]),
       agent_mode: false,
       existing_repo_id: effectiveRepoId,  // Pass duplicated/imported space ID for auto-deploy
-      skip_auto_deploy: !!shouldCreatePR, // Skip auto-deploy if creating PR
+      skip_auto_deploy: skipAutoDeploy,
       image_url: imageUrl,  // For vision models like GLM-4.6V
     };
 
@@ -391,6 +395,8 @@ export default function Home() {
           const prInfo = pendingPRRef.current;
           if (prInfo) {
             console.log('[PR] Creating pull request for:', prInfo.repoId);
+            // A subsequent message must not switch back to updating the imported Space.
+            setCurrentRepoId(null);
             createPullRequestAfterGeneration(prInfo.repoId, code, prInfo.language);
             setPendingPR(null); // Clear state
             pendingPRRef.current = null; // Clear ref
@@ -738,6 +744,9 @@ export default function Home() {
     if (confirm('Start a new chat? This will clear all messages and code.')) {
       setMessages([]);
       setGeneratedCode('');
+      setCurrentRepoId(null);
+      setPendingPR(null);
+      pendingPRRef.current = null;
       setShowLandingPage(true);
       // Clear localStorage to remove import history
       if (typeof window !== 'undefined') {
@@ -1102,5 +1111,4 @@ export default function Home() {
     </div>
   );
 }
-
 

@@ -286,6 +286,7 @@ class ApiClient {
     let abortController = new AbortController();
     let accumulatedCode = '';
     let buffer = ''; // Buffer for incomplete SSE lines
+    let generationCompleted = false;
 
     // Use fetch with POST to support large payloads
     fetch(url.toString(), {
@@ -320,8 +321,8 @@ class ApiClient {
 
           if (done) {
             console.log('[Stream] Stream ended, total code length:', accumulatedCode.length);
-            if (accumulatedCode) {
-              onComplete(accumulatedCode);
+            if (!generationCompleted) {
+              onError('Generation stream ended before completion. Please try again.');
             }
             break;
           }
@@ -352,11 +353,13 @@ class ApiClient {
                     accumulatedCode += data.content;
                     onChunk(data.content);
                   } else if (data.type === 'complete') {
-                    console.log('[Stream] Generation complete, total code length:', data.code?.length || accumulatedCode.length);
-                    // Use the complete code from the message if available, otherwise use accumulated
-                    const finalCode = data.code || accumulatedCode;
-                    onComplete(finalCode, data.reasoning);
-                    // Don't return yet - might have deployment events coming
+                    if (!generationCompleted) {
+                      generationCompleted = true;
+                      console.log('[Stream] Generation complete, total code length:', data.code?.length || accumulatedCode.length);
+                      // The backend sends cleaned code and optional reasoning here.
+                      onComplete(data.code ?? accumulatedCode, data.reasoning);
+                    }
+                    // Continue reading for deployment events.
                   } else if (data.type === 'deploying') {
                     console.log('[Stream] Deployment started:', data.message);
                     if (onDeploying) {
@@ -538,4 +541,3 @@ class ApiClient {
 
 // Export singleton instance
 export const apiClient = new ApiClient();
-
