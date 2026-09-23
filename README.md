@@ -12,6 +12,7 @@ hf_oauth_expiration_minutes: 43200
 hf_oauth_scopes:
 - manage-repos
 - write-discussions
+- inference-api
 models:
   - MiniMaxAI/MiniMax-M2.5
   - zai-org/GLM-5
@@ -67,6 +68,7 @@ anycoder/
 ```bash
 export HF_TOKEN="your_huggingface_token"
 export GEMINI_API_KEY="your_gemini_api_key"
+export ANYCODER_ALLOW_DEV_AUTH=1
 python backend_api.py
 ```
 
@@ -96,8 +98,8 @@ This app runs as a Docker Space on HuggingFace. The Dockerfile:
 
 ## 🔑 Authentication
 
-- **Dev Mode** (localhost): Mock login for testing
-- **Production**: HuggingFace OAuth with manage-repos scope
+- **Dev Mode** (localhost): Mock login for testing; explicitly set `ANYCODER_ALLOW_DEV_AUTH=1` to use the local server's `HF_TOKEN` for generation. The bundled development scripts bind the backend and frontend to `127.0.0.1`, and the backend rejects dev tokens from non-loopback peers. Never enable this setting on a public deployment.
+- **Production**: HuggingFace OAuth with `inference-api` scope. Generation uses each signed-in user's token and their own inference allowance. Users who signed in before this scope was added must sign out and sign in again; a token without inference access will fail at Hugging Face. If `OAUTH_SCOPES` is overridden in the environment, include `inference-api` there as well.
 
 ## 📝 Supported Languages
 
@@ -137,7 +139,8 @@ models:
 
 ## 🛠️ Environment Variables
 
-- `HF_TOKEN` - HuggingFace API token (required)
+- `HF_TOKEN` - HuggingFace API token for explicit local dev generation (production inference uses the signed-in user's OAuth token)
+- `ANYCODER_ALLOW_DEV_AUTH` - set to `1` only for loopback development with a server `HF_TOKEN` (unset in production)
 - `GEMINI_API_KEY` - Google Gemini API key (required for Gemini 3 Pro Preview)
 - `POE_API_KEY` - Poe API key (optional, for GPT-5 and Claude models)
 - `DASHSCOPE_API_KEY` - DashScope API key (optional, for Qwen models)

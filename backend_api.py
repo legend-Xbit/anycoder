@@ -13,6 +13,7 @@ import secrets
 import base64
 import urllib.parse
 import re
+from ipaddress import ip_address
 
 # Import only what we need, avoiding Gradio UI imports
 import sys
@@ -95,7 +96,7 @@ def get_cached_client(model_id: str, provider: str = "auto"):
     
     with _client_pool_lock:
         if cache_key not in _client_pool:
-            _client_pool[cache_key] = get_inference_client(model_id, provider)
+            _client_pool[cache_key] = get_inference_client(model_id, provider, api_key=os.getenv("HF_TOKEN"))
         return _client_pool[cache_key]
 
 # Define models and languages here to avoid importing Gradio UI
@@ -130,7 +131,7 @@ app = FastAPI(title="AnyCoder API", version="1.0.0")
 # OAuth and environment configuration (must be before CORS)
 OAUTH_CLIENT_ID = os.getenv("OAUTH_CLIENT_ID", "")
 OAUTH_CLIENT_SECRET = os.getenv("OAUTH_CLIENT_SECRET", "")
-OAUTH_SCOPES = os.getenv("OAUTH_SCOPES", "openid profile manage-repos write-discussions")
+OAUTH_SCOPES = os.getenv("OAUTH_SCOPES", "openid profile manage-repos write-discussions inference-api")
 OPENID_PROVIDER_URL = os.getenv("OPENID_PROVIDER_URL", "https://huggingface.co")
 SPACE_HOST = os.getenv("SPACE_HOST", "localhost:7860")
 
@@ -509,6 +510,42 @@ async def validate_token_with_hf(access_token: str) -> bool:
         return False
 
 
+async def get_generation_credentials(authorization: Optional[str], client_host: Optional[str]) -> tuple[str, bool]:
+    """Validate before streaming and select the account to pay for inference."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    token = authorization[len("Bearer "):].strip()
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    if token.startswith("dev_token_"):
+        # Local development must explicitly opt in to using the server's HF_TOKEN.
+        if os.getenv("ANYCODER_ALLOW_DEV_AUTH") != "1":
+            raise HTTPException(status_code=401, detail="Invalid token")
+        try:
+            if not ip_address(client_host or "").is_loopback:
+                raise HTTPException(status_code=401, detail="Dev login is local only")
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Dev login is local only")
+        server_token = os.getenv("HF_TOKEN")
+        if not server_token:
+            raise HTTPException(status_code=503, detail="HF_TOKEN is required for local dev generation")
+        return server_token, True
+
+    if token in user_sessions:
+        session = user_sessions[token]
+        if is_session_expired(session):
+            user_sessions.pop(token, None)
+            raise HTTPException(status_code=401, detail="Session expired")
+        token = session["access_token"]
+
+    if not await validate_token_with_hf(token):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    return token, False
+
+
 @app.get("/api/auth/session")
 async def get_session(session: str):
     """Get user info from session token"""
@@ -547,8 +584,10 @@ async def auth_status(authorization: Optional[str] = Header(None)):
             message="Not authenticated"
         )
     
-    # For dev tokens, skip validation
+    # Dev tokens are accepted only when local development explicitly opts in.
     if auth.token and auth.token.startswith("dev_token_"):
+        if os.getenv("ANYCODER_ALLOW_DEV_AUTH") != "1":
+            return AuthStatus(authenticated=False, username=None, message="Invalid token")
         return AuthStatus(
             authenticated=True,
             username=auth.username,
@@ -783,13 +822,17 @@ def extract_reasoning(code: str, language: str) -> str:
 @app.post("/api/generate")
 async def generate_code(
     request: CodeGenerationRequest,
+    http_request: Request,
     authorization: Optional[str] = Header(None)
 ):
     """Generate code based on user query - returns streaming response"""
 
 
-    # Dev mode: No authentication required - just use server's HF_TOKEN
-    # In production, you would check real OAuth tokens here
+    # Reject before creating the response/stream, so unauthenticated requests
+    # cannot reach the model client or spend the server's inference quota.
+    inference_token, local_dev = await get_generation_credentials(
+        authorization, http_request.client.host if http_request.client else None
+    )
     
     # Extract parameters from request body
     query = request.query
@@ -801,6 +844,7 @@ async def generate_code(
         """Stream generated code chunks"""
         # Use the model_id from outer scope
         selected_model_id = model_id
+        user_client = None
         
         try:
             # Fast model lookup using cache
@@ -845,8 +889,13 @@ async def generate_code(
                 system_prompt = REACT_FOLLOW_UP_SYSTEM_PROMPT
                 print(f"[Generate] Using React followup system prompt for targeted fixes")
             
-            # Get cached client (reuses connections)
-            client = get_cached_client(selected_model_id, provider)
+            # OAuth users use their own inference quota. Only explicit local
+            # dev mode may reuse the server-token client; never pool user clients.
+            if local_dev:
+                client = get_cached_client(selected_model_id, provider)
+            else:
+                user_client = get_inference_client(selected_model_id, provider, api_key=inference_token)
+                client = user_client
             
             # Get the real model ID with provider suffixes
             actual_model_id = get_real_model_id(selected_model_id)
@@ -1092,6 +1141,9 @@ async def generate_code(
                 "message": f"Generation error: {error_message}"
             })
             yield f"data: {error_data}\n\n"
+        finally:
+            if user_client is not None:
+                user_client.close()
     
     return StreamingResponse(
         event_stream(),
@@ -1734,5 +1786,5 @@ async def websocket_generate(websocket: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend_api:app", host="0.0.0.0", port=8000, reload=True)
-
+    host = "127.0.0.1" if os.getenv("ANYCODER_ALLOW_DEV_AUTH") == "1" else "0.0.0.0"
+    uvicorn.run("backend_api:app", host=host, port=8000, reload=True)

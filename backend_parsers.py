@@ -382,14 +382,14 @@ def enforce_critical_versions(requirements_content: str) -> str:
     return requirements_content
 
 
-def generate_requirements_txt_with_llm(import_statements):
+def generate_requirements_txt_with_llm(import_statements, token=None):
     """Generate requirements.txt content using LLM based on import statements."""
     if not import_statements:
         return "# No additional dependencies required\n"
     
     # Use a lightweight model for this task
     try:
-        client = get_inference_client("zai-org/GLM-4.7", "auto")
+        client = get_inference_client("zai-org/GLM-4.7", "auto", api_key=token)
         actual_model_id = get_real_model_id("zai-org/GLM-4.7")
         
         imports_text = '\n'.join(import_statements)
@@ -520,4 +520,3 @@ Generate a comprehensive requirements.txt that ensures the application will work
             return '\n'.join(sorted(dependencies)) + '\n'
         else:
             return "# No additional dependencies required\n"
-

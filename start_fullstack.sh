@@ -26,7 +26,7 @@ chmod +x start_frontend.sh
 
 echo "📦 Starting Backend..."
 # Start backend in background with venv activated
-(source /Users/ahsenkhaliq/anycoder/.venv/bin/activate && python backend_api.py) &
+(source /Users/ahsenkhaliq/anycoder/.venv/bin/activate && ANYCODER_ALLOW_DEV_AUTH=1 python backend_api.py) &
 BACKEND_PID=$!
 
 # Wait for backend to start
@@ -50,4 +50,3 @@ echo "Press Ctrl+C to stop both services"
 # Wait for Ctrl+C
 trap "kill $BACKEND_PID $FRONTEND_PID; exit" INT
 wait
-

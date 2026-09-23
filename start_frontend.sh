@@ -14,5 +14,4 @@ if [ ! -d "node_modules" ]; then
 fi
 
 # Start the development server
-npm run dev
-
+npm run dev -- --hostname 127.0.0.1

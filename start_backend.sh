@@ -17,5 +17,5 @@ fi
 source /Users/ahsenkhaliq/anycoder/.venv/bin/activate
 
 # Start the backend
+export ANYCODER_ALLOW_DEV_AUTH=1
 python backend_api.py
-
