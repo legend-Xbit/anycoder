@@ -137,14 +137,11 @@ export default function Home() {
   useEffect(() => {
     checkAuth();
 
-    // Check for OAuth callback in URL (handles ?session=token)
-    // initializeOAuth already handles this, but we call checkAuth to sync state
+    // Let the Header notify us after initializeOAuth finishes its session fetch.
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('session')) {
-      // OAuth callback - reset both flags and check auth after a brief delay
       usernameFetchAttemptedRef.current = false;
-      backendUnavailableRef.current = false; // Reset backend status on OAuth callback
-      setTimeout(() => checkAuth(), 200);
+      backendUnavailableRef.current = false;
     }
   }, []); // Only run once on mount
 
@@ -921,7 +918,7 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col bg-[#000000] animate-in fade-in duration-300">
-      <Header />
+      <Header onAuthChange={checkAuth} />
 
       {/* Apple-style layout - Responsive */}
       <main className="flex-1 flex overflow-hidden relative">
@@ -1102,5 +1099,4 @@ export default function Home() {
     </div>
   );
 }
-
 
